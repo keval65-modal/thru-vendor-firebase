@@ -19,7 +19,8 @@ const registerVendorSchema = z.object({
   gender: z.string().optional(),
   city: z.string().min(1, "City is required."),
   weeklyCloseOn: z.string().min(1, "Weekly close day is required."),
-  shopTiming: z.string().min(1, "Shop timings are required."),
+  openingTime: z.string().min(1, "Opening time is required."),
+  closingTime: z.string().min(1, "Closing time is required."),
   shopFullAddress: z.string().min(1, "Full address is required."),
   latitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
@@ -89,4 +90,3 @@ export async function registerVendor(
     return { success: false, error: errorMessage };
   }
 }
-

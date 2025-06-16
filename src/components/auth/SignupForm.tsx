@@ -20,14 +20,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { Store, Info, MapPin, UploadCloud, PlusCircle, LocateFixed, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Store, Info, MapPin, UploadCloud, PlusCircle, LocateFixed, Eye, EyeOff, Send, CheckCircle, Loader2 } from 'lucide-react';
 import { registerVendor } from '@/app/signup/actions';
+import { auth } from '@/lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Other"];
 const genders = ["Male", "Female", "Other", "Prefer not to say"];
 const weeklyCloseDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Never Closed"];
-const countryCodes = ["+91", "+1", "+44", "+61", "+81"]; // Example country codes
+const countryCodes = ["+91", "+1", "+44", "+61", "+81"];
+
+const generateTimeOptions = () => {
+  const options = [];
+  for (let h = 6; h < 24; h++) { // 6 AM to 11 PM
+    for (let m = 0; m < 60; m += 30) {
+      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      const period = h < 12 || h === 24 ? "AM" : "PM";
+      const displayHour = hour12 < 10 ? `0${hour12}` : hour12;
+      const displayMinute = m < 10 ? `0${m}` : m;
+      const timeValue = `${displayHour}:${displayMinute} ${period}`;
+      options.push(timeValue);
+    }
+  }
+  return options;
+};
+const timeOptions = generateTimeOptions();
 
 const signupFormSchema = z.object({
   shopName: z.string().min(2, { message: "Shop name must be at least 2 characters." }),
@@ -41,7 +59,8 @@ const signupFormSchema = z.object({
   gender: z.string().optional(),
   city: z.string().min(2, { message: "City must be at least 2 characters." }),
   weeklyCloseOn: z.string().min(1, { message: "Please select a closing day." }),
-  shopTiming: z.string().min(5, { message: "Shop timings must be at least 5 characters (e.g., 9 AM - 5 PM)." }),
+  openingTime: z.string().min(1, {message: "Please select an opening time."}),
+  closingTime: z.string().min(1, {message: "Please select a closing time."}),
   shopFullAddress: z.string().min(10, { message: "Shop address must be at least 10 characters." }),
   latitude: z.preprocess(
     (val) => val === "" ? undefined : parseFloat(String(val)),
@@ -54,16 +73,33 @@ const signupFormSchema = z.object({
   shopImage: z.any().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
-  path: ["confirmPassword"], // Set error on confirmPassword field
-});
+  path: ["confirmPassword"],
+}).refine(data => {
+    if(data.openingTime && data.closingTime) {
+        const openTimeIndex = timeOptions.indexOf(data.openingTime);
+        const closeTimeIndex = timeOptions.indexOf(data.closingTime);
+        return closeTimeIndex > openTimeIndex;
+    }
+    return true;
+}, { message: "Closing time must be after opening time.", path: ["closingTime"]});
+
 
 export function SignupForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [otp, setOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
 
   const form = useForm<z.infer<typeof signupFormSchema>>({
     resolver: zodResolver(signupFormSchema),
@@ -79,13 +115,40 @@ export function SignupForm() {
       gender: '',
       city: '',
       weeklyCloseOn: '',
-      shopTiming: '',
+      openingTime: '',
+      closingTime: '',
       shopFullAddress: '',
       latitude: undefined,
       longitude: undefined,
       shopImage: undefined,
     },
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !recaptchaVerifier && recaptchaContainerRef.current) {
+      const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+        size: 'invisible',
+        callback: (response: any) => {
+          console.log('reCAPTCHA solved:', response);
+        },
+        'expired-callback': () => {
+          toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
+           if (recaptchaVerifier && recaptchaVerifier.clear) { // Ensure clear is available
+            recaptchaVerifier.clear();
+            const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: 'invisible' /* other params */ });
+            setRecaptchaVerifier(newVerifier);
+          }
+        },
+      });
+      setRecaptchaVerifier(verifier);
+    }
+    return () => {
+      if (recaptchaVerifier && recaptchaVerifier.clear) { // Check if clear method exists before calling
+         recaptchaVerifier.clear();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, recaptchaContainerRef.current]); // recaptchaVerifier dependency removed to avoid loop
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -122,9 +185,50 @@ export function SignupForm() {
     }
   };
 
+  const handleSendOtpForSignup = async () => {
+    const phoneCountryCode = form.getValues('phoneCountryCode');
+    const phoneNumber = form.getValues('phoneNumber');
 
-  async function onSubmit(values: z.infer<typeof signupFormSchema>) {
+    if (!phoneNumber.match(/^\d{7,15}$/)) {
+      form.setError('phoneNumber', { type: 'manual', message: 'Please enter a valid phone number (7-15 digits).' });
+      return;
+    }
+    if (!recaptchaVerifier) {
+      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh.' });
+      return;
+    }
+
+    setIsSendingOtp(true);
     setIsLoading(true);
+    const fullNumber = `${phoneCountryCode}${phoneNumber}`;
+
+    try {
+      const result = await signInWithPhoneNumber(auth, fullNumber, recaptchaVerifier);
+      setConfirmationResult(result);
+      setShowOtpInput(true);
+      toast({ title: 'OTP Sent', description: `An OTP has been sent to ${fullNumber}.` });
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to Send OTP',
+        description: error.message || 'Please try again.',
+      });
+      if (recaptchaVerifier && recaptchaVerifier.render) { // Check if render method exists
+        recaptchaVerifier.render().then(widgetId => {
+          // @ts-ignore
+          if (typeof grecaptcha !== 'undefined') grecaptcha.reset(widgetId);
+        }).catch(renderError => console.error("Error re-rendering reCAPTCHA", renderError));
+      }
+    } finally {
+      setIsSendingOtp(false);
+      setIsLoading(false);
+    }
+  };
+
+  async function proceedToRegistration(values: z.infer<typeof signupFormSchema>) {
+    setIsLoading(true);
+    setIsVerifyingOtp(true); // Keep this as it's part of the final submit
     const formData = new FormData();
     Object.keys(values).forEach(key => {
       const valueKey = key as keyof typeof values;
@@ -160,43 +264,83 @@ export function SignupForm() {
       });
     } finally {
       setIsLoading(false);
+      setIsVerifyingOtp(false);
     }
   }
+
+  const onSubmitWithOtp = async (values: z.infer<typeof signupFormSchema>) => {
+    if (!showOtpInput) {
+      // This is the "Send OTP" stage
+      await handleSendOtpForSignup();
+    } else {
+      // This is the "Verify OTP & Register" stage
+      if (!otp.match(/^\d{6}$/)) {
+        toast({ variant: 'destructive', title: 'Invalid OTP', description: 'OTP must be 6 digits.' });
+        return;
+      }
+      if (!confirmationResult) {
+        toast({ variant: 'destructive', title: 'Verification Error', description: 'Please send OTP first.' });
+        return;
+      }
+
+      setIsVerifyingOtp(true);
+      setIsLoading(true);
+      try {
+        await confirmationResult.confirm(otp);
+        toast({ title: 'Phone Verified!', description: 'Proceeding with registration...' });
+        await proceedToRegistration(values); // Pass validated form values
+      } catch (error: any) {
+        console.error('Error verifying OTP:', error);
+        toast({
+          variant: 'destructive',
+          title: 'OTP Verification Failed',
+          description: error.message || 'Incorrect OTP or an error occurred.',
+        });
+      } finally {
+        setIsVerifyingOtp(false);
+        setIsLoading(false);
+      }
+    }
+  };
+
 
   return (
     <TooltipProvider>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmitWithOtp)} className="space-y-6">
           <div className="flex flex-col items-center space-y-2 mb-6">
             <FormLabel>Shop Image</FormLabel>
             <div className="relative w-32 h-32 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center bg-muted overflow-hidden">
               {selectedImagePreview ? (
-                <img src={selectedImagePreview} alt="Shop preview" className="w-full h-full object-cover" />
+                <img src={selectedImagePreview} alt="Shop preview" className="w-full h-full object-cover" data-ai-hint="store shop" />
               ) : (
                 <Store className="w-16 h-16 text-muted-foreground" />
               )}
                <FormField
                 control={form.control}
                 name="shopImage"
-                render={({ field }) => (
+                render={({ field }) => ( // field is not directly used for Input type="file" with custom trigger
                   <FormItem className="absolute bottom-0 right-0">
                     <FormControl>
-                      <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()}>
-                        <PlusCircle className="h-5 w-5 text-primary" />
-                        <Input 
+                      <>
+                        <input 
                           id="shopImageUpload"
                           type="file" 
                           accept="image/*" 
                           className="hidden"
-                          onChange={handleImageChange}
+                          onChange={handleImageChange} // Use custom handler
+                          ref={field.ref} // Keep ref for react-hook-form
                         />
-                      </Button>
+                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()}>
+                          <PlusCircle className="h-5 w-5 text-primary" />
+                        </Button>
+                      </>
                     </FormControl>
                   </FormItem>
                 )}
               />
             </div>
-            <FormMessage>{form.formState.errors.shopImage?.message?.toString()}</FormMessage>
+            {form.formState.errors.shopImage && <FormMessage>{form.formState.errors.shopImage?.message?.toString()}</FormMessage>}
             <FormDescription className="text-xs">Upload a picture of your shop.</FormDescription>
           </div>
 
@@ -208,7 +352,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Shop Name *</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Balaji Super Mart" {...field} />
+                    <Input placeholder="e.g., Balaji Super Mart" {...field} disabled={showOtpInput || isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -220,7 +364,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Store Category *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
@@ -245,7 +389,7 @@ export function SignupForm() {
               <FormItem>
                 <FormLabel>Owner Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Manoj Nair" {...field} />
+                  <Input placeholder="e.g., Manoj Nair" {...field} disabled={showOtpInput || isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -260,7 +404,7 @@ export function SignupForm() {
                 name="phoneCountryCode"
                 render={({ field }) => (
                   <FormItem className="w-1/4">
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Code" />
@@ -282,13 +426,18 @@ export function SignupForm() {
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input type="tel" placeholder="8664312230" {...field} />
+                      <Input type="tel" placeholder="8664312230" {...field} disabled={showOtpInput || isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+             {showOtpInput && (
+                <Button type="button" variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => { setShowOtpInput(false); setOtp(''); setConfirmationResult(null); }} disabled={isLoading}>
+                    Change Phone Number
+                </Button>
+            )}
           </FormItem>
 
           <FormField
@@ -298,7 +447,7 @@ export function SignupForm() {
               <FormItem>
                 <FormLabel>Email *</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="eg. aman@google.com" {...field} />
+                  <Input type="email" placeholder="eg. aman@google.com" {...field} disabled={showOtpInput || isLoading}/>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -317,6 +466,7 @@ export function SignupForm() {
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••" 
                       {...field} 
+                      disabled={showOtpInput || isLoading}
                     />
                     <Button
                       type="button"
@@ -325,6 +475,7 @@ export function SignupForm() {
                       className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
+                      disabled={showOtpInput || isLoading}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </Button>
@@ -347,6 +498,7 @@ export function SignupForm() {
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••" 
                       {...field} 
+                      disabled={showOtpInput || isLoading}
                     />
                      <Button
                       type="button"
@@ -355,6 +507,7 @@ export function SignupForm() {
                       className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      disabled={showOtpInput || isLoading}
                     >
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </Button>
@@ -373,7 +526,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Gender</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select gender" />
@@ -396,7 +549,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>City *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Select city" {...field} />
+                    <Input placeholder="Select city" {...field} disabled={showOtpInput || isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -405,7 +558,52 @@ export function SignupForm() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <FormField
+              control={form.control}
+              name="openingTime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Opening Time *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select opening time" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {timeOptions.map(time => (
+                        <SelectItem key={`open-${time}`} value={time}>{time}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
+              control={form.control}
+              name="closingTime"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Closing Time *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select closing time" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {timeOptions.map(time => (
+                        <SelectItem key={`close-${time}`} value={time}>{time}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+           <FormField
               control={form.control}
               name="weeklyCloseOn"
               render={({ field }) => (
@@ -421,7 +619,7 @@ export function SignupForm() {
                       </TooltipContent>
                     </Tooltip>
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select day" />
@@ -437,30 +635,6 @@ export function SignupForm() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="shopTiming"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center">
-                    Shop Timings *
-                     <Tooltip delayDuration={100}>
-                      <TooltipTrigger type="button" className="ml-1">
-                        <Info className="h-3 w-3 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Enter your daily shop operating hours (e.g., 10 AM - 9 PM).</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., 10 AM - 9 PM" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
           
           <FormField
             control={form.control}
@@ -479,7 +653,7 @@ export function SignupForm() {
                   </Tooltip>
                 </FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Enter your full address" {...field} rows={3} />
+                  <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={showOtpInput || isLoading}/>
                 </FormControl>
                 <FormDescription className="text-xs">
                   This will be displayed to customers.
@@ -501,7 +675,7 @@ export function SignupForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} />
+                        <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} disabled={showOtpInput || isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -513,14 +687,14 @@ export function SignupForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} />
+                        <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} disabled={showOtpInput || isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading} className="mt-2 w-full md:w-auto">
+            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading || showOtpInput} className="mt-2 w-full md:w-auto">
               <LocateFixed className="mr-2 h-4 w-4" />
               Use My Current Location
             </Button>
@@ -529,13 +703,46 @@ export function SignupForm() {
              </FormDescription>
           </div>
 
+          {showOtpInput && (
+            <div>
+                <Label htmlFor="otp">Enter OTP</Label>
+                <Input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="••••••"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                disabled={isLoading}
+                className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                    Enter the 6-digit OTP sent to {form.getValues('phoneCountryCode')}{form.getValues('phoneNumber')}.
+                </p>
+            </div>
+          )}
+          
+          <div ref={recaptchaContainerRef}></div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
-            {isLoading ? 'Submitting...' : 'Submit'}
+          <Button 
+            type="submit" 
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" 
+            disabled={isLoading || isSendingOtp || isVerifyingOtp}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : showOtpInput ? (
+              <CheckCircle className="mr-2 h-4 w-4" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            {isSendingOtp ? 'Sending OTP...' : 
+             isVerifyingOtp ? 'Verifying & Registering...' : 
+             showOtpInput ? 'Verify OTP & Create Account' : 'Send OTP & Proceed'}
           </Button>
         </form>
       </Form>
     </TooltipProvider>
   );
 }
-
