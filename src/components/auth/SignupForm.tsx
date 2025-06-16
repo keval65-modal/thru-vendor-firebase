@@ -21,10 +21,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { Store, Info, MapPin, UploadCloud, PlusCircle, LocateFixed, Eye, EyeOff, Send, CheckCircle, Loader2 } from 'lucide-react';
+import { Store, Info, MapPin, UploadCloud, PlusCircle, LocateFixed, Eye, EyeOff, Loader2, UserPlus } from 'lucide-react';
 import { registerVendor } from '@/app/signup/actions';
-import { auth } from '@/lib/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+// Firebase imports for OTP are no longer needed here.
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Other"];
 const genders = ["Male", "Female", "Other", "Prefer not to say"];
@@ -33,14 +32,22 @@ const countryCodes = ["+91", "+1", "+44", "+61", "+81"];
 
 const generateTimeOptions = () => {
   const options = [];
-  for (let h = 6; h < 24; h++) { // 6 AM to 11 PM
+  for (let h = 0; h < 24; h++) { // Full 24-hour cycle
     for (let m = 0; m < 60; m += 30) {
-      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      const hour12 = h === 0 ? 12 : h % 12 === 0 ? 12 : h % 12;
       const period = h < 12 || h === 24 ? "AM" : "PM";
+      if (h === 12 && period === "AM") { // Noon edge case
+        // period = "PM"; // Actually 12:00 PM is noon
+      }
+
       const displayHour = hour12 < 10 ? `0${hour12}` : hour12;
       const displayMinute = m < 10 ? `0${m}` : m;
-      const timeValue = `${displayHour}:${displayMinute} ${period}`;
-      options.push(timeValue);
+      let timeValue = `${displayHour}:${displayMinute} ${period}`;
+      if (h === 0 && m === 0) timeValue = "12:00 AM (Midnight)";
+      if (h === 12 && m === 0) timeValue = "12:00 PM (Noon)";
+
+
+      options.push(timeValue.replace("12:00 AM (Midnight) AM", "12:00 AM (Midnight)").replace("12:00 PM (Noon) PM", "12:00 PM (Noon)"));
     }
   }
   return options;
@@ -76,6 +83,10 @@ const signupFormSchema = z.object({
   path: ["confirmPassword"],
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
+        // Handle "Never Closed" case if applicable, or ensure timeOptions has a consistent order
+        if (data.openingTime === data.closingTime && data.openingTime !== "12:00 AM (Midnight)") { // Could allow this if "Open 24 Hours" is an option
+            // return false; // Or handle as 24 hours
+        }
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
         return closeTimeIndex > openTimeIndex;
@@ -88,18 +99,9 @@ export function SignupForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
-  // const recaptchaContainerRef = useRef<HTMLDivElement>(null); // Keep this if SignUp has its own container
-
 
   const form = useForm<z.infer<typeof signupFormSchema>>({
     resolver: zodResolver(signupFormSchema),
@@ -124,33 +126,6 @@ export function SignupForm() {
     },
   });
 
-  useEffect(() => {
-    const container = document.getElementById('recaptcha-container-signup');
-    if (typeof window === 'undefined' || !container || recaptchaVerifier) {
-      return;
-    }
-
-    const verifier = new RecaptchaVerifier(auth, container, {
-      size: 'invisible',
-      callback: (response: any) => {
-        console.log('reCAPTCHA solved for signup:', response);
-      },
-      'expired-callback': () => {
-        toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
-        if (recaptchaVerifier) {
-            recaptchaVerifier.clear();
-        }
-        setRecaptchaVerifier(null);
-      },
-    });
-    setRecaptchaVerifier(verifier);
-
-    return () => {
-      verifier?.clear();
-    };
-  }, [auth, recaptchaVerifier]);
-
-
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -165,7 +140,7 @@ export function SignupForm() {
       setSelectedImagePreview(null);
     }
   };
-  
+
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
       setIsLoading(true);
@@ -186,48 +161,8 @@ export function SignupForm() {
     }
   };
 
-  const handleSendOtpForSignup = async () => {
-    const phoneCountryCode = form.getValues('phoneCountryCode');
-    const phoneNumber = form.getValues('phoneNumber');
-
-    if (!phoneNumber.match(/^\d{7,15}$/)) {
-      form.setError('phoneNumber', { type: 'manual', message: 'Please enter a valid phone number (7-15 digits).' });
-      return;
-    }
-    if (!recaptchaVerifier) {
-      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh or try again.' });
-      return;
-    }
-
-    setIsSendingOtp(true);
+  async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
-    const fullNumber = `${phoneCountryCode}${phoneNumber}`;
-
-    try {
-      const result = await signInWithPhoneNumber(auth, fullNumber, recaptchaVerifier);
-      setConfirmationResult(result);
-      setShowOtpInput(true);
-      toast({ title: 'OTP Sent', description: `An OTP has been sent to ${fullNumber}.` });
-    } catch (error: any) {
-      console.error('Error sending OTP:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to Send OTP',
-        description: error.message || 'Please ensure your domain is authorized in Firebase and reCAPTCHA is working.',
-      });
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear();
-      }
-      setRecaptchaVerifier(null); 
-    } finally {
-      setIsSendingOtp(false);
-      setIsLoading(false);
-    }
-  };
-
-  async function proceedToRegistration(values: z.infer<typeof signupFormSchema>) {
-    setIsLoading(true); // Keep loading true during registration attempt
-    // No need to set isVerifyingOtp here as it's part of overall isLoading
     const formData = new FormData();
     Object.keys(values).forEach(key => {
       const valueKey = key as keyof typeof values;
@@ -239,7 +174,7 @@ export function SignupForm() {
         }
       }
     });
-    
+
     try {
       const result = await registerVendor(formData);
       if (result.success) {
@@ -254,9 +189,6 @@ export function SignupForm() {
           title: 'Signup Failed',
           description: result.error || 'An unknown error occurred.',
         });
-        // If registration fails (e.g. duplicate phone/email), allow user to try OTP again or change details
-        // So, don't automatically hide OTP input here unless it's a non-recoverable error.
-        // For now, we keep OTP input visible or let them change number.
       }
     } catch (error) {
       toast({
@@ -265,53 +197,14 @@ export function SignupForm() {
         description: 'Something went wrong. Please try again.',
       });
     } finally {
-      setIsLoading(false); // Reset loading state
-      // isVerifyingOtp is implicitly handled by isLoading
+      setIsLoading(false);
     }
   }
-
-  const onSubmitWithOtp = async (values: z.infer<typeof signupFormSchema>) => {
-    if (!showOtpInput) {
-      // This is the "Send OTP & Proceed" stage
-      // Fields up to phone number should be validated by Zod before calling this
-      // The form.handleSubmit already does this.
-      await handleSendOtpForSignup();
-    } else {
-      // This is the "Verify OTP & Create Account" stage
-      if (!otp.match(/^\d{6}$/)) {
-        toast({ variant: 'destructive', title: 'Invalid OTP', description: 'OTP must be 6 digits.' });
-        return;
-      }
-      if (!confirmationResult) {
-        toast({ variant: 'destructive', title: 'Verification Error', description: 'Please send OTP first.' });
-        return;
-      }
-
-      setIsVerifyingOtp(true); // Specific state for OTP verification part of the submit
-      setIsLoading(true);
-      try {
-        await confirmationResult.confirm(otp);
-        toast({ title: 'Phone Verified!', description: 'Proceeding with registration...' });
-        await proceedToRegistration(values); 
-      } catch (error: any) {
-        console.error('Error verifying OTP:', error);
-        toast({
-          variant: 'destructive',
-          title: 'OTP Verification Failed',
-          description: error.message || 'Incorrect OTP or an error occurred.',
-        });
-      } finally {
-        setIsVerifyingOtp(false);
-        setIsLoading(false);
-      }
-    }
-  };
-
 
   return (
     <TooltipProvider>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmitWithOtp)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="flex flex-col items-center space-y-2 mb-6">
             <FormLabel>Shop Image</FormLabel>
             <div className="relative w-32 h-32 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center bg-muted overflow-hidden">
@@ -323,20 +216,20 @@ export function SignupForm() {
                <FormField
                 control={form.control}
                 name="shopImage"
-                render={({ field }) => ( 
+                render={({ field }) => (
                   <FormItem className="absolute bottom-0 right-0">
                     <FormControl>
                       <>
-                        <input 
+                        <input
                           id="shopImageUpload"
-                          type="file" 
-                          accept="image/*" 
+                          type="file"
+                          accept="image/*"
                           className="hidden"
-                          onChange={handleImageChange} 
+                          onChange={handleImageChange}
                           ref={field.ref}
-                          disabled={showOtpInput || isLoading} 
+                          disabled={isLoading}
                         />
-                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()} disabled={showOtpInput || isLoading}>
+                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()} disabled={isLoading}>
                           <PlusCircle className="h-5 w-5 text-primary" />
                         </Button>
                       </>
@@ -357,7 +250,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Shop Name *</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Balaji Super Mart" {...field} disabled={showOtpInput || isLoading} />
+                    <Input placeholder="e.g., Balaji Super Mart" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -369,7 +262,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Store Category *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
@@ -394,13 +287,13 @@ export function SignupForm() {
               <FormItem>
                 <FormLabel>Owner Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Manoj Nair" {...field} disabled={showOtpInput || isLoading} />
+                  <Input placeholder="e.g., Manoj Nair" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <FormItem>
             <FormLabel>Phone No *</FormLabel>
             <div className="flex gap-2">
@@ -409,7 +302,7 @@ export function SignupForm() {
                 name="phoneCountryCode"
                 render={({ field }) => (
                   <FormItem className="w-1/4">
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Code" />
@@ -431,18 +324,13 @@ export function SignupForm() {
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input type="tel" placeholder="8664312230" {...field} disabled={showOtpInput || isLoading} />
+                      <Input type="tel" placeholder="8664312230" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-             {showOtpInput && (
-                <Button type="button" variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => { setShowOtpInput(false); setOtp(''); setConfirmationResult(null); }} disabled={isLoading}>
-                    Change Phone Number
-                </Button>
-            )}
           </FormItem>
 
           <FormField
@@ -452,7 +340,7 @@ export function SignupForm() {
               <FormItem>
                 <FormLabel>Email *</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="eg. aman@google.com" {...field} disabled={showOtpInput || isLoading}/>
+                  <Input type="email" placeholder="eg. aman@google.com" {...field} disabled={isLoading}/>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -467,11 +355,11 @@ export function SignupForm() {
                 <FormLabel>Password *</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input 
+                    <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="••••••••" 
-                      {...field} 
-                      disabled={showOtpInput || isLoading}
+                      placeholder="••••••••"
+                      {...field}
+                      disabled={isLoading}
                     />
                     <Button
                       type="button"
@@ -480,7 +368,7 @@ export function SignupForm() {
                       className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      disabled={showOtpInput || isLoading}
+                      disabled={isLoading}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </Button>
@@ -499,11 +387,11 @@ export function SignupForm() {
                 <FormLabel>Confirm Password *</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input 
+                    <Input
                       type={showConfirmPassword ? "text" : "password"}
-                      placeholder="••••••••" 
-                      {...field} 
-                      disabled={showOtpInput || isLoading}
+                      placeholder="••••••••"
+                      {...field}
+                      disabled={isLoading}
                     />
                      <Button
                       type="button"
@@ -512,7 +400,7 @@ export function SignupForm() {
                       className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                      disabled={showOtpInput || isLoading}
+                      disabled={isLoading}
                     >
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </Button>
@@ -523,7 +411,6 @@ export function SignupForm() {
             )}
           />
 
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
@@ -531,7 +418,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Gender</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select gender" />
@@ -554,7 +441,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>City *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Select city" {...field} disabled={showOtpInput || isLoading} />
+                    <Input placeholder="Select city" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -569,7 +456,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Opening Time *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select opening time" />
@@ -591,7 +478,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Closing Time *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select closing time" />
@@ -624,7 +511,7 @@ export function SignupForm() {
                       </TooltipContent>
                     </Tooltip>
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={showOtpInput || isLoading}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select day" />
@@ -640,7 +527,7 @@ export function SignupForm() {
                 </FormItem>
               )}
             />
-          
+
           <FormField
             control={form.control}
             name="shopFullAddress"
@@ -658,7 +545,7 @@ export function SignupForm() {
                   </Tooltip>
                 </FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={showOtpInput || isLoading}/>
+                  <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={isLoading}/>
                 </FormControl>
                 <FormDescription className="text-xs">
                   This will be displayed to customers.
@@ -680,7 +567,7 @@ export function SignupForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} disabled={showOtpInput || isLoading} />
+                        <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -692,14 +579,14 @@ export function SignupForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} disabled={showOtpInput || isLoading}/>
+                        <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading || showOtpInput} className="mt-2 w-full md:w-auto">
+            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading} className="mt-2 w-full md:w-auto">
               <LocateFixed className="mr-2 h-4 w-4" />
               Use My Current Location
             </Button>
@@ -708,48 +595,20 @@ export function SignupForm() {
              </FormDescription>
           </div>
 
-          {showOtpInput && (
-            <div>
-                <Label htmlFor="otp">Enter OTP</Label>
-                <Input
-                id="otp"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="••••••"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                disabled={isLoading} // OTP input should be disabled if main form is loading (e.g. during registration call)
-                className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                    Enter the 6-digit OTP sent to {form.getValues('phoneCountryCode')}{form.getValues('phoneNumber')}.
-                </p>
-            </div>
-          )}
-          
-          {/* Ensure unique ID for reCAPTCHA container if both forms can be on same conceptual page */}
-          <div id="recaptcha-container-signup"></div>
-
-          <Button 
-            type="submit" 
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" 
-            disabled={isLoading || isSendingOtp} // Disable if overall loading OR specifically sending OTP
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+            disabled={isLoading}
           >
-            {(isLoading && !isSendingOtp && !isVerifyingOtp) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isSendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isVerifyingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-
-            {!isSendingOtp && !isVerifyingOtp && !showOtpInput ? <Send className="mr-2 h-4 w-4" /> : null}
-            {!isSendingOtp && !isVerifyingOtp && showOtpInput ? <CheckCircle className="mr-2 h-4 w-4" /> : null}
-            
-            {isSendingOtp ? 'Sending OTP...' : 
-             isVerifyingOtp ? 'Verifying & Registering...' : 
-             showOtpInput ? 'Verify OTP & Create Account' : 'Send OTP & Proceed'}
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <UserPlus className="mr-2 h-4 w-4" />
+            )}
+            Create Account
           </Button>
         </form>
       </Form>
     </TooltipProvider>
   );
 }
-
