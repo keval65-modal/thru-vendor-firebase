@@ -8,12 +8,12 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn, Send, CheckCircle } from 'lucide-react';
-import { auth } from '@/lib/firebase'; // Import Firebase auth instance
+import { auth } from '@/lib/firebase'; 
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
-import { establishPhoneSession } from '@/lib/auth'; // Server action to set cookie
+import { establishPhoneSession } from '@/lib/auth'; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const countryCodes = ["+91", "+1", "+44", "+61", "+81"]; // Example country codes
+const countryCodes = ["+91", "+1", "+44", "+61", "+81"]; 
 
 export function LoginForm() {
   const { toast } = useToast();
@@ -27,40 +27,34 @@ export function LoginForm() {
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [showOtpInput, setShowOtpInput] = useState(false);
-
-  // To hold RecaptchaVerifier instance
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
 
-  // Initialize reCAPTCHA verifier
   useEffect(() => {
-    if (typeof window !== 'undefined' && !recaptchaVerifier) {
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible', // Can be 'normal' or 'invisible'
-        callback: (response: any) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-          console.log('reCAPTCHA solved:', response);
-        },
-        'expired-callback': () => {
-          // Response expired. Ask user to solve reCAPTCHA again.
-          toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
-          if (recaptchaVerifier) {
-            recaptchaVerifier.render().then(widgetId => {
-              // @ts-ignore // grecaptcha is global
-              if (typeof grecaptcha !== 'undefined') grecaptcha.reset(widgetId);
-            });
-          }
-        },
-      });
-      setRecaptchaVerifier(verifier);
+    const recaptchaContainer = document.getElementById('recaptcha-container');
+    if (typeof window === 'undefined' || !recaptchaContainer || recaptchaVerifier) {
+      return;
     }
-    // Cleanup reCAPTCHA on component unmount
+
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+      size: 'invisible',
+      callback: (response: any) => {
+        console.log('reCAPTCHA solved:', response);
+      },
+      'expired-callback': () => {
+        toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
+        setRecaptchaVerifier(prevVerifier => {
+          prevVerifier?.clear();
+          return null; 
+        });
+      },
+    });
+    setRecaptchaVerifier(verifier);
+
     return () => {
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear();
-      }
+      verifier?.clear();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth]); // recaptchaVerifier should not be in dependency array to avoid re-creation loop
+  }, [auth, recaptchaVerifier]);
+
 
   const handleSendOtp = async () => {
     if (!phoneNumber.match(/^\d{7,15}$/)) {
@@ -68,7 +62,7 @@ export function LoginForm() {
       return;
     }
     if (!recaptchaVerifier) {
-      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh.' });
+      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh or try again.' });
       return;
     }
 
@@ -86,14 +80,18 @@ export function LoginForm() {
       toast({
         variant: 'destructive',
         title: 'Failed to Send OTP',
-        description: error.message || 'Please try again.',
+        description: error.message || 'Please ensure your domain is authorized in Firebase and reCAPTCHA is working.',
       });
-      // Reset reCAPTCHA if necessary, especially for "auth/captcha-check-failed"
-       if (recaptchaVerifier) {
-            recaptchaVerifier.render().then(widgetId => {
-              // @ts-ignore
-              if (typeof grecaptcha !== 'undefined') grecaptcha.reset(widgetId);
-            });
+       if (recaptchaVerifier && 'render' in recaptchaVerifier && typeof recaptchaVerifier.render === 'function') {
+            try {
+                const widgetId = await recaptchaVerifier.render();
+                // @ts-ignore 
+                if (typeof grecaptcha !== 'undefined' && widgetId !== undefined) {
+                    grecaptcha.reset(widgetId);
+                }
+            } catch (renderError) {
+                console.error("Error re-rendering reCAPTCHA", renderError);
+            }
         }
     } finally {
       setIsSendingOtp(false);
@@ -115,7 +113,6 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       await confirmationResult.confirm(otp);
-      // OTP Verified! Now establish session with backend.
       const fullNumber = `${phoneCountryCode}${phoneNumber}`;
       const sessionResult = await establishPhoneSession(fullNumber);
 
@@ -206,8 +203,8 @@ export function LoginForm() {
           </Button>
         </>
       )}
-      {/* This div is used by Firebase reCAPTCHA */}
       <div id="recaptcha-container"></div>
     </div>
   );
 }
+

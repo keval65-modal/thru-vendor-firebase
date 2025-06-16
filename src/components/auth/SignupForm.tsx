@@ -125,30 +125,32 @@ export function SignupForm() {
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !recaptchaVerifier && recaptchaContainerRef.current) {
-      const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-        size: 'invisible',
-        callback: (response: any) => {
-          console.log('reCAPTCHA solved:', response);
-        },
-        'expired-callback': () => {
-          toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
-           if (recaptchaVerifier && recaptchaVerifier.clear) { // Ensure clear is available
-            recaptchaVerifier.clear();
-            const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current!, { size: 'invisible' /* other params */ });
-            setRecaptchaVerifier(newVerifier);
-          }
-        },
-      });
-      setRecaptchaVerifier(verifier);
+    if (typeof window === 'undefined' || !recaptchaContainerRef.current || recaptchaVerifier) {
+      // If not in browser, container isn't ready, or verifier already exists, do nothing.
+      return;
     }
+
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+      size: 'invisible',
+      callback: (response: any) => {
+        console.log('reCAPTCHA solved:', response);
+      },
+      'expired-callback': () => {
+        toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
+        setRecaptchaVerifier(prevVerifier => {
+          prevVerifier?.clear();
+          return null; // This will trigger re-initialization by this useEffect
+        });
+      },
+    });
+    setRecaptchaVerifier(verifier);
+
+    // Cleanup function
     return () => {
-      if (recaptchaVerifier && recaptchaVerifier.clear) { // Check if clear method exists before calling
-         recaptchaVerifier.clear();
-      }
+      verifier?.clear();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth, recaptchaContainerRef.current]); // recaptchaVerifier dependency removed to avoid loop
+  }, [auth, recaptchaVerifier]); // Dependencies: auth, and recaptchaVerifier
+
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -194,7 +196,7 @@ export function SignupForm() {
       return;
     }
     if (!recaptchaVerifier) {
-      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh.' });
+      toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh or try again.' });
       return;
     }
 
@@ -212,14 +214,20 @@ export function SignupForm() {
       toast({
         variant: 'destructive',
         title: 'Failed to Send OTP',
-        description: error.message || 'Please try again.',
+        description: error.message || 'Please ensure your domain is authorized in Firebase and reCAPTCHA is working.',
       });
-      if (recaptchaVerifier && recaptchaVerifier.render) { // Check if render method exists
-        recaptchaVerifier.render().then(widgetId => {
-          // @ts-ignore
-          if (typeof grecaptcha !== 'undefined') grecaptcha.reset(widgetId);
-        }).catch(renderError => console.error("Error re-rendering reCAPTCHA", renderError));
-      }
+      // Reset reCAPTCHA if it exists and has a render method
+       if (recaptchaVerifier && 'render' in recaptchaVerifier && typeof recaptchaVerifier.render === 'function') {
+            try {
+                const widgetId = await recaptchaVerifier.render();
+                 // @ts-ignore // grecaptcha is global
+                if (typeof grecaptcha !== 'undefined' && widgetId !== undefined) {
+                    grecaptcha.reset(widgetId);
+                }
+            } catch (renderError) {
+                console.error("Error re-rendering reCAPTCHA", renderError);
+            }
+        }
     } finally {
       setIsSendingOtp(false);
       setIsLoading(false);
@@ -228,7 +236,7 @@ export function SignupForm() {
 
   async function proceedToRegistration(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
-    setIsVerifyingOtp(true); // Keep this as it's part of the final submit
+    setIsVerifyingOtp(true); 
     const formData = new FormData();
     Object.keys(values).forEach(key => {
       const valueKey = key as keyof typeof values;
@@ -270,10 +278,8 @@ export function SignupForm() {
 
   const onSubmitWithOtp = async (values: z.infer<typeof signupFormSchema>) => {
     if (!showOtpInput) {
-      // This is the "Send OTP" stage
       await handleSendOtpForSignup();
     } else {
-      // This is the "Verify OTP & Register" stage
       if (!otp.match(/^\d{6}$/)) {
         toast({ variant: 'destructive', title: 'Invalid OTP', description: 'OTP must be 6 digits.' });
         return;
@@ -288,7 +294,7 @@ export function SignupForm() {
       try {
         await confirmationResult.confirm(otp);
         toast({ title: 'Phone Verified!', description: 'Proceeding with registration...' });
-        await proceedToRegistration(values); // Pass validated form values
+        await proceedToRegistration(values); 
       } catch (error: any) {
         console.error('Error verifying OTP:', error);
         toast({
@@ -319,7 +325,7 @@ export function SignupForm() {
                <FormField
                 control={form.control}
                 name="shopImage"
-                render={({ field }) => ( // field is not directly used for Input type="file" with custom trigger
+                render={({ field }) => ( 
                   <FormItem className="absolute bottom-0 right-0">
                     <FormControl>
                       <>
@@ -328,8 +334,8 @@ export function SignupForm() {
                           type="file" 
                           accept="image/*" 
                           className="hidden"
-                          onChange={handleImageChange} // Use custom handler
-                          ref={field.ref} // Keep ref for react-hook-form
+                          onChange={handleImageChange} 
+                          ref={field.ref} 
                         />
                         <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()}>
                           <PlusCircle className="h-5 w-5 text-primary" />
@@ -746,3 +752,4 @@ export function SignupForm() {
     </TooltipProvider>
   );
 }
+
