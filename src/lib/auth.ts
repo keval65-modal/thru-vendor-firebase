@@ -12,7 +12,7 @@ const MOCK_PASSWORD = 'password123'; // This would be hashed in a real app
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
 const mockUsers: Array<Record<string, any>> = [
-  { email: MOCK_USER_EMAIL, password: MOCK_PASSWORD, name: "Test Vendor" }
+  { email: MOCK_USER_EMAIL, password: MOCK_PASSWORD, name: "Test Vendor", shopName: "Test Vendor's Shop" }
   // Registered users would be added here by the signup process
 ];
 
@@ -66,12 +66,18 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
   // In a real application, this function would:
   // 1. Hash the password securely (e.g., using bcrypt or argon2).
   // 2. Check if the email already exists in the database.
-  // 3. Save the new vendor to the database (storing the HASHED password).
-  // 4. Handle shop image upload to a storage service.
+  // 3. Check if the shop name already exists.
+  // 4. Save the new vendor to the database (storing the HASHED password).
+  // 5. Handle shop image upload to a storage service.
 
-  const existingUser = mockUsers.find(u => u.email === vendorData.email);
-  if (existingUser) {
+  const existingUserByEmail = mockUsers.find(u => u.email === vendorData.email);
+  if (existingUserByEmail) {
     return { success: false, error: 'An account with this email already exists.' };
+  }
+
+  const existingUserByShopName = mockUsers.find(u => u.shopName && u.shopName.toLowerCase() === vendorData.shopName.toLowerCase());
+  if (existingUserByShopName) {
+    return { success: false, error: 'A shop with this name already exists. Please choose a different name.' };
   }
   
   // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
@@ -95,4 +101,3 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
   // Simulate successful registration
   return { success: true, userId: vendorData.email }; // Using email as mock ID
 }
-
