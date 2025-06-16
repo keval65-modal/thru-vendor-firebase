@@ -2,6 +2,7 @@
 'use server';
 
 import { z } from 'zod';
+import { registerNewVendor } from '@/lib/auth'; // Import the actual registration function
 
 // This schema should ideally match the one in SignupForm.tsx for consistency
 // but FormData converts all values to strings or File objects.
@@ -13,6 +14,8 @@ const registerVendorSchema = z.object({
   phoneCountryCode: z.string().min(1, "Country code is required."),
   phoneNumber: z.string().min(1, "Phone number is required."),
   email: z.string().email("Invalid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  // confirmPassword is validated on client, not strictly needed here if password is sent
   gender: z.string().optional(),
   city: z.string().min(1, "City is required."),
   weeklyCloseOn: z.string().min(1, "Weekly close day is required."),
@@ -40,6 +43,10 @@ export async function registerVendor(
   } else {
     delete dataToValidate.shopImage; // Remove if no file or empty file
   }
+  // We don't need confirmPassword for server-side validation if password is present
+  if ('confirmPassword' in dataToValidate) {
+    delete dataToValidate.confirmPassword;
+  }
 
 
   const validatedFields = registerVendorSchema.safeParse(dataToValidate);
@@ -56,22 +63,22 @@ export async function registerVendor(
   const vendorData = validatedFields.data;
 
   try {
-    // **DATABASE INTERACTION PLACEHOLDER**
-    // In a real application, you would save `vendorData` to your database (e.g., Firestore).
-    // This would also involve uploading the `shopImageFile` to a storage service (e.g., Firebase Storage)
-    // and storing its URL in the database record.
-    
-    console.log("Vendor data to be saved:", vendorData);
-    if (shopImageFile instanceof File && shopImageFile.name) {
-        console.log("Shop image received:", shopImageFile.name, shopImageFile.size, shopImageFile.type);
-        // Example: const imageUrl = await uploadToFirebaseStorage(shopImageFile);
-        // vendorData.shopImageUrl = imageUrl; 
+    // **DATABASE INTERACTION**
+    // Pass the validated data (including the plain password) to the auth function.
+    // The auth function is responsible for hashing the password before saving.
+    const registrationResult = await registerNewVendor(vendorData);
+
+    if (registrationResult.success) {
+      // Handle shop image upload here if successful
+      if (shopImageFile instanceof File && shopImageFile.name) {
+          console.log("Shop image received:", shopImageFile.name, shopImageFile.size, shopImageFile.type);
+          // Example: const imageUrl = await uploadToFirebaseStorage(shopImageFile, registrationResult.userId);
+          // Then update the vendor record with shopImageUrl: vendorData.shopImageUrl = imageUrl; 
+      }
+      return { success: true, data: vendorData };
+    } else {
+      return { success: false, error: registrationResult.error || "Registration failed." };
     }
-
-    // Simulate successful save
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    return { success: true, data: vendorData };
 
   } catch (error) {
     console.error('Error registering vendor:', error);
@@ -82,3 +89,4 @@ export async function registerVendor(
     return { success: false, error: errorMessage };
   }
 }
+

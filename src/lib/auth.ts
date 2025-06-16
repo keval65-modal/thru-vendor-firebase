@@ -11,7 +11,7 @@ const MOCK_USER_EMAIL = 'vendor@example.com';
 const MOCK_PASSWORD = 'password123'; // This would be hashed in a real app
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
-const mockUsers = [
+const mockUsers: Array<Record<string, any>> = [
   { email: MOCK_USER_EMAIL, password: MOCK_PASSWORD, name: "Test Vendor" }
   // Registered users would be added here by the signup process
 ];
@@ -23,7 +23,10 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
   // Simulate database check
   const user = mockUsers.find(u => u.email === email);
 
-  if (user && user.password === password) { // IMPORTANT: Never store/compare plain text passwords in production!
+  // IMPORTANT: Never store/compare plain text passwords in production!
+  // This is a mock. In a real app, you would hash the input password
+  // and compare it against a stored hashed password.
+  if (user && user.password === password) { 
     cookies().set(AUTH_COOKIE_NAME, email, { // Store email as token for simplicity
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -61,9 +64,9 @@ export async function isAuthenticated(): Promise<boolean> {
 // New function to handle vendor registration (mocked)
 export async function registerNewVendor(vendorData: any): Promise<{ success: boolean; error?: string; userId?: string }> {
   // In a real application, this function would:
-  // 1. Hash the password securely (e.g., using bcrypt).
+  // 1. Hash the password securely (e.g., using bcrypt or argon2).
   // 2. Check if the email already exists in the database.
-  // 3. Save the new vendor to the database.
+  // 3. Save the new vendor to the database (storing the HASHED password).
   // 4. Handle shop image upload to a storage service.
 
   const existingUser = mockUsers.find(u => u.email === vendorData.email);
@@ -71,17 +74,25 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
     return { success: false, error: 'An account with this email already exists.' };
   }
   
-  // Add to mock database (THIS IS NOT SECURE FOR PASSWORDS)
+  // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
+  // In a real application, `vendorData.password` MUST be hashed here before saving.
+  // Example (conceptual, actual hashing library needed):
+  // const hashedPassword = await hashPassword(vendorData.password);
   const newUser = {
-    email: vendorData.email,
-    password: vendorData.password || "defaultPassword123", // Signup form doesn't have password yet, mocking
-    name: vendorData.ownerName,
-    // ...other vendorData fields
+    ...vendorData, // Includes all form fields like shopName, ownerName, etc.
+    password: vendorData.password, // Storing plain password for MOCK ONLY
+    // shopImageUrl: null, // This would be set after image upload
   };
+  // Remove confirmPassword if it was passed along, it's not needed for storage
+  delete newUser.confirmPassword; 
+  
   mockUsers.push(newUser);
   
-  console.log("Mock User DB Updated:", mockUsers);
+  console.log("Mock User DB Updated with new user:", newUser);
+  console.log("Current Mock User DB:", mockUsers);
+
 
   // Simulate successful registration
   return { success: true, userId: vendorData.email }; // Using email as mock ID
 }
+
