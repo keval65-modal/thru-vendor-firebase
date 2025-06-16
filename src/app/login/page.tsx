@@ -1,6 +1,8 @@
+
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Flame } from 'lucide-react'; // Using Flame as a generic logo icon
+import Link from 'next/link';
 
 export default function LoginPage() {
   return (
@@ -20,6 +22,12 @@ export default function LoginPage() {
         </CardContent>
       </Card>
       <p className="mt-8 text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" className="font-medium text-primary hover:underline">
+          Sign Up
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
         &copy; {new Date().getFullYear()} Thru. All rights reserved.
       </p>
     </main>
