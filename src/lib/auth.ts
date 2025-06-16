@@ -1,33 +1,34 @@
 
 'use server';
 
-// This is a mock authentication system.
-// In a real application, use a secure authentication library like NextAuth.js.
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
-const MOCK_USER_EMAIL = 'vendor@example.com';
-const MOCK_PASSWORD = 'password123'; // This would be hashed in a real app
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
+// Added fullPhoneNumber to mock user
 const mockUsers: Array<Record<string, any>> = [
-  { email: MOCK_USER_EMAIL, password: MOCK_PASSWORD, name: "Test Vendor", shopName: "Test Vendor's Shop" }
-  // Registered users would be added here by the signup process
+  { 
+    email: 'vendor@example.com', 
+    password: 'password123', // Password stored for potential future use, not for OTP login
+    name: "Test Vendor", 
+    shopName: "Test Vendor's Shop",
+    fullPhoneNumber: "+919876543210" // Example phone number
+  }
 ];
 
-export async function login(formData: FormData): Promise<{ success: boolean; error?: string }> {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+// New server action to establish session after successful client-side OTP verification
+export async function establishPhoneSession(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
+  if (!phoneNumber) {
+    return { success: false, error: 'Phone number is required.' };
+  }
 
-  // Simulate database check
-  const user = mockUsers.find(u => u.email === email);
+  // Simulate checking if the phone number is registered (exists in our mockUsers)
+  const user = mockUsers.find(u => u.fullPhoneNumber === phoneNumber);
 
-  // IMPORTANT: Never store/compare plain text passwords in production!
-  // This is a mock. In a real app, you would hash the input password
-  // and compare it against a stored hashed password.
-  if (user && user.password === password) { 
-    cookies().set(AUTH_COOKIE_NAME, email, { // Store email as token for simplicity
+  if (user) {
+    cookies().set(AUTH_COOKIE_NAME, phoneNumber, { // Store full phone number as token
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -35,7 +36,8 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
     });
     return { success: true };
   } else {
-    return { success: false, error: 'Invalid email or password.' };
+    // This case should ideally not be hit if signup is mandatory before OTP login
+    return { success: false, error: 'Phone number not registered.' };
   }
 }
 
@@ -44,13 +46,12 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getSession(): Promise<{ isAuthenticated: boolean; email?: string; name?: string } | null> {
-  const tokenEmail = cookies().get(AUTH_COOKIE_NAME)?.value;
-  if (tokenEmail) {
-    // In a real app, you'd validate the token and fetch user details from DB
-    const user = mockUsers.find(u => u.email === tokenEmail);
+export async function getSession(): Promise<{ isAuthenticated: boolean; email?: string; name?: string; phoneNumber?: string } | null> {
+  const tokenPhoneNumber = cookies().get(AUTH_COOKIE_NAME)?.value;
+  if (tokenPhoneNumber) {
+    const user = mockUsers.find(u => u.fullPhoneNumber === tokenPhoneNumber);
     if (user) {
-      return { isAuthenticated: true, email: user.email, name: user.name };
+      return { isAuthenticated: true, email: user.email, name: user.name, phoneNumber: user.fullPhoneNumber };
     }
   }
   return { isAuthenticated: false };
@@ -61,43 +62,34 @@ export async function isAuthenticated(): Promise<boolean> {
   return session?.isAuthenticated || false;
 }
 
-// New function to handle vendor registration (mocked)
 export async function registerNewVendor(vendorData: any): Promise<{ success: boolean; error?: string; userId?: string }> {
-  // In a real application, this function would:
-  // 1. Hash the password securely (e.g., using bcrypt or argon2).
-  // 2. Check if the email already exists in the database.
-  // 3. Check if the shop name already exists.
-  // 4. Save the new vendor to the database (storing the HASHED password).
-  // 5. Handle shop image upload to a storage service.
+  const fullPhoneNumber = `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`;
 
   const existingUserByEmail = mockUsers.find(u => u.email === vendorData.email);
   if (existingUserByEmail) {
     return { success: false, error: 'An account with this email already exists.' };
   }
 
-  const existingUserByShopName = mockUsers.find(u => u.shopName && u.shopName.toLowerCase() === vendorData.shopName.toLowerCase());
-  if (existingUserByShopName) {
-    return { success: false, error: 'A shop with this name already exists. Please choose a different name.' };
+  const existingUserByPhone = mockUsers.find(u => u.fullPhoneNumber === fullPhoneNumber);
+  if (existingUserByPhone) {
+    return { success: false, error: 'An account with this phone number already exists.' };
   }
   
   // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
   // In a real application, `vendorData.password` MUST be hashed here before saving.
-  // Example (conceptual, actual hashing library needed):
-  // const hashedPassword = await hashPassword(vendorData.password);
   const newUser = {
     ...vendorData, // Includes all form fields like shopName, ownerName, etc.
-    password: vendorData.password, // Storing plain password for MOCK ONLY
-    // shopImageUrl: null, // This would be set after image upload
+    password: vendorData.password, // Storing plain password for MOCK ONLY (not used for OTP login)
+    fullPhoneNumber: fullPhoneNumber, // Store combined phone number
   };
-  // Remove confirmPassword if it was passed along, it's not needed for storage
   delete newUser.confirmPassword; 
+  delete newUser.phoneCountryCode; // Stored in fullPhoneNumber
+  delete newUser.phoneNumber; // Stored in fullPhoneNumber
   
   mockUsers.push(newUser);
   
   console.log("Mock User DB Updated with new user:", newUser);
   console.log("Current Mock User DB:", mockUsers);
 
-
-  // Simulate successful registration
-  return { success: true, userId: vendorData.email }; // Using email as mock ID
+  return { success: true, userId: fullPhoneNumber }; // Using full phone number as mock ID
 }
