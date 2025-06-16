@@ -1,3 +1,5 @@
+'use server';
+
 // This is a mock authentication system.
 // In a real application, use a secure authentication library like NextAuth.js.
 import { cookies } from 'next/headers';
@@ -8,7 +10,6 @@ const MOCK_USER_EMAIL = 'vendor@example.com';
 const MOCK_PASSWORD = 'password123';
 
 export async function login(formData: FormData): Promise<{ success: boolean; error?: string }> {
-  'use server';
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
@@ -27,13 +28,11 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
 }
 
 export async function logout() {
-  'use server';
   cookies().delete(AUTH_COOKIE_NAME);
   redirect('/login');
 }
 
 export async function getSession(): Promise<{ isAuthenticated: boolean; email?: string } | null> {
-  'use server';
   const token = cookies().get(AUTH_COOKIE_NAME)?.value;
   if (token) {
     // In a real app, you'd validate the token and fetch user details
@@ -43,7 +42,6 @@ export async function getSession(): Promise<{ isAuthenticated: boolean; email?: 
 }
 
 export async function isAuthenticated(): Promise<boolean> {
-  'use server';
   const session = await getSession();
   return session?.isAuthenticated || false;
 }
