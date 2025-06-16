@@ -28,24 +28,25 @@ export function LoginForm() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const recaptchaContainerRef = useState<HTMLDivElement | null>(null); // useRef was incorrect for id
 
   useEffect(() => {
-    const recaptchaContainer = document.getElementById('recaptcha-container');
-    if (typeof window === 'undefined' || !recaptchaContainer || recaptchaVerifier) {
+    const container = document.getElementById('recaptcha-container-login');
+    if (typeof window === 'undefined' || !container || recaptchaVerifier) {
       return;
     }
 
-    const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+    const verifier = new RecaptchaVerifier(auth, container, {
       size: 'invisible',
       callback: (response: any) => {
-        console.log('reCAPTCHA solved:', response);
+        console.log('reCAPTCHA solved for login:', response);
       },
       'expired-callback': () => {
         toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
-        setRecaptchaVerifier(prevVerifier => {
-          prevVerifier?.clear();
-          return null; 
-        });
+        if (recaptchaVerifier) {
+            recaptchaVerifier.clear();
+        }
+        setRecaptchaVerifier(null); 
       },
     });
     setRecaptchaVerifier(verifier);
@@ -53,7 +54,7 @@ export function LoginForm() {
     return () => {
       verifier?.clear();
     };
-  }, [auth, recaptchaVerifier]);
+  }, [auth, recaptchaVerifier]); // Added recaptchaVerifier to dependencies
 
 
   const handleSendOtp = async () => {
@@ -63,6 +64,9 @@ export function LoginForm() {
     }
     if (!recaptchaVerifier) {
       toast({ variant: 'destructive', title: 'reCAPTCHA Error', description: 'reCAPTCHA not initialized. Please refresh or try again.' });
+      // Ensure container is visible for debugging if needed
+      const rContainer = document.getElementById('recaptcha-container-login');
+      if (rContainer) rContainer.style.display = 'block'; // Temp for debug
       return;
     }
 
@@ -82,17 +86,10 @@ export function LoginForm() {
         title: 'Failed to Send OTP',
         description: error.message || 'Please ensure your domain is authorized in Firebase and reCAPTCHA is working.',
       });
-       if (recaptchaVerifier && 'render' in recaptchaVerifier && typeof recaptchaVerifier.render === 'function') {
-            try {
-                const widgetId = await recaptchaVerifier.render();
-                // @ts-ignore 
-                if (typeof grecaptcha !== 'undefined' && widgetId !== undefined) {
-                    grecaptcha.reset(widgetId);
-                }
-            } catch (renderError) {
-                console.error("Error re-rendering reCAPTCHA", renderError);
-            }
-        }
+       if (recaptchaVerifier) {
+        recaptchaVerifier.clear();
+      }
+      setRecaptchaVerifier(null); // This will trigger the useEffect to re-initialize
     } finally {
       setIsSendingOtp(false);
       setIsLoading(false);
@@ -203,7 +200,8 @@ export function LoginForm() {
           </Button>
         </>
       )}
-      <div id="recaptcha-container"></div>
+      {/* Ensure unique ID for reCAPTCHA container if both forms can be on same conceptual page (though unlikely here) */}
+      <div id="recaptcha-container-login"></div>
     </div>
   );
 }

@@ -98,7 +98,7 @@ export function SignupForm() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+  // const recaptchaContainerRef = useRef<HTMLDivElement>(null); // Keep this if SignUp has its own container
 
 
   const form = useForm<z.infer<typeof signupFormSchema>>({
@@ -125,31 +125,30 @@ export function SignupForm() {
   });
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !recaptchaContainerRef.current || recaptchaVerifier) {
-      // If not in browser, container isn't ready, or verifier already exists, do nothing.
+    const container = document.getElementById('recaptcha-container-signup');
+    if (typeof window === 'undefined' || !container || recaptchaVerifier) {
       return;
     }
 
-    const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+    const verifier = new RecaptchaVerifier(auth, container, {
       size: 'invisible',
       callback: (response: any) => {
-        console.log('reCAPTCHA solved:', response);
+        console.log('reCAPTCHA solved for signup:', response);
       },
       'expired-callback': () => {
         toast({ variant: 'destructive', title: 'reCAPTCHA Expired', description: 'Please try sending OTP again.' });
-        setRecaptchaVerifier(prevVerifier => {
-          prevVerifier?.clear();
-          return null; // This will trigger re-initialization by this useEffect
-        });
+        if (recaptchaVerifier) {
+            recaptchaVerifier.clear();
+        }
+        setRecaptchaVerifier(null);
       },
     });
     setRecaptchaVerifier(verifier);
 
-    // Cleanup function
     return () => {
       verifier?.clear();
     };
-  }, [auth, recaptchaVerifier]); // Dependencies: auth, and recaptchaVerifier
+  }, [auth, recaptchaVerifier]);
 
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,18 +215,10 @@ export function SignupForm() {
         title: 'Failed to Send OTP',
         description: error.message || 'Please ensure your domain is authorized in Firebase and reCAPTCHA is working.',
       });
-      // Reset reCAPTCHA if it exists and has a render method
-       if (recaptchaVerifier && 'render' in recaptchaVerifier && typeof recaptchaVerifier.render === 'function') {
-            try {
-                const widgetId = await recaptchaVerifier.render();
-                 // @ts-ignore // grecaptcha is global
-                if (typeof grecaptcha !== 'undefined' && widgetId !== undefined) {
-                    grecaptcha.reset(widgetId);
-                }
-            } catch (renderError) {
-                console.error("Error re-rendering reCAPTCHA", renderError);
-            }
-        }
+      if (recaptchaVerifier) {
+        recaptchaVerifier.clear();
+      }
+      setRecaptchaVerifier(null); 
     } finally {
       setIsSendingOtp(false);
       setIsLoading(false);
@@ -235,8 +226,8 @@ export function SignupForm() {
   };
 
   async function proceedToRegistration(values: z.infer<typeof signupFormSchema>) {
-    setIsLoading(true);
-    setIsVerifyingOtp(true); 
+    setIsLoading(true); // Keep loading true during registration attempt
+    // No need to set isVerifyingOtp here as it's part of overall isLoading
     const formData = new FormData();
     Object.keys(values).forEach(key => {
       const valueKey = key as keyof typeof values;
@@ -263,6 +254,9 @@ export function SignupForm() {
           title: 'Signup Failed',
           description: result.error || 'An unknown error occurred.',
         });
+        // If registration fails (e.g. duplicate phone/email), allow user to try OTP again or change details
+        // So, don't automatically hide OTP input here unless it's a non-recoverable error.
+        // For now, we keep OTP input visible or let them change number.
       }
     } catch (error) {
       toast({
@@ -271,15 +265,19 @@ export function SignupForm() {
         description: 'Something went wrong. Please try again.',
       });
     } finally {
-      setIsLoading(false);
-      setIsVerifyingOtp(false);
+      setIsLoading(false); // Reset loading state
+      // isVerifyingOtp is implicitly handled by isLoading
     }
   }
 
   const onSubmitWithOtp = async (values: z.infer<typeof signupFormSchema>) => {
     if (!showOtpInput) {
+      // This is the "Send OTP & Proceed" stage
+      // Fields up to phone number should be validated by Zod before calling this
+      // The form.handleSubmit already does this.
       await handleSendOtpForSignup();
     } else {
+      // This is the "Verify OTP & Create Account" stage
       if (!otp.match(/^\d{6}$/)) {
         toast({ variant: 'destructive', title: 'Invalid OTP', description: 'OTP must be 6 digits.' });
         return;
@@ -289,7 +287,7 @@ export function SignupForm() {
         return;
       }
 
-      setIsVerifyingOtp(true);
+      setIsVerifyingOtp(true); // Specific state for OTP verification part of the submit
       setIsLoading(true);
       try {
         await confirmationResult.confirm(otp);
@@ -335,9 +333,10 @@ export function SignupForm() {
                           accept="image/*" 
                           className="hidden"
                           onChange={handleImageChange} 
-                          ref={field.ref} 
+                          ref={field.ref}
+                          disabled={showOtpInput || isLoading} 
                         />
-                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()}>
+                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()} disabled={showOtpInput || isLoading}>
                           <PlusCircle className="h-5 w-5 text-primary" />
                         </Button>
                       </>
@@ -720,7 +719,7 @@ export function SignupForm() {
                 placeholder="••••••"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading} // OTP input should be disabled if main form is loading (e.g. during registration call)
                 className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
@@ -729,20 +728,21 @@ export function SignupForm() {
             </div>
           )}
           
-          <div ref={recaptchaContainerRef}></div>
+          {/* Ensure unique ID for reCAPTCHA container if both forms can be on same conceptual page */}
+          <div id="recaptcha-container-signup"></div>
 
           <Button 
             type="submit" 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" 
-            disabled={isLoading || isSendingOtp || isVerifyingOtp}
+            disabled={isLoading || isSendingOtp} // Disable if overall loading OR specifically sending OTP
           >
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : showOtpInput ? (
-              <CheckCircle className="mr-2 h-4 w-4" />
-            ) : (
-              <Send className="mr-2 h-4 w-4" />
-            )}
+            {(isLoading && !isSendingOtp && !isVerifyingOtp) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isSendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isVerifyingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+
+            {!isSendingOtp && !isVerifyingOtp && !showOtpInput ? <Send className="mr-2 h-4 w-4" /> : null}
+            {!isSendingOtp && !isVerifyingOtp && showOtpInput ? <CheckCircle className="mr-2 h-4 w-4" /> : null}
+            
             {isSendingOtp ? 'Sending OTP...' : 
              isVerifyingOtp ? 'Verifying & Registering...' : 
              showOtpInput ? 'Verify OTP & Create Account' : 'Send OTP & Proceed'}
