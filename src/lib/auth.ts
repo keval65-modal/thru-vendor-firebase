@@ -7,13 +7,12 @@ import { redirect } from 'next/navigation';
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
-// Changed from const to let to allow in-memory additions during runtime for testing.
 let mockUsers: Array<Record<string, any>> = [
   {
     email: 'vendor@example.com', // Stored as lowercase
     password: 'password123', // In a real app, this MUST be a hashed password
     shopName: "Test Vendor's Shop",
-    storeCategory: "Restaurant",
+    storeCategory: "Restaurant", // Added storeCategory
     ownerName: "Test Vendor Owner",
     phoneCountryCode: "+91",
     phoneNumber: "9876543210",
@@ -26,7 +25,7 @@ let mockUsers: Array<Record<string, any>> = [
     shopFullAddress: "123 Test Street, Testville",
     latitude: 12.9716,
     longitude: 77.5946,
-    shopImage: undefined,
+    shopImage: undefined, // Assuming shopImage is handled elsewhere or is a URL
   }
 ];
 
@@ -61,14 +60,25 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getSession(): Promise<{ isAuthenticated: boolean; email?: string; name?: string; shopName?: string } | null> {
+export async function getSession(): Promise<{ 
+    isAuthenticated: boolean; 
+    email?: string; 
+    name?: string; 
+    shopName?: string; 
+    storeCategory?: string; 
+  } | null> {
   const userEmailFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
   if (userEmailFromCookie) {
-    // Assumes userEmailFromCookie is lowercase (because it was stored as such)
-    // and emails in mockUsers are lowercase.
+    // Assumes userEmailFromCookie is lowercase
     const user = mockUsers.find(u => u.email === userEmailFromCookie);
     if (user) {
-      return { isAuthenticated: true, email: user.email, name: user.ownerName, shopName: user.shopName };
+      return { 
+        isAuthenticated: true, 
+        email: user.email, 
+        name: user.ownerName, 
+        shopName: user.shopName,
+        storeCategory: user.storeCategory 
+      };
     }
   }
   return { isAuthenticated: false };
@@ -79,7 +89,28 @@ export async function isAuthenticated(): Promise<boolean> {
   return session?.isAuthenticated || false;
 }
 
-export async function registerNewVendor(vendorData: any): Promise<{ success: boolean; error?: string; userId?: string }> {
+export interface VendorRegistrationData {
+  shopName: string;
+  storeCategory: string;
+  ownerName: string;
+  phoneCountryCode: string;
+  phoneNumber: string;
+  email: string;
+  password?: string; // Password is now optional here if handled by OTP, but form sends it
+  gender?: string;
+  city: string;
+  weeklyCloseOn: string;
+  openingTime: string;
+  closingTime: string;
+  shopFullAddress: string;
+  latitude: number;
+  longitude: number;
+  shopImage?: any; // For file uploads, Zod needs .refine or a custom type. Store as URL/path eventually.
+  // confirmPassword is not needed on server if password exists and is validated
+}
+
+
+export async function registerNewVendor(vendorData: VendorRegistrationData): Promise<{ success: boolean; error?: string; userId?: string }> {
   const trimmedEmail = vendorData.email?.trim();
   if (!trimmedEmail) {
     return { success: false, error: 'Email is required for registration.' };
@@ -93,12 +124,13 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
   if (existingUserByEmail) {
     return { success: false, error: 'An account with this email already exists.' };
   }
-
+  
+  // Check for existing user by phone number
   const existingUserByPhone = mockUsers.find(u => u.fullPhoneNumber === fullPhoneNumber);
   if (existingUserByPhone) {
     return { success: false, error: 'An account with this phone number already exists.' };
   }
-  
+
   // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
   // In a real application, `vendorData.password` MUST be hashed here before saving.
   const newUser = {
@@ -107,12 +139,11 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
     password: vendorData.password, // Storing plain password - HASH IN PRODUCTION!
     fullPhoneNumber: fullPhoneNumber,
   };
-  delete newUser.confirmPassword; // Not needed for storage
+  // delete newUser.confirmPassword; // Not needed for storage if it was ever there
 
   mockUsers.push(newUser);
-  console.log("Mock User DB Updated with new user:", newUser);
+  console.log("Mock User DB Updated with new user:", newUser.shopName, newUser.email);
   console.log("Current Mock User DB Size:", mockUsers.length);
-  console.log("All Mock Users:", mockUsers);
 
 
   return { success: true, userId: newUser.email }; // Using email as a mock userId
