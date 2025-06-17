@@ -7,25 +7,26 @@ import { redirect } from 'next/navigation';
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
+// This array is in-memory and will reset if the server restarts.
 let mockUsers: Array<Record<string, any>> = [
   {
     email: 'vendor@example.com', // Stored as lowercase
     password: 'password123', // In a real app, this MUST be a hashed password
     shopName: "Test Vendor's Shop",
-    storeCategory: "Restaurant", // Added storeCategory
+    storeCategory: "Restaurant",
     ownerName: "Test Vendor Owner",
     phoneCountryCode: "+91",
     phoneNumber: "9876543210",
-    fullPhoneNumber: "+919876543210",
+    fullPhoneNumber: "+919876543210", // For potential OTP login later
     gender: "Prefer not to say",
     city: "Testville",
-    weeklyCloseOn: "Sunday",
     openingTime: "09:00 AM",
     closingTime: "06:00 PM",
+    weeklyCloseOn: "Sunday",
     shopFullAddress: "123 Test Street, Testville",
     latitude: 12.9716,
     longitude: 77.5946,
-    shopImage: undefined, // Assuming shopImage is handled elsewhere or is a URL
+    shopImage: undefined,
   }
 ];
 
@@ -33,17 +34,18 @@ export async function loginWithEmailPassword(
   emailInput?: string,
   password?: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
+  console.log('[Auth Login] Current mockUsers before login attempt:', JSON.stringify(mockUsers.map(u => ({ email: u.email, shopName: u.shopName }))));
+
   if (!emailInput || !password) {
     return { success: false, error: 'Email and password are required.' };
   }
 
   const lowercasedEmailInput = emailInput.toLowerCase().trim();
 
-  // Assumes emails in mockUsers are already stored in lowercase
   const user = mockUsers.find(u => u.email === lowercasedEmailInput);
 
-  if (user && user.password === password) { // Password comparison is exact
-    cookies().set(AUTH_COOKIE_NAME, user.email, { // user.email is already lowercase
+  if (user && user.password === password) {
+    cookies().set(AUTH_COOKIE_NAME, user.email, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -60,24 +62,23 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getSession(): Promise<{ 
-    isAuthenticated: boolean; 
-    email?: string; 
-    name?: string; 
-    shopName?: string; 
-    storeCategory?: string; 
+export async function getSession(): Promise<{
+    isAuthenticated: boolean;
+    email?: string;
+    name?: string;
+    shopName?: string;
+    storeCategory?: string;
   } | null> {
   const userEmailFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
   if (userEmailFromCookie) {
-    // Assumes userEmailFromCookie is lowercase
     const user = mockUsers.find(u => u.email === userEmailFromCookie);
     if (user) {
-      return { 
-        isAuthenticated: true, 
-        email: user.email, 
-        name: user.ownerName, 
+      return {
+        isAuthenticated: true,
+        email: user.email,
+        name: user.ownerName,
         shopName: user.shopName,
-        storeCategory: user.storeCategory 
+        storeCategory: user.storeCategory
       };
     }
   }
@@ -96,7 +97,7 @@ export interface VendorRegistrationData {
   phoneCountryCode: string;
   phoneNumber: string;
   email: string;
-  password?: string; // Password is now optional here if handled by OTP, but form sends it
+  password?: string;
   gender?: string;
   city: string;
   weeklyCloseOn: string;
@@ -105,8 +106,7 @@ export interface VendorRegistrationData {
   shopFullAddress: string;
   latitude: number;
   longitude: number;
-  shopImage?: any; // For file uploads, Zod needs .refine or a custom type. Store as URL/path eventually.
-  // confirmPassword is not needed on server if password exists and is validated
+  shopImage?: any;
 }
 
 
@@ -116,35 +116,29 @@ export async function registerNewVendor(vendorData: VendorRegistrationData): Pro
     return { success: false, error: 'Email is required for registration.' };
   }
   const lowercasedEmail = trimmedEmail.toLowerCase();
-  
   const fullPhoneNumber = `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`;
 
-  // Check for existing user by email (case-insensitive)
   const existingUserByEmail = mockUsers.find(u => u.email === lowercasedEmail);
   if (existingUserByEmail) {
     return { success: false, error: 'An account with this email already exists.' };
   }
-  
-  // Check for existing user by phone number
+
   const existingUserByPhone = mockUsers.find(u => u.fullPhoneNumber === fullPhoneNumber);
   if (existingUserByPhone) {
     return { success: false, error: 'An account with this phone number already exists.' };
   }
 
-  // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
-  // In a real application, `vendorData.password` MUST be hashed here before saving.
   const newUser = {
     ...vendorData,
-    email: lowercasedEmail, // Store email as lowercase
-    password: vendorData.password, // Storing plain password - HASH IN PRODUCTION!
+    email: lowercasedEmail,
+    password: vendorData.password, // In a real app, HASH THIS PASSWORD!
     fullPhoneNumber: fullPhoneNumber,
   };
-  // delete newUser.confirmPassword; // Not needed for storage if it was ever there
 
   mockUsers.push(newUser);
-  console.log("Mock User DB Updated with new user:", newUser.shopName, newUser.email);
-  console.log("Current Mock User DB Size:", mockUsers.length);
+  console.log("[Auth Register] New vendor added to mockUsers. Email:", newUser.email, "Shop:", newUser.shopName);
+  console.log("[Auth Register] mockUsers size after registration:", mockUsers.length);
 
 
-  return { success: true, userId: newUser.email }; // Using email as a mock userId
+  return { success: true, userId: newUser.email };
 }
