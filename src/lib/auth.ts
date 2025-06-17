@@ -9,11 +9,11 @@ const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 // MOCK DATABASE for users - In a real app, this would be a proper database.
 const mockUsers: Array<Record<string, any>> = [
   {
-    email: 'vendor@example.com',
+    email: 'vendor@example.com', // Stored as lowercase
     password: 'password123', // In a real app, this MUST be a hashed password
     name: "Test Vendor",
     shopName: "Test Vendor's Shop",
-    fullPhoneNumber: "+919876543210", // Retained for vendor data
+    fullPhoneNumber: "+919876543210",
     openingTime: "09:00 AM",
     closingTime: "06:00 PM",
     shopImage: undefined,
@@ -29,17 +29,20 @@ const mockUsers: Array<Record<string, any>> = [
 ];
 
 export async function loginWithEmailPassword(
-  email?: string,
+  emailInput?: string,
   password?: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
-  if (!email || !password) {
+  if (!emailInput || !password) {
     return { success: false, error: 'Email and password are required.' };
   }
 
-  const user = mockUsers.find(u => u.email === email);
+  const lowercasedEmailInput = emailInput.toLowerCase().trim();
 
-  if (user && user.password === password) { // In a real app, compare hashed password
-    cookies().set(AUTH_COOKIE_NAME, user.email, { // Using email as token for mock simplicity
+  // Assumes emails in mockUsers are already stored in lowercase
+  const user = mockUsers.find(u => u.email === lowercasedEmailInput);
+
+  if (user && user.password === password) { // Password comparison is exact
+    cookies().set(AUTH_COOKIE_NAME, user.email, { // user.email is already lowercase
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -57,9 +60,11 @@ export async function logout() {
 }
 
 export async function getSession(): Promise<{ isAuthenticated: boolean; email?: string; name?: string; shopName?: string } | null> {
-  const userEmail = cookies().get(AUTH_COOKIE_NAME)?.value;
-  if (userEmail) {
-    const user = mockUsers.find(u => u.email === userEmail);
+  const userEmailFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
+  if (userEmailFromCookie) {
+    // Assumes userEmailFromCookie is lowercase (because it was stored as such)
+    // and emails in mockUsers are lowercase.
+    const user = mockUsers.find(u => u.email === userEmailFromCookie);
     if (user) {
       return { isAuthenticated: true, email: user.email, name: user.name, shopName: user.shopName };
     }
@@ -73,32 +78,31 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 export async function registerNewVendor(vendorData: any): Promise<{ success: boolean; error?: string; userId?: string }> {
+  const trimmedEmail = vendorData.email?.trim();
+  if (!trimmedEmail) {
+    return { success: false, error: 'Email is required for registration.' };
+  }
+  const lowercasedEmail = trimmedEmail.toLowerCase();
+  
   const fullPhoneNumber = `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`;
 
-  const existingUserByEmail = mockUsers.find(u => u.email === vendorData.email);
+  // Check for existing user by email (case-insensitive)
+  const existingUserByEmail = mockUsers.find(u => u.email === lowercasedEmail);
   if (existingUserByEmail) {
     return { success: false, error: 'An account with this email already exists.' };
   }
 
-  // Optional: Check for phone number uniqueness if it's still a business requirement,
-  // but not for login purposes anymore if login is email/password.
-  // const existingUserByPhone = mockUsers.find(u => u.fullPhoneNumber === fullPhoneNumber);
-  // if (existingUserByPhone) {
-  //   return { success: false, error: 'An account with this phone number already exists.' };
-  // }
-
   // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
   // In a real application, `vendorData.password` MUST be hashed here before saving.
   const newUser = {
-    ...vendorData, // Includes all form fields
-    password: vendorData.password, // Store password (MUST BE HASHED in real app)
-    fullPhoneNumber: fullPhoneNumber, // Store full phone number
+    ...vendorData,
+    email: lowercasedEmail, // Store email as lowercase
+    password: vendorData.password, 
+    fullPhoneNumber: fullPhoneNumber,
   };
-  delete newUser.confirmPassword; // Don't store confirmPassword
-  // No need to delete phoneCountryCode or phoneNumber as they are part of vendorData
+  delete newUser.confirmPassword;
 
   mockUsers.push(newUser);
-
   console.log("Mock User DB Updated with new user:", newUser);
   console.log("Current Mock User DB:", mockUsers);
 

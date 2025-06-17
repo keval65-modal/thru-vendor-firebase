@@ -4,11 +4,10 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { loginWithEmailPassword } from '@/lib/auth'; // Assuming this server action exists
+import { loginWithEmailPassword } from '@/lib/auth';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,8 +15,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 
 const loginFormSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  email: z.string().trim().email({ message: "Please enter a valid email address." }),
+  password: z.string().trim().min(1, { message: "Password is required." }),
 });
 
 export function LoginForm() {
@@ -37,12 +36,13 @@ export function LoginForm() {
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
     try {
+      // values.email and values.password are already trimmed by Zod
       const result = await loginWithEmailPassword(values.email, values.password);
 
       if (result.success) {
         toast({ title: 'Login Successful', description: result.message || 'Welcome back!' });
         router.push('/dashboard');
-        router.refresh(); // To ensure middleware re-evaluates and layout updates
+        router.refresh();
       } else {
         toast({
           variant: 'destructive',
