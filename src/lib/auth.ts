@@ -7,24 +7,26 @@ import { redirect } from 'next/navigation';
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
 // MOCK DATABASE for users - In a real app, this would be a proper database.
-const mockUsers: Array<Record<string, any>> = [
+// Changed from const to let to allow in-memory additions during runtime for testing.
+let mockUsers: Array<Record<string, any>> = [
   {
     email: 'vendor@example.com', // Stored as lowercase
     password: 'password123', // In a real app, this MUST be a hashed password
-    name: "Test Vendor",
     shopName: "Test Vendor's Shop",
-    fullPhoneNumber: "+919876543210",
-    openingTime: "09:00 AM",
-    closingTime: "06:00 PM",
-    shopImage: undefined,
     storeCategory: "Restaurant",
     ownerName: "Test Vendor Owner",
+    phoneCountryCode: "+91",
+    phoneNumber: "9876543210",
+    fullPhoneNumber: "+919876543210",
     gender: "Prefer not to say",
     city: "Testville",
     weeklyCloseOn: "Sunday",
+    openingTime: "09:00 AM",
+    closingTime: "06:00 PM",
     shopFullAddress: "123 Test Street, Testville",
     latitude: 12.9716,
     longitude: 77.5946,
+    shopImage: undefined,
   }
 ];
 
@@ -66,7 +68,7 @@ export async function getSession(): Promise<{ isAuthenticated: boolean; email?: 
     // and emails in mockUsers are lowercase.
     const user = mockUsers.find(u => u.email === userEmailFromCookie);
     if (user) {
-      return { isAuthenticated: true, email: user.email, name: user.name, shopName: user.shopName };
+      return { isAuthenticated: true, email: user.email, name: user.ownerName, shopName: user.shopName };
     }
   }
   return { isAuthenticated: false };
@@ -92,19 +94,26 @@ export async function registerNewVendor(vendorData: any): Promise<{ success: boo
     return { success: false, error: 'An account with this email already exists.' };
   }
 
+  const existingUserByPhone = mockUsers.find(u => u.fullPhoneNumber === fullPhoneNumber);
+  if (existingUserByPhone) {
+    return { success: false, error: 'An account with this phone number already exists.' };
+  }
+  
   // **SECURITY WARNING**: Storing plain text passwords is a major security risk.
   // In a real application, `vendorData.password` MUST be hashed here before saving.
   const newUser = {
     ...vendorData,
     email: lowercasedEmail, // Store email as lowercase
-    password: vendorData.password, 
+    password: vendorData.password, // Storing plain password - HASH IN PRODUCTION!
     fullPhoneNumber: fullPhoneNumber,
   };
-  delete newUser.confirmPassword;
+  delete newUser.confirmPassword; // Not needed for storage
 
   mockUsers.push(newUser);
   console.log("Mock User DB Updated with new user:", newUser);
-  console.log("Current Mock User DB:", mockUsers);
+  console.log("Current Mock User DB Size:", mockUsers.length);
+  console.log("All Mock Users:", mockUsers);
+
 
   return { success: true, userId: newUser.email }; // Using email as a mock userId
 }
