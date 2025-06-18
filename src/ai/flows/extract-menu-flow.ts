@@ -68,10 +68,27 @@ const extractMenuFlow = ai.defineFlow(
   },
   async (input) => {
     // Using the default model configured in genkit.ts which should be gemini-2.0-flash or similar
-    const {output} = await prompt(input);
-    if (!output) {
-        throw new Error("The AI model did not return any output for menu extraction.");
+    console.log(`[extractMenuFlow] Starting menu extraction for vendor: ${input.vendorId}, menu URI length: ${input.menuDataUri.length}`);
+    try {
+      const {output} = await prompt(input);
+      if (!output) {
+          console.error("[extractMenuFlow] The AI model did not return any output.");
+          throw new Error("AI model returned no output for menu extraction.");
+      }
+      if (!output.extractedItems) {
+        console.warn("[extractMenuFlow] AI model output is missing 'extractedItems'. Output:", JSON.stringify(output));
+         // Return a valid empty structure if items are missing but output itself exists
+        return { extractedItems: [], rawText: output.rawText || "AI output was present but no 'extractedItems' array found." };
+      }
+      console.log(`[extractMenuFlow] Successfully extracted ${output.extractedItems.length} items for vendor: ${input.vendorId}`);
+      return output;
+    } catch (error) {
+        console.error(`[extractMenuFlow] Error during Genkit prompt execution for vendor ${input.vendorId}:`, error);
+        if (error instanceof Error) {
+            throw new Error(`AI processing error: ${error.message}`);
+        }
+        throw new Error("An unknown error occurred during AI menu processing.");
     }
-    return output;
   }
 );
+

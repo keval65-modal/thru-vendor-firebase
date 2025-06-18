@@ -180,7 +180,7 @@ export type MenuUploadFormState = {
   extractedMenu?: ExtractMenuOutput;
   error?: string;
   message?: string;
-  isLoading?: boolean;
+  isLoading?: boolean; // Added to explicitly track loading for client
 };
 
 export async function handleMenuPdfUpload(
@@ -239,10 +239,24 @@ export async function handleMenuPdfUpload(
     console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
     console.log("[handleMenuPdfUpload] Genkit flow successful, result:", result);
+    
+    if (!result || !result.extractedItems) {
+        console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result.");
+        return { error: 'AI menu extraction returned an unexpected result. No items found.', isLoading: false };
+    }
+
     return { extractedMenu: result, message: 'Menu processed successfully.', isLoading: false };
   } catch (error) {
     console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to process menu PDF with AI. Please try again.';
+    let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    }
+    // Check for specific Genkit/timeout related messages if possible, though "Gateway Timeout" often comes from infrastructure
+    if (errorMessage.includes('deadline') || errorMessage.includes('timeout')) {
+        errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF.';
+    }
     return { error: errorMessage, isLoading: false };
   }
 }
+
