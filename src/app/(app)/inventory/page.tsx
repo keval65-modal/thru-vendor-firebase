@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useActionState, startTransition } from 'react';
+import { useEffect, useState, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,13 +59,9 @@ function DeleteItemButton({ itemId }: { itemId: string }) {
   const { pending } = useFormStatus();
   return (
     <AlertDialogAction
-      type="submit"
+      type="submit" // This is okay since the form has the action.
       disabled={pending}
       className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-      formAction={async (formData) => {
-        formData.set('itemId', itemId); // Ensure itemId is part of formData for the action
-        // The form around AlertDialogAction will call the bound deleteItemAction
-      }}
     >
       {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
       Delete
@@ -90,9 +86,14 @@ export default function InventoryPage() {
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
 
   const fetchAndSetInventory = async (vendorEmail: string, showToast = false) => {
-    if (!vendorEmail) return;
+    if (!vendorEmail) {
+      console.warn("[InventoryPage] fetchAndSetInventory called without vendorEmail.");
+      return;
+    }
+    console.log(`[InventoryPage] Fetching inventory for ${vendorEmail}`);
     setIsLoadingInventory(true);
-    setIsRefreshingInventory(true);
+    if (showToast) setIsRefreshingInventory(true); // Only set refresh state if triggered by refresh button
+
     try {
       const items = await getVendorInventory(vendorEmail);
       setVendorInventory(items);
@@ -100,26 +101,31 @@ export default function InventoryPage() {
         toast({ title: "Inventory Refreshed", description: `Found ${items.length} items.` });
       }
     } catch (error) {
+      console.error("[InventoryPage] Error in fetchAndSetInventory:", error);
       toast({ variant: "destructive", title: "Error fetching inventory", description: (error as Error).message });
     } finally {
       setIsLoadingInventory(false);
-      setIsRefreshingInventory(false);
+      if (showToast) setIsRefreshingInventory(false);
     }
   };
 
   useEffect(() => {
     async function fetchSessionData() {
       setIsLoadingSession(true);
+      console.log("[InventoryPage] Fetching session data...");
       const currentSession = await getSession();
       if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName) {
+        console.log("[InventoryPage] Session data fetched:", currentSession.email);
         setSession({
           isAuthenticated: true,
           email: currentSession.email,
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
         });
+        // Initial inventory fetch
         fetchAndSetInventory(currentSession.email);
       } else {
+        console.warn("[InventoryPage] Session not authenticated or missing data.");
         setSession(null);
       }
       setIsLoadingSession(false);
@@ -143,9 +149,10 @@ export default function InventoryPage() {
     if (saveMenuState?.success && saveMenuState.message) {
       toast({ title: "Menu Saved", description: saveMenuState.message });
       if (session?.email) {
-        fetchAndSetInventory(session.email); // Re-fetch inventory after saving
+        fetchAndSetInventory(session.email, true); // Re-fetch inventory after saving
       }
       // Consider resetting menuUploadState here if you want to clear the extracted items form
+      // and saveMenuState to prevent re-showing toast on unrelated re-renders
     }
   }, [saveMenuState, toast, session?.email]);
 
@@ -156,7 +163,7 @@ export default function InventoryPage() {
     if (deleteItemState?.success && deleteItemState.message) {
         toast({ title: "Item Deleted", description: deleteItemState.message });
         if (session?.email) {
-            fetchAndSetInventory(session.email); // Re-fetch inventory after deleting
+            fetchAndSetInventory(session.email, true); // Re-fetch inventory after deleting
         }
     }
   }, [deleteItemState, toast, session?.email]);
@@ -252,8 +259,8 @@ export default function InventoryPage() {
             
             <div className="flex justify-between items-center mt-8 mb-2">
                 <h4 className="text-md font-semibold">Current Menu Items (from Database)</h4>
-                <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory}>
-                    {isRefreshingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory || isLoadingInventory}>
+                    {isRefreshingInventory || isLoadingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
                     Refresh
                 </Button>
             </div>
@@ -263,7 +270,7 @@ export default function InventoryPage() {
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                 </div>
-            ) : vendorInventory.length > 0 ? (
+            ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -271,29 +278,29 @@ export default function InventoryPage() {
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vendorInventory.map((item) => (
+                    {vendorInventory.length > 0 ? vendorInventory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
-                        <TableCell className="space-x-2 text-right">
-                            <Button variant="outline" size="sm" disabled> {/* Placeholder for Edit */}
+                        <TableCell className="space-x-1 text-right">
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> {/* Placeholder for Edit */}
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
+                                    <Button variant="destructive" size="icon" className="h-8 w-8">
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                     <form action={deleteItemFormAction}>
-                                        <input type="hidden" name="itemId" value={item.id} />
+                                        <input type="hidden" name="itemId" value={item.id || ''} />
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
@@ -310,15 +317,15 @@ export default function InventoryPage() {
                             </AlertDialog>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          Your menu is empty. Add items manually or upload a PDF.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
-              ) : (
-                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    Your menu is empty. Add items manually or upload a PDF.
-                  </TableCell>
-                </TableRow>
               )}
           </CardContent>
         </Card>
@@ -367,7 +374,7 @@ export default function InventoryPage() {
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -407,7 +414,7 @@ export default function InventoryPage() {
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

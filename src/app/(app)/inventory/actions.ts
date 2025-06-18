@@ -27,36 +27,38 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
  * Fetches a specific vendor's inventory items.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
-  console.log(`Fetching inventory for vendor: ${vendorId}`);
+  console.log(`[getVendorInventory] Fetching inventory for vendor: ${vendorId}`);
   if (!vendorId) {
-    console.error("getVendorInventory: vendorId is undefined or empty.");
-    return [];
+    console.error("[getVendorInventory] Error: vendorId is undefined or empty.");
+    // Instead of returning empty, throw an error that the client can catch and display.
+    throw new Error("Vendor ID is missing. Cannot fetch inventory.");
   }
   try {
     const q = query(
       collection(db, "vendor_inventory"), 
       where("vendorId", "==", vendorId),
-      orderBy("itemName", "asc") // Optional: order by item name
+      orderBy("itemName", "asc") 
     );
     const querySnapshot = await getDocs(q);
     const inventoryItems = querySnapshot.docs.map(docSnap => {
       const data = docSnap.data();
-      // Convert Firestore Timestamps to serializable format (e.g., ISO string or Date object)
-      // For now, we assume client components can handle Timestamps or they will be converted there if needed
       return { 
         id: docSnap.id, 
         ...data,
-        // Ensure Timestamp fields are correctly handled if they need to be stringified for client
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
         updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
         lastStockUpdate: data.lastStockUpdate instanceof Timestamp ? data.lastStockUpdate.toDate().toISOString() : data.lastStockUpdate,
       } as VendorInventoryItem;
     });
-    console.log(`Found ${inventoryItems.length} items for vendor ${vendorId}`);
+    console.log(`[getVendorInventory] Found ${inventoryItems.length} items for vendor ${vendorId}`);
     return inventoryItems;
   } catch (error) {
-    console.error(`Error fetching inventory for vendor ${vendorId}:`, error);
-    throw new Error("Failed to fetch vendor inventory.");
+    console.error(`[getVendorInventory] Firestore error fetching inventory for vendor ${vendorId}:`, error);
+    if (error instanceof Error && error.message.includes("indexes")) {
+         console.error("[getVendorInventory] Firestore index missing. Please create the required composite index in Firebase console.");
+         throw new Error("Database setup error: Missing index. Please contact support or check Firebase console for index creation link.");
+    }
+    throw new Error(`Failed to fetch vendor inventory. Database error: ${(error as Error).message}`);
   }
 }
 
@@ -170,17 +172,19 @@ export type DeleteItemFormState = {
  */
 export async function deleteVendorItem(prevState: DeleteItemFormState, formData: FormData): Promise<DeleteItemFormState> {
     const vendorInventoryItemId = formData.get('itemId') as string;
-    console.log(`Attempting to delete item ${vendorInventoryItemId}`);
+    console.log(`[deleteVendorItem] Attempting to delete item ${vendorInventoryItemId}`);
     if (!vendorInventoryItemId) {
+        console.error("[deleteVendorItem] Item ID is missing for deletion.");
         return { success: false, error: "Item ID is missing for deletion." };
     }
     try {
         await deleteDoc(doc(db, "vendor_inventory", vendorInventoryItemId));
-        console.log(`Successfully deleted item ${vendorInventoryItemId}`);
+        console.log(`[deleteVendorItem] Successfully deleted item ${vendorInventoryItemId}`);
         return { success: true, message: "Item deleted successfully." };
     } catch (error) {
-        console.error(`Error deleting item ${vendorInventoryItemId}:`, error);
-        return { success: false, error: "Failed to delete item." };
+        console.error(`[deleteVendorItem] Error deleting item ${vendorInventoryItemId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error during deletion.";
+        return { success: false, error: `Failed to delete item. ${errorMessage}` };
     }
 }
 
@@ -366,19 +370,17 @@ export async function handleSaveExtractedMenu(
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
-        isCustomItem: true, // All menu items are custom by default
+        isCustomItem: true, 
         itemName: item.itemName,
         vendorItemCategory: item.category,
-        stockQuantity: 0, // Default for menu items; can be updated later if needed
+        stockQuantity: 0, 
         price: parsePrice(item.price),
-        unit: 'serving', // Default unit for menu items
-        isAvailableOnThru: true, // Default to available
+        unit: 'serving', 
+        isAvailableOnThru: true, 
         createdAt: now,
         updatedAt: now,
-        lastStockUpdate: now, // Set initial last stock update time
+        lastStockUpdate: now, 
         ...(item.description !== undefined && { description: item.description }),
-        // imageUrl: '', // Can be added later
-        // itemAttributes: {}, // Can be added later
       };
       return addDoc(collection(db, 'vendor_inventory'), newItemData);
     });
