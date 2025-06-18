@@ -1,18 +1,18 @@
 
 'use client';
 
-import { useEffect, useState, useActionState } from 'react';
+import { useEffect, useState, useActionState, startTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
-import { handleMenuPdfUpload, type MenuUploadFormState } from './actions';
+import { handleMenuPdfUpload, type MenuUploadFormState, handleSaveExtractedMenu, type SaveMenuFormState } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -20,7 +20,8 @@ interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCatego
   isAuthenticated: boolean;
 }
 
-const initialMenuFormState: MenuUploadFormState = { isLoading: false };
+const initialMenuUploadState: MenuUploadFormState = { isLoading: false };
+const initialSaveMenuState: SaveMenuFormState = {};
 
 function MenuUploadSubmitButton() {
   const { pending } = useFormStatus();
@@ -32,20 +33,31 @@ function MenuUploadSubmitButton() {
   );
 }
 
+function SaveMenuButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending} className="mt-4 bg-green-600 hover:bg-green-700 text-white">
+      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+      Confirm & Save Extracted Menu
+    </Button>
+  );
+}
+
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [menuPdfFile, setMenuPdfFile] = useState<File | null>(null);
   const { toast } = useToast();
 
-  const [menuFormState, menuFormAction, isMenuProcessing] = useActionState(handleMenuPdfUpload, initialMenuFormState);
+  const [menuUploadState, menuUploadFormAction, isMenuUploading] = useActionState(handleMenuPdfUpload, initialMenuUploadState);
+  const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
 
 
   useEffect(() => {
     async function fetchSessionData() {
       setIsLoadingSession(true);
       const currentSession = await getSession();
-      if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory) {
+      if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName) {
         setSession({
           isAuthenticated: true,
           email: currentSession.email,
@@ -61,17 +73,24 @@ export default function InventoryPage() {
   }, []);
 
   useEffect(() => {
-    if (menuFormState?.error) {
-      toast({ variant: "destructive", title: "Menu Upload Error", description: menuFormState.error });
+    if (menuUploadState?.error) {
+      toast({ variant: "destructive", title: "Menu Upload Error", description: menuUploadState.error });
     }
-    if (menuFormState?.message && !menuFormState.error) { // Only show success if no error
-      toast({ title: "Menu Processing", description: menuFormState.message });
+    if (menuUploadState?.message && !menuUploadState.error) { 
+      toast({ title: "Menu Processing", description: menuUploadState.message });
     }
-    // Clear loading state indication from formState if it exists
-    if (menuFormState?.isLoading === false) {
-        // You might want to reset form state or take other actions here
+  }, [menuUploadState, toast]);
+
+  useEffect(() => {
+    if (saveMenuState?.error) {
+      toast({ variant: "destructive", title: "Save Menu Error", description: saveMenuState.error });
     }
-  }, [menuFormState, toast]);
+    if (saveMenuState?.success && saveMenuState.message) {
+      toast({ title: "Menu Saved", description: saveMenuState.message });
+      // Optionally, clear the menuUploadState or parts of it to hide the extracted items form
+      // For now, we'll just let the user see the success and manually re-upload if needed.
+    }
+  }, [saveMenuState, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -98,7 +117,7 @@ export default function InventoryPage() {
             <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
           </CardHeader>
           <CardContent>
-            <form action={menuFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
+            <form action={menuUploadFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
               {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
               <Label htmlFor="menuPdf" className="font-semibold">Upload Menu PDF</Label>
               <Input 
@@ -107,7 +126,7 @@ export default function InventoryPage() {
                 type="file" 
                 accept="application/pdf"
                 onChange={handleFileChange} 
-                required // Good practice to ensure a file is selected
+                required 
                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
               <MenuUploadSubmitButton />
@@ -116,35 +135,54 @@ export default function InventoryPage() {
               </p>
             </form>
 
-            {isMenuProcessing && (
+            {isMenuUploading && (
               <div className="flex items-center justify-center p-6">
                 <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
                 <p className="text-muted-foreground">Processing your menu with AI, please wait...</p>
               </div>
             )}
 
-            {menuFormState?.extractedMenu && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-2">Extracted Menu Items:</h3>
-                <pre className="bg-muted p-4 rounded-md text-xs overflow-x-auto">
-                  {JSON.stringify(menuFormState.extractedMenu, null, 2)}
-                </pre>
-                {menuFormState.extractedMenu.extractedItems.length === 0 && !menuFormState.extractedMenu.rawText && (
-                    <Alert variant="destructive" className="mt-4">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>No Items Extracted</AlertTitle>
-                        <AlertDescription>
-                            The AI could not extract structured items from the PDF. This might be due to the PDF format or layout.
-                            You can try adding items manually or ensure your PDF is text-based and clearly structured.
-                            {menuFormState.extractedMenu.rawText && " Some raw text was extracted if that helps."}
-                        </AlertDescription>
-                    </Alert>
+            {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length > 0 && !saveMenuState?.success && (
+              <div className="mt-6 p-4 border rounded-md">
+                <h3 className="text-lg font-semibold mb-2 text-foreground">Extracted Menu Items:</h3>
+                <p className="text-sm text-muted-foreground mb-2">Review the items below. You can edit them later after saving.</p>
+                <div className="bg-muted p-4 rounded-md text-xs overflow-x-auto max-h-96">
+                  <pre>
+                    {JSON.stringify(menuUploadState.extractedMenu.extractedItems, null, 2)}
+                  </pre>
+                </div>
+                
+                <form action={saveMenuFormAction}>
+                   {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
+                   <input 
+                    type="hidden" 
+                    name="extractedItemsJson" 
+                    value={JSON.stringify(menuUploadState.extractedMenu.extractedItems)} 
+                   />
+                  <SaveMenuButton />
+                </form>
+                {isMenuSaving && (
+                    <div className="flex items-center mt-2">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Saving menu items...</p>
+                    </div>
                 )}
-                 <Button className="mt-4">Review & Save Menu (Placeholder)</Button>
               </div>
             )}
             
-            <h4 className="text-md font-semibold mt-8 mb-2">Current Menu Items</h4>
+             {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length === 0 && !menuUploadState.isLoading && (
+                <Alert variant="destructive" className="mt-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No Items Extracted</AlertTitle>
+                    <AlertDescription>
+                        The AI could not extract structured items from the PDF. This might be due to the PDF format or layout.
+                        You can try adding items manually or ensure your PDF is text-based and clearly structured.
+                        {menuUploadState.extractedMenu.rawText && " Some raw text was extracted: " + menuUploadState.extractedMenu.rawText.substring(0, 200) + "..."}
+                    </AlertDescription>
+                </Alert>
+            )}
+            
+            <h4 className="text-md font-semibold mt-8 mb-2">Current Menu Items (from Database)</h4>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -157,7 +195,7 @@ export default function InventoryPage() {
               <TableBody>
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    Your menu is empty. Add items manually or upload a PDF.
+                    Your menu is empty or not yet loaded. Add items manually, upload a PDF, or refresh.
                   </TableCell>
                 </TableRow>
               </TableBody>

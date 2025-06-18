@@ -2,9 +2,9 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem, Vendor } from '@/lib/inventoryModels';
-import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
+import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput, type MenuItemSchema as ExtractedMenuItem } from '@/ai/flows/extract-menu-flow';
 import { z } from 'zod';
 
 // Ensure vendorId is typically the email/uid used as doc ID in 'vendors' collection
@@ -260,3 +260,102 @@ export async function handleMenuPdfUpload(
   }
 }
 
+// --- Save Extracted Menu Items ---
+
+const SaveExtractedMenuSchema = z.object({
+  vendorId: z.string().min(1, { message: "Vendor ID is required." }),
+  extractedItems: z.string().refine(
+    (val) => {
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed); // Basic check, can be more specific with item schema
+      } catch (e) {
+        return false;
+      }
+    },
+    { message: 'Extracted items must be a valid JSON array string.' }
+  ),
+});
+
+export type SaveMenuFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
+
+function parsePrice(priceString: string): number {
+  if (!priceString) return 0;
+  // Remove currency symbols, commas, and extra spaces
+  const cleanedString = priceString.replace(/[$,£€₹,]/g, '').trim();
+  const price = parseFloat(cleanedString);
+  return isNaN(price) ? 0 : price;
+}
+
+export async function handleSaveExtractedMenu(
+  prevState: SaveMenuFormState,
+  formData: FormData
+): Promise<SaveMenuFormState> {
+  console.log('[handleSaveExtractedMenu] Server action started.');
+  
+  const rawFormData = {
+    vendorId: formData.get('vendorId') as string,
+    extractedItems: formData.get('extractedItemsJson') as string,
+  };
+  console.log('[handleSaveExtractedMenu] Raw form data:', rawFormData);
+
+  const validatedFields = SaveExtractedMenuSchema.safeParse(rawFormData);
+
+  if (!validatedFields.success) {
+    console.error("[handleSaveExtractedMenu] Validation error:", validatedFields.error.flatten().fieldErrors);
+    return {
+      error: 'Invalid data for saving menu. ' + (validatedFields.error.flatten().fieldErrors.extractedItems?.[0] || 'Unknown validation error.'),
+    };
+  }
+
+  const { vendorId, extractedItems: extractedItemsJson } = validatedFields.data;
+  let itemsToSave: ExtractedMenuItem[];
+  try {
+    itemsToSave = JSON.parse(extractedItemsJson);
+     console.log(`[handleSaveExtractedMenu] Parsed ${itemsToSave.length} items to save for vendor: ${vendorId}`);
+  } catch (e) {
+    console.error("[handleSaveExtractedMenu] Error parsing extractedItems JSON:", e);
+    return { error: 'Failed to parse extracted menu items.' };
+  }
+
+  if (!Array.isArray(itemsToSave) || itemsToSave.length === 0) {
+    return { error: 'No items to save or items format is incorrect.' };
+  }
+
+  try {
+    const now = Timestamp.now();
+    const batchPromises = itemsToSave.map(item => {
+      const newItem: Omit<VendorInventoryItem, 'id'> = {
+        vendorId: vendorId,
+        isCustomItem: true,
+        itemName: item.itemName,
+        vendorItemCategory: item.category,
+        stockQuantity: 0, // Default for menu items (made to order)
+        price: parsePrice(item.price),
+        unit: 'serving', // Default unit for menu items
+        isAvailableOnThru: true, // Default to available
+        description: item.description,
+        createdAt: now,
+        updatedAt: now,
+        lastStockUpdate: now,
+      };
+      return addDoc(collection(db, 'vendor_inventory'), newItem);
+    });
+
+    await Promise.all(batchPromises);
+    console.log(`[handleSaveExtractedMenu] Successfully saved ${itemsToSave.length} menu items for vendor ${vendorId} to Firestore.`);
+    return { success: true, message: `${itemsToSave.length} menu items saved successfully!` };
+
+  } catch (error) {
+    console.error('[handleSaveExtractedMenu] Error saving menu items to Firestore:', error);
+    let errorMessage = 'Failed to save menu items to the database.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return { error: errorMessage };
+  }
+}
