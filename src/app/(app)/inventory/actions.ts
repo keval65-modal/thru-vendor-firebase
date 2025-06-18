@@ -187,41 +187,61 @@ export async function handleMenuPdfUpload(
   prevState: MenuUploadFormState,
   formData: FormData
 ): Promise<MenuUploadFormState> {
+  console.log("[handleMenuPdfUpload] Server action started.");
+
   const menuFile = formData.get('menuPdf') as File;
   const vendorId = formData.get('vendorId') as string;
+  
+  console.log("[handleMenuPdfUpload] Received menuFile:", menuFile?.name, "vendorId:", vendorId);
 
   if (!menuFile || menuFile.size === 0) {
+    console.warn("[handleMenuPdfUpload] No PDF file uploaded or file is empty.");
     return { error: 'No PDF file uploaded or file is empty.', isLoading: false };
   }
   if (!vendorId) {
+    console.warn("[handleMenuPdfUpload] Vendor ID is missing.");
     return { error: 'Vendor ID is missing.', isLoading: false };
   }
   if (menuFile.type !== 'application/pdf') {
+    console.warn("[handleMenuPdfUpload] Uploaded file is not a PDF. Type:", menuFile.type);
     return { error: 'Uploaded file is not a PDF.', isLoading: false };
   }
 
-  // Convert file to data URI
-  const arrayBuffer = await menuFile.arrayBuffer();
-  const base64String = Buffer.from(arrayBuffer).toString('base64');
-  const menuDataUri = `data:application/pdf;base64,${base64String}`;
+  let menuDataUri = '';
+  try {
+    // Convert file to data URI
+    const arrayBuffer = await menuFile.arrayBuffer();
+    const base64String = Buffer.from(arrayBuffer).toString('base64');
+    menuDataUri = `data:application/pdf;base64,${base64String}`;
+    console.log("[handleMenuPdfUpload] PDF converted to data URI (first 100 chars):", menuDataUri.substring(0,100));
+  } catch (conversionError) {
+    console.error("[handleMenuPdfUpload] Error converting PDF to data URI:", conversionError);
+    return { error: 'Failed to process PDF file content.', isLoading: false };
+  }
+
 
   const validatedFields = MenuPdfUploadSchema.safeParse({ menuDataUri, vendorId });
+  console.log("[handleMenuPdfUpload] Zod validation result:", validatedFields);
 
   if (!validatedFields.success) {
-    console.error("Validation error for menu PDF upload:", validatedFields.error.flatten().fieldErrors);
+    console.error("[handleMenuPdfUpload] Validation error for menu PDF upload:", validatedFields.error.flatten().fieldErrors);
     return {
-      error: 'Invalid data for menu PDF processing. ' + (validatedFields.error.flatten().fieldErrors.menuDataUri?.[0] || ''),
+      error: 'Invalid data for menu PDF processing. ' + (validatedFields.error.flatten().fieldErrors.menuDataUri?.[0] || validatedFields.error.flatten().fieldErrors.vendorId?.[0] || 'Unknown validation error.'),
       isLoading: false,
     };
   }
 
   const inputData: ExtractMenuInput = validatedFields.data;
+  console.log("[handleMenuPdfUpload] Input data for Genkit flow:", { vendorId: inputData.vendorId, menuDataUriLength: inputData.menuDataUri.length });
+
 
   try {
+    console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
+    console.log("[handleMenuPdfUpload] Genkit flow successful, result:", result);
     return { extractedMenu: result, message: 'Menu processed successfully.', isLoading: false };
   } catch (error) {
-    console.error('Error in handleMenuPdfUpload processing with AI:', error);
+    console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to process menu PDF with AI. Please try again.';
     return { error: errorMessage, isLoading: false };
   }

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useActionState } from 'react';
+import { useEffect, useState, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,14 +80,30 @@ export default function InventoryPage() {
   };
 
   const onMenuFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    console.log("[InventoryPage] Menu form submission initiated.");
     event.preventDefault();
+
+    console.log("[InventoryPage] Session email for vendorId:", session?.email);
+    console.log("[InventoryPage] menuPdfFile selected:", menuPdfFile?.name);
+
     if (!menuPdfFile || !session?.email) {
         toast({ variant: "destructive", title: "Missing Information", description: "Please select a PDF menu and ensure you are logged in."});
+        console.warn("[InventoryPage] Aborting submission: Missing PDF file or session email.");
         return;
     }
     const formData = new FormData(event.currentTarget);
-    formData.set('vendorId', session.email); // Add vendorId to formData
+    formData.set('vendorId', session.email); 
     
+    console.log("[InventoryPage] FormData prepared:");
+    for (let [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File - ${value.name}, Size - ${value.size}, Type - ${value.type}`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
+    
+    console.log("[InventoryPage] Calling menuFormAction...");
     menuFormAction(formData);
   };
 
@@ -120,7 +136,7 @@ export default function InventoryPage() {
               </p>
             </form>
 
-            {(isMenuProcessing || menuFormState?.isLoading) && (
+            {isMenuProcessing && (
               <div className="flex items-center justify-center p-6">
                 <Loader2 className="mr-2 h-8 w-8 animate-spin text-primary" />
                 <p className="text-muted-foreground">Processing your menu with AI, please wait...</p>
@@ -310,4 +326,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-
