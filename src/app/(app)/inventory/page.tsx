@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useState, useTransition, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,8 +38,7 @@ export default function InventoryPage() {
   const [menuPdfFile, setMenuPdfFile] = useState<File | null>(null);
   const { toast } = useToast();
 
-  const [menuFormState, menuFormAction] = useFormState(handleMenuPdfUpload, initialMenuFormState);
-  const [isMenuProcessing, startMenuTransition] = useTransition();
+  const [menuFormState, menuFormAction, isMenuProcessing] = useActionState(handleMenuPdfUpload, initialMenuFormState);
 
 
   useEffect(() => {
@@ -89,9 +88,7 @@ export default function InventoryPage() {
     const formData = new FormData(event.currentTarget);
     formData.set('vendorId', session.email); // Add vendorId to formData
     
-    startMenuTransition(() => {
-        menuFormAction(formData);
-    });
+    menuFormAction(formData);
   };
 
 
@@ -313,3 +310,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+
