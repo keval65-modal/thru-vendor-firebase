@@ -4,6 +4,8 @@
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem, Vendor } from '@/lib/inventoryModels';
+import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
+import { z } from 'zod';
 
 // Ensure vendorId is typically the email/uid used as doc ID in 'vendors' collection
 // Ensure globalItemId is the Firestore document ID from 'global_items'
@@ -165,4 +167,62 @@ export async function deleteGlobalItem(itemId: string): Promise<{ success: boole
   console.log("Placeholder: ADMIN - Deleting global item:", itemId);
   // await deleteDoc(doc(db, "global_items", itemId));
   return { success: true };
+}
+
+
+// --- AI Menu Extraction ---
+const MenuPdfUploadSchema = z.object({
+  menuDataUri: z.string().startsWith('data:application/pdf;base64,', { message: "Invalid PDF data URI." }),
+  vendorId: z.string().min(1, { message: "Vendor ID is required." }),
+});
+
+export type MenuUploadFormState = {
+  extractedMenu?: ExtractMenuOutput;
+  error?: string;
+  message?: string;
+  isLoading?: boolean;
+};
+
+export async function handleMenuPdfUpload(
+  prevState: MenuUploadFormState,
+  formData: FormData
+): Promise<MenuUploadFormState> {
+  const menuFile = formData.get('menuPdf') as File;
+  const vendorId = formData.get('vendorId') as string;
+
+  if (!menuFile || menuFile.size === 0) {
+    return { error: 'No PDF file uploaded or file is empty.', isLoading: false };
+  }
+  if (!vendorId) {
+    return { error: 'Vendor ID is missing.', isLoading: false };
+  }
+  if (menuFile.type !== 'application/pdf') {
+    return { error: 'Uploaded file is not a PDF.', isLoading: false };
+  }
+
+  // Convert file to data URI
+  const arrayBuffer = await menuFile.arrayBuffer();
+  const base64String = Buffer.from(arrayBuffer).toString('base64');
+  const menuDataUri = `data:application/pdf;base64,${base64String}`;
+
+  const validatedFields = MenuPdfUploadSchema.safeParse({ menuDataUri, vendorId });
+
+  if (!validatedFields.success) {
+    console.error("Validation error for menu PDF upload:", validatedFields.error.flatten().fieldErrors);
+    return {
+      error: 'Invalid data for menu PDF processing. ' + (validatedFields.error.flatten().fieldErrors.menuDataUri?.[0] || ''),
+      isLoading: false,
+    };
+  }
+
+  const inputData: ExtractMenuInput = validatedFields.data;
+
+  try {
+    const result = await extractMenuData(inputData);
+    return { extractedMenu: result, message: 'Menu processed successfully.', isLoading: false };
+  } catch (error) {
+    console.error('Error in handleMenuPdfUpload processing with AI:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process menu PDF with AI. Please try again.';
+    return { error: errorMessage, isLoading: false };
+  }
 }
