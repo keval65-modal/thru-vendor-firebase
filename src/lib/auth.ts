@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import type { Vendor } from '@/lib/inventoryModels'; // Import Vendor type
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
@@ -81,7 +82,8 @@ export async function getSession(): Promise<{
     email?: string;
     name?: string; // ownerName
     shopName?: string;
-    storeCategory?: string;
+    storeCategory?: Vendor['storeCategory']; // Use type from Vendor
+    isActiveOnThru?: boolean;
   } | null> {
   const userEmailFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
@@ -91,13 +93,14 @@ export async function getSession(): Promise<{
       const userDocSnap = await getDoc(userDocRef);
 
       if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
+        const userData = userDocSnap.data() as Vendor; // Cast to Vendor
         return {
           isAuthenticated: true,
           email: userData.email,
           name: userData.ownerName,
           shopName: userData.shopName,
           storeCategory: userData.storeCategory,
+          isActiveOnThru: userData.isActiveOnThru,
         };
       } else {
          console.log(`[Auth GetSession] User not found in Firestore during session check: ${userEmailFromCookie}`);
@@ -117,7 +120,7 @@ export async function isAuthenticated(): Promise<boolean> {
 
 export interface VendorRegistrationData {
   shopName: string;
-  storeCategory: string;
+  storeCategory: Vendor['storeCategory'];
   ownerName: string;
   phoneCountryCode: string;
   phoneNumber: string;
@@ -132,6 +135,7 @@ export interface VendorRegistrationData {
   latitude: number;
   longitude: number;
   shopImage?: any; // Placeholder for now
+  isActiveOnThru?: boolean; // Added for customer app visibility
 }
 
 
@@ -165,16 +169,17 @@ export async function registerNewVendor(vendorData: VendorRegistrationData): Pro
     // "Hash" the password (simulated - NOT SECURE)
     const hashedPassword = simulateHashPassword(vendorData.password);
 
-    const vendorDataToSave = {
+    const vendorDataToSave: Omit<Vendor, 'id' | 'createdAt'> & {password: string; createdAt: string; isActiveOnThru: boolean} = {
       ...vendorData,
       email: lowercasedEmail,
       password: hashedPassword, // Store the "hashed" password
       fullPhoneNumber: fullPhoneNumber,
+      isActiveOnThru: vendorData.isActiveOnThru ?? true, // Default to true for now
       createdAt: new Date().toISOString(), // Add a timestamp
     };
     // Remove shopImage if it's not a File or not meant to be stored directly yet
     if (!(vendorData.shopImage instanceof File) || vendorData.shopImage.size === 0) {
-        delete vendorDataToSave.shopImage;
+        delete (vendorDataToSave as any).shopImage; // Cast to any to delete optional property
     }
     // In a real app, you would handle file uploads separately (e.g., to Firebase Storage)
     // and store the image URL in Firestore. For now, we're omitting direct File storage.
@@ -194,3 +199,4 @@ export async function registerNewVendor(vendorData: VendorRegistrationData): Pro
     return { success: false, error: errorMessage };
   }
 }
+

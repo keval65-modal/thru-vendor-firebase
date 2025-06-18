@@ -1,14 +1,15 @@
 
 'use client';
 
-import { useEffect, useState, useActionState } from 'react';
+import { useEffect, useState, useActionState, useMemo } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -102,6 +103,20 @@ export default function InventoryPage() {
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set(vendorInventory.map(item => item.vendorItemCategory));
+    return ["all", ...Array.from(categories)];
+  }, [vendorInventory]);
+
+  const filteredInventory = useMemo(() => {
+    if (selectedCategoryFilter === "all") {
+      return vendorInventory;
+    }
+    return vendorInventory.filter(item => item.vendorItemCategory === selectedCategoryFilter);
+  }, [vendorInventory, selectedCategoryFilter]);
+
 
   const fetchAndSetInventory = async (vendorEmail: string, showToast = false) => {
     if (!vendorEmail) {
@@ -285,7 +300,7 @@ export default function InventoryPage() {
                 </Alert>
             )}
             
-            <div className="flex justify-between items-center mt-8 mb-2">
+            <div className="flex justify-between items-center mt-8 mb-4">
                 <h4 className="text-md font-semibold">Current Menu Items (from Database)</h4>
                 <div className="flex items-center gap-2">
                     {session?.email && vendorInventory.length > 0 && (
@@ -300,7 +315,24 @@ export default function InventoryPage() {
                     </Button>
                 </div>
             </div>
-            {isLoadingInventory && !isRefreshingInventory ? ( // Show skeletons only on initial load or non-refresh load
+             {vendorInventory.length > 0 && (
+              <div className="mb-4 flex items-center gap-2">
+                <Filter className="h-5 w-5 text-muted-foreground" />
+                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Filter by category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uniqueCategories.map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category === "all" ? "All Categories" : category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isLoadingInventory && !isRefreshingInventory ? ( 
                 <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
@@ -318,7 +350,7 @@ export default function InventoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vendorInventory.length > 0 ? vendorInventory.map((item) => (
+                    {filteredInventory.length > 0 ? filteredInventory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
@@ -356,7 +388,9 @@ export default function InventoryPage() {
                     )) : (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          Your menu is empty. Add items manually or upload a PDF.
+                          {selectedCategoryFilter === "all" 
+                            ? "Your menu is empty. Add items manually or upload a PDF."
+                            : `No items found in category: "${selectedCategoryFilter}".`}
                         </TableCell>
                       </TableRow>
                     )}
@@ -403,6 +437,23 @@ export default function InventoryPage() {
                 <Button variant="outline"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
               </CardHeader>
               <CardContent>
+                 {vendorInventory.length > 0 && (
+                  <div className="mb-4 flex items-center gap-2">
+                    <Filter className="h-5 w-5 text-muted-foreground" />
+                    <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Filter by category..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueCategories.map(category => (
+                          <SelectItem key={category} value={category}>
+                            {category === "all" ? "All Categories" : category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                 )}
                  <Table>
                   <TableHeader>
                     <TableRow>
@@ -414,11 +465,50 @@ export default function InventoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No inventory items yet. Start by adding products.
-                      </TableCell>
-                    </TableRow>
+                  {filteredInventory.length > 0 ? filteredInventory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.itemName}</TableCell>
+                        <TableCell>{item.vendorItemCategory}</TableCell>
+                        <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{item.stockQuantity}</TableCell>
+                        <TableCell className="space-x-1 text-right">
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
+                                <Edit3 className="h-4 w-4" />
+                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" className="h-8 w-8">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <form action={deleteItemFormAction}>
+                                        <input type="hidden" name="itemId" value={item.id || ''} />
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the item
+                                                "{item.itemName}" from your inventory.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <DeleteItemButton />
+                                        </AlertDialogFooter>
+                                    </form>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          {selectedCategoryFilter === "all" 
+                            ? "No inventory items yet. Start by adding products."
+                            : `No items found in category: "${selectedCategoryFilter}".`}
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -443,6 +533,23 @@ export default function InventoryPage() {
               <Button><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
             </CardHeader>
             <CardContent>
+             {vendorInventory.length > 0 && (
+                <div className="mb-4 flex items-center gap-2">
+                    <Filter className="h-5 w-5 text-muted-foreground" />
+                    <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                    <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Filter by category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {uniqueCategories.map(category => (
+                        <SelectItem key={category} value={category}>
+                            {category === "all" ? "All Categories" : category}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                </div>
+                )}
               <Table>
                   <TableHeader>
                     <TableRow>
@@ -454,11 +561,50 @@ export default function InventoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {filteredInventory.length > 0 ? filteredInventory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.itemName}</TableCell>
+                        <TableCell>{item.vendorItemCategory}</TableCell>
+                        <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{item.stockQuantity}</TableCell>
+                        <TableCell className="space-x-1 text-right">
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
+                                <Edit3 className="h-4 w-4" />
+                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" className="h-8 w-8">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <form action={deleteItemFormAction}>
+                                        <input type="hidden" name="itemId" value={item.id || ''} />
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the item
+                                                "{item.itemName}" from your inventory.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <DeleteItemButton />
+                                        </AlertDialogFooter>
+                                    </form>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
                      <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        You haven't added any products yet.
+                         {selectedCategoryFilter === "all" 
+                            ? "You haven't added any products yet."
+                            : `No items found in category: "${selectedCategoryFilter}".`}
                       </TableCell>
                     </TableRow>
+                    )}
                   </TableBody>
                 </Table>
             </CardContent>

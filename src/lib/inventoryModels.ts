@@ -85,5 +85,6 @@ export interface Vendor {
   
   // Additional fields
   menuPdfUrl?: string; // For restaurants/cafes if they upload a PDF
-  isActiveOnThru?: boolean; // Overall shop status on Thru
+  isActiveOnThru?: boolean; // Overall shop status on Thru, for customer app visibility
 }
+
