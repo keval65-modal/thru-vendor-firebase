@@ -1,8 +1,9 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { QrCode, CheckCircle, UserClock, Search } from "lucide-react";
+import { QrCode, CheckCircle, Clock, Search } from "lucide-react"; // Changed UserClock to Clock
 
 // Mock data for customer arrival
 const customerArrivalInfo = {
@@ -24,7 +25,7 @@ export default function PickupPage() {
         {/* Customer Arrival Information */}
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center"><UserClock className="mr-2 h-6 w-6 text-primary" /> Customer En Route</CardTitle>
+            <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Customer En Route</CardTitle> {/* Changed UserClock to Clock */}
             <CardDescription>Information about the next arriving customer.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
