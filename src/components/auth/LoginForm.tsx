@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 
 const loginFormSchema = z.object({
-  email: z.string().trim().email({ message: "Please enter a valid email address." }),
+  email: z.string().trim().email({ message: "Please enter a valid email address." }).toLowerCase(),
   password: z.string().trim().min(1, { message: "Password is required." }),
 });
 
@@ -35,15 +35,28 @@ export function LoginForm() {
 
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
+    console.log('[LoginForm] Submitting login form with values:', values);
     try {
-      // values.email and values.password are already trimmed by Zod
       const result = await loginWithEmailPassword(values.email, values.password);
 
       if (result.success) {
         toast({ title: 'Login Successful', description: result.message || 'Welcome back!' });
-        router.push('/orders'); // Changed from /dashboard
-        router.refresh(); // Important to refresh server components and middleware state
+        console.log('[LoginForm] Login successful. Attempting to redirect to /orders...');
+        try {
+          // Await router.push to ensure navigation completes before refresh
+          await router.push('/orders');
+          console.log('[LoginForm] Successfully pushed to /orders. Refreshing route...');
+          router.refresh(); // Refresh the new route to ensure server components and middleware have fresh state
+        } catch (navError) {
+          console.error('[LoginForm] Navigation error to /orders:', navError);
+          toast({
+            variant: 'destructive',
+            title: 'Navigation Error',
+            description: 'Could not redirect to the home screen.',
+          });
+        }
       } else {
+        console.log('[LoginForm] Login failed:', result.error);
         toast({
           variant: 'destructive',
           title: 'Login Failed',
@@ -51,7 +64,7 @@ export function LoginForm() {
         });
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('[LoginForm] Login submission error:', error);
       toast({
         variant: 'destructive',
         title: 'Login Error',

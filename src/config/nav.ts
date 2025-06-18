@@ -1,3 +1,4 @@
+
 import type { LucideProps } from 'lucide-react';
 import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, Users, LogOut } from 'lucide-react';
 
@@ -14,14 +15,9 @@ export interface NavItem {
 
 export const mainNavItems: NavItem[] = [
   {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Orders',
-    href: '/orders',
-    icon: ShoppingCart,
+    title: 'Orders', // Changed from Dashboard, or consolidate if Dashboard means Orders
+    href: '/orders', // Points to orders as the primary/home view
+    icon: ShoppingCart, // Using ShoppingCart as it's the new home
   },
   {
     title: 'Inventory',
@@ -39,6 +35,13 @@ export const mainNavItems: NavItem[] = [
     icon: AlertTriangle,
     label: 'AI'
   },
+  // Example of how a "Dashboard" link could still exist if it pointed to orders
+  // or a different overview page. For now, Orders is the main focus.
+  // {
+  //   title: 'Dashboard Overview',
+  //   href: '/dashboard', // Or '/orders' if dashboard is the order screen
+  //   icon: LayoutDashboard,
+  // },
 ];
 
 export const bottomNavItems: NavItem[] = [
