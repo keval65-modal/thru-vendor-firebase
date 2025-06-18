@@ -64,8 +64,12 @@ export default function InventoryPage() {
     if (menuFormState?.error) {
       toast({ variant: "destructive", title: "Menu Upload Error", description: menuFormState.error });
     }
-    if (menuFormState?.message) {
+    if (menuFormState?.message && !menuFormState.error) { // Only show success if no error
       toast({ title: "Menu Processing", description: menuFormState.message });
+    }
+    // Clear loading state indication from formState if it exists
+    if (menuFormState?.isLoading === false) {
+        // You might want to reset form state or take other actions here
     }
   }, [menuFormState, toast]);
 
@@ -73,38 +77,12 @@ export default function InventoryPage() {
     const file = event.target.files?.[0];
     if (file && file.type === "application/pdf") {
       setMenuPdfFile(file);
+      console.log("[InventoryPage] menuPdfFile selected:", file.name);
     } else {
       setMenuPdfFile(null);
       if (file) toast({ variant: "destructive", title: "Invalid File", description: "Please upload a PDF file."});
+      console.warn("[InventoryPage] Invalid file type selected or no file.");
     }
-  };
-
-  const onMenuFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    console.log("[InventoryPage] Menu form submission initiated.");
-    event.preventDefault();
-
-    console.log("[InventoryPage] Session email for vendorId:", session?.email);
-    console.log("[InventoryPage] menuPdfFile selected:", menuPdfFile?.name);
-
-    if (!menuPdfFile || !session?.email) {
-        toast({ variant: "destructive", title: "Missing Information", description: "Please select a PDF menu and ensure you are logged in."});
-        console.warn("[InventoryPage] Aborting submission: Missing PDF file or session email.");
-        return;
-    }
-    const formData = new FormData(event.currentTarget);
-    formData.set('vendorId', session.email); 
-    
-    console.log("[InventoryPage] FormData prepared:");
-    for (let [key, value] of formData.entries()) {
-      if (value instanceof File) {
-        console.log(`  ${key}: File - ${value.name}, Size - ${value.size}, Type - ${value.type}`);
-      } else {
-        console.log(`  ${key}: ${value}`);
-      }
-    }
-    
-    console.log("[InventoryPage] Calling menuFormAction...");
-    menuFormAction(formData);
   };
 
 
@@ -120,7 +98,8 @@ export default function InventoryPage() {
             <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
           </CardHeader>
           <CardContent>
-            <form onSubmit={onMenuFormSubmit} className="space-y-4 mb-6 p-4 border rounded-md">
+            <form action={menuFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
+              {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
               <Label htmlFor="menuPdf" className="font-semibold">Upload Menu PDF</Label>
               <Input 
                 id="menuPdf" 
@@ -128,6 +107,7 @@ export default function InventoryPage() {
                 type="file" 
                 accept="application/pdf"
                 onChange={handleFileChange} 
+                required // Good practice to ensure a file is selected
                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
               <MenuUploadSubmitButton />
@@ -326,3 +306,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+
