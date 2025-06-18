@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
-import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput, type MenuItemSchema as ExtractedMenuItem } from '@/ai/flows/extract-menu-flow';
+import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow'; // Removed unused ExtractedMenuItem alias
 import { z } from 'zod';
 
 // Ensure vendorId is typically the email/uid used as doc ID in 'vendors' collection
@@ -27,12 +27,14 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
  * Fetches a specific vendor's inventory items.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
-  console.log(`[getVendorInventory] Fetching inventory for vendor: ${vendorId}`);
-  if (!vendorId) {
-    console.error("[getVendorInventory] Error: vendorId is undefined or empty.");
-    // Instead of returning empty, throw an error that the client can catch and display.
-    throw new Error("Vendor ID is missing. Cannot fetch inventory.");
+  console.log(`[getVendorInventory] Attempting to fetch inventory for vendor: ${vendorId}`);
+  if (!vendorId || typeof vendorId !== 'string' || vendorId.trim() === '') {
+    console.error("[getVendorInventory] Error: vendorId is undefined, empty, or not a string.");
+    throw new Error("Vendor ID is missing or invalid. Cannot fetch inventory.");
   }
+  
+  console.log(`[getVendorInventory] Constructing query for vendorId: '${vendorId}'`);
+
   try {
     const q = query(
       collection(db, "vendor_inventory"), 
@@ -45,17 +47,18 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
       return { 
         id: docSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
-        lastStockUpdate: data.lastStockUpdate instanceof Timestamp ? data.lastStockUpdate.toDate().toISOString() : data.lastStockUpdate,
+        // Convert Timestamps to ISO strings for client-side serializability
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()),
+        lastStockUpdate: data.lastStockUpdate instanceof Timestamp ? data.lastStockUpdate.toDate().toISOString() : (typeof data.lastStockUpdate === 'string' ? data.lastStockUpdate : new Date().toISOString()),
       } as VendorInventoryItem;
     });
     console.log(`[getVendorInventory] Found ${inventoryItems.length} items for vendor ${vendorId}`);
     return inventoryItems;
   } catch (error) {
     console.error(`[getVendorInventory] Firestore error fetching inventory for vendor ${vendorId}:`, error);
-    if (error instanceof Error && error.message.includes("indexes")) {
-         console.error("[getVendorInventory] Firestore index missing. Please create the required composite index in Firebase console.");
+    if (error instanceof Error && (error.message.includes("indexes") || error.message.includes("requires an index"))) {
+         console.error("[getVendorInventory] Firestore index missing or not yet active. Please create/check the required composite index in Firebase console on 'vendor_inventory' for (vendorId ASC, itemName ASC). Error details:", error.message);
          throw new Error("Database setup error: Missing index. Please contact support or check Firebase console for index creation link.");
     }
     throw new Error(`Failed to fetch vendor inventory. Database error: ${(error as Error).message}`);
@@ -278,19 +281,29 @@ export async function handleMenuPdfUpload(
   try {
     console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
-    console.log("[handleMenuPdfUpload] Genkit flow successful, result:", JSON.stringify(result, null, 2));
+    console.log("[handleMenuPdfUpload] Genkit flow successful, result (first 500 chars of rawText if present):", 
+        result ? {
+            extractedItemsCount: result.extractedItems?.length,
+            rawTextSample: result.rawText?.substring(0,500)
+        } : "No result from Genkit flow."
+    );
     
     if (!result || !result.extractedItems) {
         console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
-        return { error: 'AI menu extraction returned an unexpected result. No items found.', extractedMenu: result }; // Pass along result even if items are missing
+        // If result exists but extractedItems is missing, still pass the rawText if available.
+        const rawTextInfo = result?.rawText ? `Raw text was extracted: ${result.rawText.substring(0, 200)}...` : "No raw text extracted.";
+        return { 
+            error: 'AI menu extraction returned an unexpected result. No structured items found. ' + rawTextInfo, 
+            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] } // Ensure extractedMenu is defined
+        }; 
     }
 
-    return { extractedMenu: result, message: 'Menu processed successfully.' };
+    return { extractedMenu: result, message: `Menu processed. ${result.extractedItems.length} items found.` };
   } catch (error) {
     console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
     let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
     if (error instanceof Error) {
-        errorMessage = error.message;
+        errorMessage = `AI processing error: ${error.message}`; // More specific
     }
     
     if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
@@ -352,7 +365,7 @@ export async function handleSaveExtractedMenu(
   }
 
   const { vendorId, extractedItems: extractedItemsJson } = validatedFields.data;
-  let itemsToSave: ExtractedMenuItem[];
+  let itemsToSave: ExtractMenuOutput['extractedItems']; // Use the specific type from ExtractMenuOutput
   try {
     itemsToSave = JSON.parse(extractedItemsJson);
      console.log(`[handleSaveExtractedMenu] Parsed ${itemsToSave.length} items to save for vendor: ${vendorId}`);
@@ -366,7 +379,7 @@ export async function handleSaveExtractedMenu(
   }
 
   try {
-    const now = Timestamp.now();
+    const now = Timestamp.now(); // Use Firestore Timestamp for consistency
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
@@ -377,10 +390,11 @@ export async function handleSaveExtractedMenu(
         price: parsePrice(item.price),
         unit: 'serving', 
         isAvailableOnThru: true, 
-        createdAt: now,
-        updatedAt: now,
-        lastStockUpdate: now, 
+        createdAt: now, // Use Timestamp
+        updatedAt: now, // Use Timestamp
+        lastStockUpdate: now,  // Use Timestamp
         ...(item.description !== undefined && { description: item.description }),
+        // Add other fields from VendorInventoryItem with defaults if necessary
       };
       return addDoc(collection(db, 'vendor_inventory'), newItemData);
     });
@@ -398,3 +412,4 @@ export async function handleSaveExtractedMenu(
     return { error: errorMessage };
   }
 }
+
