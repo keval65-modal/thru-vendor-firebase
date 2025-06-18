@@ -180,7 +180,7 @@ export type MenuUploadFormState = {
   extractedMenu?: ExtractMenuOutput;
   error?: string;
   message?: string;
-  isLoading?: boolean; // Added to explicitly track loading for client
+  isLoading?: boolean; 
 };
 
 export async function handleMenuPdfUpload(
@@ -238,11 +238,11 @@ export async function handleMenuPdfUpload(
   try {
     console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
-    console.log("[handleMenuPdfUpload] Genkit flow successful, result:", result);
+    console.log("[handleMenuPdfUpload] Genkit flow successful, result:", JSON.stringify(result, null, 2));
     
     if (!result || !result.extractedItems) {
-        console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result.");
-        return { error: 'AI menu extraction returned an unexpected result. No items found.', isLoading: false };
+        console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
+        return { error: 'AI menu extraction returned an unexpected result. No items found.', isLoading: false, extractedMenu: result }; // Pass along result even if items are missing
     }
 
     return { extractedMenu: result, message: 'Menu processed successfully.', isLoading: false };
@@ -252,9 +252,9 @@ export async function handleMenuPdfUpload(
     if (error instanceof Error) {
         errorMessage = error.message;
     }
-    // Check for specific Genkit/timeout related messages if possible, though "Gateway Timeout" often comes from infrastructure
-    if (errorMessage.includes('deadline') || errorMessage.includes('timeout')) {
-        errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF.';
+    
+    if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
+        errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF, or check the AI service status.';
     }
     return { error: errorMessage, isLoading: false };
   }
@@ -268,7 +268,7 @@ const SaveExtractedMenuSchema = z.object({
     (val) => {
       try {
         const parsed = JSON.parse(val);
-        return Array.isArray(parsed); // Basic check, can be more specific with item schema
+        return Array.isArray(parsed); 
       } catch (e) {
         return false;
       }
@@ -285,7 +285,6 @@ export type SaveMenuFormState = {
 
 function parsePrice(priceString: string): number {
   if (!priceString) return 0;
-  // Remove currency symbols, commas, and extra spaces
   const cleanedString = priceString.replace(/[$,£€₹,]/g, '').trim();
   const price = parseFloat(cleanedString);
   return isNaN(price) ? 0 : price;
@@ -329,21 +328,21 @@ export async function handleSaveExtractedMenu(
   try {
     const now = Timestamp.now();
     const batchPromises = itemsToSave.map(item => {
-      const newItem: Omit<VendorInventoryItem, 'id'> = {
+      const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
         isCustomItem: true,
         itemName: item.itemName,
         vendorItemCategory: item.category,
-        stockQuantity: 0, // Default for menu items (made to order)
+        stockQuantity: 0, 
         price: parsePrice(item.price),
-        unit: 'serving', // Default unit for menu items
-        isAvailableOnThru: true, // Default to available
-        description: item.description,
+        unit: 'serving', 
+        isAvailableOnThru: true, 
         createdAt: now,
         updatedAt: now,
         lastStockUpdate: now,
+        ...(item.description !== undefined && { description: item.description }),
       };
-      return addDoc(collection(db, 'vendor_inventory'), newItem);
+      return addDoc(collection(db, 'vendor_inventory'), newItemData);
     });
 
     await Promise.all(batchPromises);
@@ -354,8 +353,9 @@ export async function handleSaveExtractedMenu(
     console.error('[handleSaveExtractedMenu] Error saving menu items to Firestore:', error);
     let errorMessage = 'Failed to save menu items to the database.';
     if (error instanceof Error) {
-      errorMessage = error.message;
+      errorMessage = error.message; // This will now include the specific Firestore error
     }
     return { error: errorMessage };
   }
 }
+
