@@ -8,11 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
-import { handleMenuPdfUpload, type MenuUploadFormState, handleSaveExtractedMenu, type SaveMenuFormState, getVendorInventory, deleteVendorItem, type DeleteItemFormState } from './actions';
+import { 
+    handleMenuPdfUpload, type MenuUploadFormState, 
+    handleSaveExtractedMenu, type SaveMenuFormState, 
+    getVendorInventory, 
+    deleteVendorItem, type DeleteItemFormState,
+    handleRemoveDuplicateItems, type RemoveDuplicatesFormState
+} from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -34,6 +40,7 @@ interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCatego
 const initialMenuUploadState: MenuUploadFormState = {};
 const initialSaveMenuState: SaveMenuFormState = {};
 const initialDeleteItemState: DeleteItemFormState = {};
+const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 
 function MenuUploadSubmitButton() {
   const { pending } = useFormStatus();
@@ -55,11 +62,11 @@ function SaveMenuButton() {
   );
 }
 
-function DeleteItemButton({ itemId }: { itemId: string }) {
+function DeleteItemButton() {
   const { pending } = useFormStatus();
   return (
     <AlertDialogAction
-      type="submit" // This is okay since the form has the action.
+      type="submit" 
       disabled={pending}
       className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
     >
@@ -67,6 +74,16 @@ function DeleteItemButton({ itemId }: { itemId: string }) {
       Delete
     </AlertDialogAction>
   );
+}
+
+function RemoveDuplicatesButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            Remove Duplicates
+        </Button>
+    );
 }
 
 
@@ -78,7 +95,8 @@ export default function InventoryPage() {
 
   const [menuUploadState, menuUploadFormAction, isMenuUploading] = useActionState(handleMenuPdfUpload, initialMenuUploadState);
   const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
-  const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
+  const [deleteItemState, deleteItemFormAction] = useActionState(deleteVendorItem, initialDeleteItemState);
+  const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
 
 
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
@@ -92,7 +110,7 @@ export default function InventoryPage() {
     }
     console.log(`[InventoryPage] Fetching inventory for ${vendorEmail}`);
     setIsLoadingInventory(true);
-    if (showToast) setIsRefreshingInventory(true); // Only set refresh state if triggered by refresh button
+    if (showToast) setIsRefreshingInventory(true); 
 
     try {
       const items = await getVendorInventory(vendorEmail);
@@ -122,7 +140,6 @@ export default function InventoryPage() {
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
         });
-        // Initial inventory fetch
         fetchAndSetInventory(currentSession.email);
       } else {
         console.warn("[InventoryPage] Session not authenticated or missing data.");
@@ -149,10 +166,8 @@ export default function InventoryPage() {
     if (saveMenuState?.success && saveMenuState.message) {
       toast({ title: "Menu Saved", description: saveMenuState.message });
       if (session?.email) {
-        fetchAndSetInventory(session.email, true); // Re-fetch inventory after saving
+        fetchAndSetInventory(session.email, true); 
       }
-      // Consider resetting menuUploadState here if you want to clear the extracted items form
-      // and saveMenuState to prevent re-showing toast on unrelated re-renders
     }
   }, [saveMenuState, toast, session?.email]);
 
@@ -163,10 +178,23 @@ export default function InventoryPage() {
     if (deleteItemState?.success && deleteItemState.message) {
         toast({ title: "Item Deleted", description: deleteItemState.message });
         if (session?.email) {
-            fetchAndSetInventory(session.email, true); // Re-fetch inventory after deleting
+            fetchAndSetInventory(session.email, true); 
         }
     }
   }, [deleteItemState, toast, session?.email]);
+  
+  useEffect(() => {
+    if (removeDuplicatesState?.error) {
+        toast({ variant: "destructive", title: "Remove Duplicates Error", description: removeDuplicatesState.error });
+    }
+    if (removeDuplicatesState?.success) {
+        toast({ title: "Duplicates Processed", description: removeDuplicatesState.message });
+        if (session?.email) {
+            fetchAndSetInventory(session.email, true);
+        }
+    }
+  }, [removeDuplicatesState, toast, session?.email]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -259,12 +287,20 @@ export default function InventoryPage() {
             
             <div className="flex justify-between items-center mt-8 mb-2">
                 <h4 className="text-md font-semibold">Current Menu Items (from Database)</h4>
-                <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory || isLoadingInventory}>
-                    {isRefreshingInventory || isLoadingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    {session?.email && vendorInventory.length > 0 && (
+                        <form action={removeDuplicatesFormAction}>
+                            <input type="hidden" name="vendorId" value={session.email} />
+                            <RemoveDuplicatesButton />
+                        </form>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory || isLoadingInventory || isRemovingDuplicates}>
+                        {isRefreshingInventory || isLoadingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                        Refresh
+                    </Button>
+                </div>
             </div>
-            {isLoadingInventory ? (
+            {isLoadingInventory && !isRefreshingInventory ? ( // Show skeletons only on initial load or non-refresh load
                 <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
@@ -289,7 +325,7 @@ export default function InventoryPage() {
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> {/* Placeholder for Edit */}
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
@@ -310,7 +346,7 @@ export default function InventoryPage() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <DeleteItemButton itemId={item.id!} />
+                                            <DeleteItemButton />
                                         </AlertDialogFooter>
                                     </form>
                                 </AlertDialogContent>
@@ -471,3 +507,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+

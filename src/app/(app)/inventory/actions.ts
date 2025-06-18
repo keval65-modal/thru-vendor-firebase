@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
-import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow'; // Removed unused ExtractedMenuItem alias
+import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { z } from 'zod';
 
 // Ensure vendorId is typically the email/uid used as doc ID in 'vendors' collection
@@ -16,10 +16,6 @@ import { z } from 'zod';
  */
 export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType']): Promise<GlobalItem[]> {
   console.log(`Placeholder: Fetching global items for type: ${itemType}`);
-  // Example Firestore query (needs to be implemented fully)
-  // const q = query(collection(db, "global_items"), where("sharedItemType", "==", itemType));
-  // const querySnapshot = await getDocs(q);
-  // return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GlobalItem));
   return [];
 }
 
@@ -47,7 +43,6 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
       return { 
         id: docSnap.id, 
         ...data,
-        // Convert Timestamps to ISO strings for client-side serializability
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
         updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()),
         lastStockUpdate: data.lastStockUpdate instanceof Timestamp ? data.lastStockUpdate.toDate().toISOString() : (typeof data.lastStockUpdate === 'string' ? data.lastStockUpdate : new Date().toISOString()),
@@ -66,7 +61,6 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
 }
 
 interface AddCustomVendorItemData extends Omit<VendorInventoryItem, 'id' | 'vendorId' | 'createdAt' | 'updatedAt' | 'globalItemRef' | 'isCustomItem' | 'lastStockUpdate'> {
-  // ensure required fields like itemName, stockQuantity, price, unit, vendorItemCategory are here
 }
 
 /**
@@ -75,16 +69,6 @@ interface AddCustomVendorItemData extends Omit<VendorInventoryItem, 'id' | 'vend
  */
 export async function addCustomVendorItem(vendorId: string, itemData: AddCustomVendorItemData): Promise<{ success: boolean; itemId?: string; error?: string }> {
   console.log(`Placeholder: Adding custom item for vendor ${vendorId}:`, itemData);
-  // const newItemData: Omit<VendorInventoryItem, 'id'> = {
-  //   ...itemData,
-  //   vendorId,
-  //   isCustomItem: true,
-  //   createdAt: new Date(), // Firestore server timestamp would be better
-  //   updatedAt: new Date(),
-  //   lastStockUpdate: new Date(),
-  // };
-  // const docRef = await addDoc(collection(db, "vendor_inventory"), newItemData);
-  // return { success: true, itemId: docRef.id };
   return { success: true, itemId: "mock_item_id_custom" };
 }
 
@@ -98,29 +82,9 @@ export async function linkGlobalItemToVendorInventory(
   stockQuantity: number,
   price: number,
   isAvailableOnThru: boolean,
-  vendorItemCategory?: string // Optional: vendor can override category
+  vendorItemCategory?: string 
 ): Promise<{ success: boolean; vendorInventoryItemId?: string; error?: string }> {
   console.log(`Placeholder: Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
-  // const globalItemSnap = await getDoc(doc(db, "global_items", globalItemId));
-  // if (!globalItemSnap.exists()) return { success: false, error: "Global item not found." };
-  // const globalItemData = globalItemSnap.data() as GlobalItem;
-  // const newVendorItem: Omit<VendorInventoryItem, 'id'> = {
-  //   vendorId,
-  //   globalItemRef: doc(db, "global_items", globalItemId) as DocumentReference<GlobalItem>,
-  //   isCustomItem: false,
-  //   itemName: globalItemData.itemName, // Default from global
-  //   vendorItemCategory: vendorItemCategory || globalItemData.defaultCategory,
-  //   stockQuantity,
-  //   price,
-  //   unit: globalItemData.defaultUnit,
-  //   isAvailableOnThru,
-  //   imageUrl: globalItemData.defaultImageUrl,
-  //   createdAt: new Date(),
-  //   updatedAt: new Date(),
-  //   lastStockUpdate: new Date(),
-  // };
-  // const docRef = await addDoc(collection(db, "vendor_inventory"), newVendorItem);
-  // return { success: true, vendorInventoryItemId: docRef.id };
   return { success: true, vendorInventoryItemId: "mock_vendor_item_id_linked" };
 }
 
@@ -130,11 +94,6 @@ export async function linkGlobalItemToVendorInventory(
  */
 export async function updateVendorItemStock(vendorInventoryItemId: string, newStock: number): Promise<{ success: boolean; error?: string }> {
   console.log(`Placeholder: Updating stock for item ${vendorInventoryItemId} to ${newStock}`);
-  // await updateDoc(doc(db, "vendor_inventory", vendorInventoryItemId), {
-  //   stockQuantity: newStock,
-  //   lastStockUpdate: new Date(),
-  //   updatedAt: new Date(),
-  // });
   return { success: true };
 }
 
@@ -144,10 +103,6 @@ export async function updateVendorItemStock(vendorInventoryItemId: string, newSt
  */
 export async function updateVendorItemPrice(vendorInventoryItemId: string, newPrice: number): Promise<{ success: boolean; error?: string }> {
   console.log(`Placeholder: Updating price for item ${vendorInventoryItemId} to ${newPrice}`);
-  // await updateDoc(doc(db, "vendor_inventory", vendorInventoryItemId), {
-  //   price: newPrice,
-  //   updatedAt: new Date(),
-  // });
   return { success: true };
 }
 
@@ -157,11 +112,6 @@ export async function updateVendorItemPrice(vendorInventoryItemId: string, newPr
  */
 export async function updateVendorItemDetails(vendorInventoryItemId: string, updates: Partial<VendorInventoryItem>): Promise<{ success: boolean; error?: string }> {
     console.log(`Placeholder: Updating details for item ${vendorInventoryItemId}:`, updates);
-    // const { id, vendorId, globalItemRef, createdAt, ...validUpdates } = updates; // Prevent updating immutable fields
-    // await updateDoc(doc(db, "vendor_inventory", vendorInventoryItemId), {
-    //   ...validUpdates,
-    //   updatedAt: new Date(),
-    // });
     return { success: true };
 }
 
@@ -192,25 +142,19 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
 }
 
 // --- Admin Actions for Global Items (Placeholders) ---
-// These would typically be in a separate admin actions file and have role-based access control.
 
 export async function addGlobalItem(itemData: Omit<GlobalItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; itemId?: string; error?: string }> {
   console.log("Placeholder: ADMIN - Adding global item:", itemData);
-  // const docRef = await addDoc(collection(db, "global_items"), { ...itemData, createdAt: new Date(), updatedAt: new Date() });
-  // return { success: true, itemId: docRef.id };
   return { success: true, itemId: "mock_global_item_id" };
 }
 
 export async function updateGlobalItem(itemId: string, updates: Partial<GlobalItem>): Promise<{ success: boolean; error?: string }> {
   console.log("Placeholder: ADMIN - Updating global item:", itemId, updates);
-  // const { id, createdAt, ...validUpdates } = updates;
-  // await updateDoc(doc(db, "global_items", itemId), { ...validUpdates, updatedAt: new Date() });
   return { success: true };
 }
 
 export async function deleteGlobalItem(itemId: string): Promise<{ success: boolean; error?: string }> {
   console.log("Placeholder: ADMIN - Deleting global item:", itemId);
-  // await deleteDoc(doc(db, "global_items", itemId));
   return { success: true };
 }
 
@@ -253,7 +197,6 @@ export async function handleMenuPdfUpload(
 
   let menuDataUri = '';
   try {
-    // Convert file to data URI
     const arrayBuffer = await menuFile.arrayBuffer();
     const base64String = Buffer.from(arrayBuffer).toString('base64');
     menuDataUri = `data:application/pdf;base64,${base64String}`;
@@ -262,7 +205,6 @@ export async function handleMenuPdfUpload(
     console.error("[handleMenuPdfUpload] Error converting PDF to data URI:", conversionError);
     return { error: 'Failed to process PDF file content.' };
   }
-
 
   const validatedFields = MenuPdfUploadSchema.safeParse({ menuDataUri, vendorId });
   console.log("[handleMenuPdfUpload] Zod validation result:", validatedFields);
@@ -277,7 +219,6 @@ export async function handleMenuPdfUpload(
   const inputData: ExtractMenuInput = validatedFields.data;
   console.log("[handleMenuPdfUpload] Input data for Genkit flow:", { vendorId: inputData.vendorId, menuDataUriLength: inputData.menuDataUri.length });
 
-
   try {
     console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
@@ -290,11 +231,10 @@ export async function handleMenuPdfUpload(
     
     if (!result || !result.extractedItems) {
         console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
-        // If result exists but extractedItems is missing, still pass the rawText if available.
         const rawTextInfo = result?.rawText ? `Raw text was extracted: ${result.rawText.substring(0, 200)}...` : "No raw text extracted.";
         return { 
             error: 'AI menu extraction returned an unexpected result. No structured items found. ' + rawTextInfo, 
-            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] } // Ensure extractedMenu is defined
+            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] } 
         }; 
     }
 
@@ -303,7 +243,7 @@ export async function handleMenuPdfUpload(
     console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
     let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
     if (error instanceof Error) {
-        errorMessage = `AI processing error: ${error.message}`; // More specific
+        errorMessage = `AI processing error: ${error.message}`; 
     }
     
     if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
@@ -351,7 +291,7 @@ export async function handleSaveExtractedMenu(
   
   const rawFormData = {
     vendorId: formData.get('vendorId') as string,
-    extractedItems: formData.get('extractedItemsJson') as string,
+    extractedItemsJson: formData.get('extractedItemsJson') as string,
   };
   console.log('[handleSaveExtractedMenu] Raw form data:', rawFormData);
 
@@ -360,12 +300,12 @@ export async function handleSaveExtractedMenu(
   if (!validatedFields.success) {
     console.error("[handleSaveExtractedMenu] Validation error:", validatedFields.error.flatten().fieldErrors);
     return {
-      error: 'Invalid data for saving menu. ' + (validatedFields.error.flatten().fieldErrors.extractedItems?.[0] || 'Unknown validation error.'),
+      error: 'Invalid data for saving menu. ' + (validatedFields.error.flatten().fieldErrors.extractedItemsJson?.[0] || 'Unknown validation error.'),
     };
   }
 
-  const { vendorId, extractedItems: extractedItemsJson } = validatedFields.data;
-  let itemsToSave: ExtractMenuOutput['extractedItems']; // Use the specific type from ExtractMenuOutput
+  const { vendorId, extractedItemsJson } = validatedFields.data;
+  let itemsToSave: ExtractMenuOutput['extractedItems']; 
   try {
     itemsToSave = JSON.parse(extractedItemsJson);
      console.log(`[handleSaveExtractedMenu] Parsed ${itemsToSave.length} items to save for vendor: ${vendorId}`);
@@ -379,7 +319,7 @@ export async function handleSaveExtractedMenu(
   }
 
   try {
-    const now = Timestamp.now(); // Use Firestore Timestamp for consistency
+    const now = Timestamp.now(); 
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
@@ -390,11 +330,10 @@ export async function handleSaveExtractedMenu(
         price: parsePrice(item.price),
         unit: 'serving', 
         isAvailableOnThru: true, 
-        createdAt: now, // Use Timestamp
-        updatedAt: now, // Use Timestamp
-        lastStockUpdate: now,  // Use Timestamp
+        createdAt: now, 
+        updatedAt: now, 
+        lastStockUpdate: now,
         ...(item.description !== undefined && { description: item.description }),
-        // Add other fields from VendorInventoryItem with defaults if necessary
       };
       return addDoc(collection(db, 'vendor_inventory'), newItemData);
     });
@@ -413,3 +352,70 @@ export async function handleSaveExtractedMenu(
   }
 }
 
+// --- Remove Duplicate Items ---
+export type RemoveDuplicatesFormState = {
+    success?: boolean;
+    error?: string;
+    message?: string;
+    duplicatesRemoved?: number;
+};
+
+export async function handleRemoveDuplicateItems(
+    prevState: RemoveDuplicatesFormState,
+    formData: FormData
+): Promise<RemoveDuplicatesFormState> {
+    const vendorId = formData.get('vendorId') as string;
+    console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
+
+    if (!vendorId) {
+        console.error("[handleRemoveDuplicateItems] Vendor ID is missing.");
+        return { error: "Vendor ID is missing." };
+    }
+
+    try {
+        const inventoryItems = await getVendorInventory(vendorId);
+        if (inventoryItems.length === 0) {
+            return { success: true, message: "Inventory is empty. No duplicates to remove.", duplicatesRemoved: 0 };
+        }
+
+        const seenItems = new Map<string, string>(); // Key: "itemNameLowerCase-categoryLowerCase", Value: itemIdToKeep
+        const duplicateIdsToDelete: string[] = [];
+
+        for (const item of inventoryItems) {
+            if (!item.id || !item.itemName || !item.vendorItemCategory) { // Ensure necessary fields exist
+                console.warn(`[handleRemoveDuplicateItems] Skipping item due to missing id, itemName, or category: ${JSON.stringify(item)}`);
+                continue;
+            }
+            const itemKey = `${item.itemName.toLowerCase().trim()}-${item.vendorItemCategory.toLowerCase().trim()}`;
+            
+            if (seenItems.has(itemKey)) {
+                // This is a duplicate
+                duplicateIdsToDelete.push(item.id);
+            } else {
+                // First time seeing this item, mark it to be kept
+                seenItems.set(itemKey, item.id);
+            }
+        }
+
+        if (duplicateIdsToDelete.length === 0) {
+            return { success: true, message: "No duplicate items found.", duplicatesRemoved: 0 };
+        }
+
+        console.log(`[handleRemoveDuplicateItems] Found ${duplicateIdsToDelete.length} duplicates to delete for vendor ${vendorId}. IDs:`, duplicateIdsToDelete);
+
+        const deletePromises = duplicateIdsToDelete.map(id => deleteDoc(doc(db, "vendor_inventory", id)));
+        await Promise.all(deletePromises);
+
+        console.log(`[handleRemoveDuplicateItems] Successfully deleted ${duplicateIdsToDelete.length} duplicate items for vendor ${vendorId}.`);
+        return { 
+            success: true, 
+            message: `Successfully removed ${duplicateIdsToDelete.length} duplicate items.`, 
+            duplicatesRemoved: duplicateIdsToDelete.length 
+        };
+
+    } catch (error) {
+        console.error(`[handleRemoveDuplicateItems] Error removing duplicates for vendor ${vendorId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        return { error: `Failed to remove duplicate items. ${errorMessage}` };
+    }
+}
