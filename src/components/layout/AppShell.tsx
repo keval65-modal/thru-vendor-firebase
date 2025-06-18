@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -32,7 +33,7 @@ interface AppShellProps {
 function Logo() {
   const { state } = useSidebar();
   return (
-    <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-primary whitespace-nowrap">
+    <Link href="/orders" className="flex items-center gap-2 font-semibold text-primary whitespace-nowrap">
       <Flame className="h-7 w-7" />
       {state === 'expanded' && <span className="text-xl">Thru Vendor</span>}
     </Link>
@@ -46,7 +47,7 @@ function NavLinks({ items, currentPath }: { items: NavItem[]; currentPath: strin
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
             asChild
-            isActive={currentPath === item.href || (item.href !== '/dashboard' && currentPath.startsWith(item.href))}
+            isActive={currentPath === item.href || (item.href !== '/orders' && item.href !== '/dashboard' && currentPath.startsWith(item.href))} // Adjusted for /orders as home
             tooltip={item.title}
           >
             <Link href={item.href}>

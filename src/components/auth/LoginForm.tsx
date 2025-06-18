@@ -41,8 +41,8 @@ export function LoginForm() {
 
       if (result.success) {
         toast({ title: 'Login Successful', description: result.message || 'Welcome back!' });
-        router.push('/dashboard');
-        router.refresh();
+        router.push('/orders'); // Changed from /dashboard
+        router.refresh(); // Important to refresh server components and middleware state
       } else {
         toast({
           variant: 'destructive',
