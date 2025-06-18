@@ -2,8 +2,8 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp } from 'firebase/firestore';
-import type { GlobalItem, VendorInventoryItem, Vendor } from '@/lib/inventoryModels';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy } from 'firebase/firestore';
+import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput, type MenuItemSchema as ExtractedMenuItem } from '@/ai/flows/extract-menu-flow';
 import { z } from 'zod';
 
@@ -25,15 +25,39 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
 
 /**
  * Fetches a specific vendor's inventory items.
- * NOTE: This is a placeholder. Full implementation requires querying Firestore.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
-  console.log(`Placeholder: Fetching inventory for vendor: ${vendorId}`);
-  // Example Firestore query (needs to be implemented fully)
-  // const q = query(collection(db, "vendor_inventory"), where("vendorId", "==", vendorId));
-  // const querySnapshot = await getDocs(q);
-  // return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VendorInventoryItem));
-  return [];
+  console.log(`Fetching inventory for vendor: ${vendorId}`);
+  if (!vendorId) {
+    console.error("getVendorInventory: vendorId is undefined or empty.");
+    return [];
+  }
+  try {
+    const q = query(
+      collection(db, "vendor_inventory"), 
+      where("vendorId", "==", vendorId),
+      orderBy("itemName", "asc") // Optional: order by item name
+    );
+    const querySnapshot = await getDocs(q);
+    const inventoryItems = querySnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      // Convert Firestore Timestamps to serializable format (e.g., ISO string or Date object)
+      // For now, we assume client components can handle Timestamps or they will be converted there if needed
+      return { 
+        id: docSnap.id, 
+        ...data,
+        // Ensure Timestamp fields are correctly handled if they need to be stringified for client
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+        lastStockUpdate: data.lastStockUpdate instanceof Timestamp ? data.lastStockUpdate.toDate().toISOString() : data.lastStockUpdate,
+      } as VendorInventoryItem;
+    });
+    console.log(`Found ${inventoryItems.length} items for vendor ${vendorId}`);
+    return inventoryItems;
+  } catch (error) {
+    console.error(`Error fetching inventory for vendor ${vendorId}:`, error);
+    throw new Error("Failed to fetch vendor inventory.");
+  }
 }
 
 interface AddCustomVendorItemData extends Omit<VendorInventoryItem, 'id' | 'vendorId' | 'createdAt' | 'updatedAt' | 'globalItemRef' | 'isCustomItem' | 'lastStockUpdate'> {
@@ -136,14 +160,28 @@ export async function updateVendorItemDetails(vendorInventoryItemId: string, upd
     return { success: true };
 }
 
+export type DeleteItemFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
 /**
  * Deletes an item from a vendor's inventory.
- * NOTE: This is a placeholder.
  */
-export async function deleteVendorItem(vendorInventoryItemId: string): Promise<{ success: boolean; error?: string }> {
-    console.log(`Placeholder: Deleting item ${vendorInventoryItemId}`);
-    // await deleteDoc(doc(db, "vendor_inventory", vendorInventoryItemId));
-    return { success: true };
+export async function deleteVendorItem(prevState: DeleteItemFormState, formData: FormData): Promise<DeleteItemFormState> {
+    const vendorInventoryItemId = formData.get('itemId') as string;
+    console.log(`Attempting to delete item ${vendorInventoryItemId}`);
+    if (!vendorInventoryItemId) {
+        return { success: false, error: "Item ID is missing for deletion." };
+    }
+    try {
+        await deleteDoc(doc(db, "vendor_inventory", vendorInventoryItemId));
+        console.log(`Successfully deleted item ${vendorInventoryItemId}`);
+        return { success: true, message: "Item deleted successfully." };
+    } catch (error) {
+        console.error(`Error deleting item ${vendorInventoryItemId}:`, error);
+        return { success: false, error: "Failed to delete item." };
+    }
 }
 
 // --- Admin Actions for Global Items (Placeholders) ---
@@ -180,7 +218,6 @@ export type MenuUploadFormState = {
   extractedMenu?: ExtractMenuOutput;
   error?: string;
   message?: string;
-  isLoading?: boolean; 
 };
 
 export async function handleMenuPdfUpload(
@@ -196,15 +233,15 @@ export async function handleMenuPdfUpload(
 
   if (!menuFile || menuFile.size === 0) {
     console.warn("[handleMenuPdfUpload] No PDF file uploaded or file is empty.");
-    return { error: 'No PDF file uploaded or file is empty.', isLoading: false };
+    return { error: 'No PDF file uploaded or file is empty.' };
   }
   if (!vendorId) {
     console.warn("[handleMenuPdfUpload] Vendor ID is missing.");
-    return { error: 'Vendor ID is missing.', isLoading: false };
+    return { error: 'Vendor ID is missing.' };
   }
   if (menuFile.type !== 'application/pdf') {
     console.warn("[handleMenuPdfUpload] Uploaded file is not a PDF. Type:", menuFile.type);
-    return { error: 'Uploaded file is not a PDF.', isLoading: false };
+    return { error: 'Uploaded file is not a PDF.' };
   }
 
   let menuDataUri = '';
@@ -216,7 +253,7 @@ export async function handleMenuPdfUpload(
     console.log("[handleMenuPdfUpload] PDF converted to data URI (first 100 chars):", menuDataUri.substring(0,100));
   } catch (conversionError) {
     console.error("[handleMenuPdfUpload] Error converting PDF to data URI:", conversionError);
-    return { error: 'Failed to process PDF file content.', isLoading: false };
+    return { error: 'Failed to process PDF file content.' };
   }
 
 
@@ -227,7 +264,6 @@ export async function handleMenuPdfUpload(
     console.error("[handleMenuPdfUpload] Validation error for menu PDF upload:", validatedFields.error.flatten().fieldErrors);
     return {
       error: 'Invalid data for menu PDF processing. ' + (validatedFields.error.flatten().fieldErrors.menuDataUri?.[0] || validatedFields.error.flatten().fieldErrors.vendorId?.[0] || 'Unknown validation error.'),
-      isLoading: false,
     };
   }
 
@@ -242,10 +278,10 @@ export async function handleMenuPdfUpload(
     
     if (!result || !result.extractedItems) {
         console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
-        return { error: 'AI menu extraction returned an unexpected result. No items found.', isLoading: false, extractedMenu: result }; // Pass along result even if items are missing
+        return { error: 'AI menu extraction returned an unexpected result. No items found.', extractedMenu: result }; // Pass along result even if items are missing
     }
 
-    return { extractedMenu: result, message: 'Menu processed successfully.', isLoading: false };
+    return { extractedMenu: result, message: 'Menu processed successfully.' };
   } catch (error) {
     console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
     let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
@@ -256,7 +292,7 @@ export async function handleMenuPdfUpload(
     if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
         errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF, or check the AI service status.';
     }
-    return { error: errorMessage, isLoading: false };
+    return { error: errorMessage };
   }
 }
 
@@ -330,17 +366,19 @@ export async function handleSaveExtractedMenu(
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
-        isCustomItem: true,
+        isCustomItem: true, // All menu items are custom by default
         itemName: item.itemName,
         vendorItemCategory: item.category,
-        stockQuantity: 0, 
+        stockQuantity: 0, // Default for menu items; can be updated later if needed
         price: parsePrice(item.price),
-        unit: 'serving', 
-        isAvailableOnThru: true, 
+        unit: 'serving', // Default unit for menu items
+        isAvailableOnThru: true, // Default to available
         createdAt: now,
         updatedAt: now,
-        lastStockUpdate: now,
+        lastStockUpdate: now, // Set initial last stock update time
         ...(item.description !== undefined && { description: item.description }),
+        // imageUrl: '', // Can be added later
+        // itemAttributes: {}, // Can be added later
       };
       return addDoc(collection(db, 'vendor_inventory'), newItemData);
     });
@@ -352,10 +390,9 @@ export async function handleSaveExtractedMenu(
   } catch (error) {
     console.error('[handleSaveExtractedMenu] Error saving menu items to Firestore:', error);
     let errorMessage = 'Failed to save menu items to the database.';
-    if (error instanceof Error) {
-      errorMessage = error.message; // This will now include the specific Firestore error
+    if (error instanceof Error && error.message) {
+      errorMessage = `Firestore error: ${error.message}`;
     }
     return { error: errorMessage };
   }
 }
-

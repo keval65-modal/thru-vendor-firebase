@@ -8,20 +8,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw } from "lucide-react";
 import { getSession } from '@/lib/auth';
-import type { Vendor } from '@/lib/inventoryModels';
+import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
-import { handleMenuPdfUpload, type MenuUploadFormState, handleSaveExtractedMenu, type SaveMenuFormState } from './actions';
+import { handleMenuPdfUpload, type MenuUploadFormState, handleSaveExtractedMenu, type SaveMenuFormState, getVendorInventory, deleteVendorItem, type DeleteItemFormState } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCategory'> {
   isAuthenticated: boolean;
 }
 
-const initialMenuUploadState: MenuUploadFormState = { isLoading: false };
+const initialMenuUploadState: MenuUploadFormState = {};
 const initialSaveMenuState: SaveMenuFormState = {};
+const initialDeleteItemState: DeleteItemFormState = {};
 
 function MenuUploadSubmitButton() {
   const { pending } = useFormStatus();
@@ -43,6 +55,25 @@ function SaveMenuButton() {
   );
 }
 
+function DeleteItemButton({ itemId }: { itemId: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <AlertDialogAction
+      type="submit"
+      disabled={pending}
+      className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+      formAction={async (formData) => {
+        formData.set('itemId', itemId); // Ensure itemId is part of formData for the action
+        // The form around AlertDialogAction will call the bound deleteItemAction
+      }}
+    >
+      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+      Delete
+    </AlertDialogAction>
+  );
+}
+
+
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
@@ -51,7 +82,30 @@ export default function InventoryPage() {
 
   const [menuUploadState, menuUploadFormAction, isMenuUploading] = useActionState(handleMenuPdfUpload, initialMenuUploadState);
   const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
+  const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
 
+
+  const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
+  const [isLoadingInventory, setIsLoadingInventory] = useState(false);
+  const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
+
+  const fetchAndSetInventory = async (vendorEmail: string, showToast = false) => {
+    if (!vendorEmail) return;
+    setIsLoadingInventory(true);
+    setIsRefreshingInventory(true);
+    try {
+      const items = await getVendorInventory(vendorEmail);
+      setVendorInventory(items);
+      if (showToast) {
+        toast({ title: "Inventory Refreshed", description: `Found ${items.length} items.` });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error fetching inventory", description: (error as Error).message });
+    } finally {
+      setIsLoadingInventory(false);
+      setIsRefreshingInventory(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchSessionData() {
@@ -64,6 +118,7 @@ export default function InventoryPage() {
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
         });
+        fetchAndSetInventory(currentSession.email);
       } else {
         setSession(null);
       }
@@ -87,10 +142,24 @@ export default function InventoryPage() {
     }
     if (saveMenuState?.success && saveMenuState.message) {
       toast({ title: "Menu Saved", description: saveMenuState.message });
-      // Optionally, clear the menuUploadState or parts of it to hide the extracted items form
-      // For now, we'll just let the user see the success and manually re-upload if needed.
+      if (session?.email) {
+        fetchAndSetInventory(session.email); // Re-fetch inventory after saving
+      }
+      // Consider resetting menuUploadState here if you want to clear the extracted items form
     }
-  }, [saveMenuState, toast]);
+  }, [saveMenuState, toast, session?.email]);
+
+  useEffect(() => {
+    if (deleteItemState?.error) {
+        toast({ variant: "destructive", title: "Delete Item Error", description: deleteItemState.error });
+    }
+    if (deleteItemState?.success && deleteItemState.message) {
+        toast({ title: "Item Deleted", description: deleteItemState.message });
+        if (session?.email) {
+            fetchAndSetInventory(session.email); // Re-fetch inventory after deleting
+        }
+    }
+  }, [deleteItemState, toast, session?.email]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -103,7 +172,6 @@ export default function InventoryPage() {
       console.warn("[InventoryPage] Invalid file type selected or no file.");
     }
   };
-
 
   const renderRestaurantCafeContent = () => {
     return (
@@ -170,7 +238,7 @@ export default function InventoryPage() {
               </div>
             )}
             
-             {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length === 0 && !menuUploadState.isLoading && (
+            {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length === 0 && !isMenuUploading && (
                 <Alert variant="destructive" className="mt-4">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>No Items Extracted</AlertTitle>
@@ -182,24 +250,76 @@ export default function InventoryPage() {
                 </Alert>
             )}
             
-            <h4 className="text-md font-semibold mt-8 mb-2">Current Menu Items (from Database)</h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    Your menu is empty or not yet loaded. Add items manually, upload a PDF, or refresh.
+            <div className="flex justify-between items-center mt-8 mb-2">
+                <h4 className="text-md font-semibold">Current Menu Items (from Database)</h4>
+                <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory}>
+                    {isRefreshingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
+                    Refresh
+                </Button>
+            </div>
+            {isLoadingInventory ? (
+                <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            ) : vendorInventory.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-center">Stock</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorInventory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.itemName}</TableCell>
+                        <TableCell>{item.vendorItemCategory}</TableCell>
+                        <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{item.stockQuantity}</TableCell>
+                        <TableCell className="space-x-2 text-right">
+                            <Button variant="outline" size="sm" disabled> {/* Placeholder for Edit */}
+                                <Edit3 className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <form action={deleteItemFormAction}>
+                                        <input type="hidden" name="itemId" value={item.id} />
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the item
+                                                "{item.itemName}" from your inventory.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <DeleteItemButton itemId={item.id!} />
+                                        </AlertDialogFooter>
+                                    </form>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                 <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    Your menu is empty. Add items manually or upload a PDF.
                   </TableCell>
                 </TableRow>
-              </TableBody>
-            </Table>
+              )}
           </CardContent>
         </Card>
       </div>
@@ -344,4 +464,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-

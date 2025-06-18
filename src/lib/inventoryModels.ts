@@ -17,8 +17,8 @@ export interface GlobalItem {
   defaultImageUrl?: string;
   barcode?: string;
   searchKeywords?: string[];
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: Timestamp | string; // Allow string for data from server action before Firestore conversion or for fetched data
+  updatedAt?: Timestamp | string;
 }
 
 /**
@@ -52,9 +52,9 @@ export interface VendorInventoryItem {
   
   preparationTimeMinutes?: number; // For prepared items like food.
 
-  lastStockUpdate?: Timestamp;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  lastStockUpdate?: Timestamp | string;
+  createdAt?: Timestamp | string;
+  updatedAt?: Timestamp | string;
 }
 
 /**
@@ -81,7 +81,7 @@ export interface Vendor {
   longitude: number;
   shopImageUrl?: string; // URL from Firebase Storage
   fullPhoneNumber?: string;
-  createdAt?: Timestamp | string; // Allow string for data from server action before Firestore conversion
+  createdAt?: Timestamp | string; 
   
   // Additional fields
   menuPdfUrl?: string; // For restaurants/cafes if they upload a PDF
