@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Bell, ShoppingCart, Power, Clock, MinusCircle, PlusCircle, CheckCircle, XCircle, Car, User, Tag, FileText } from "lucide-react";
+import { Bell, ShoppingCart, Power, Clock, MinusCircle, PlusCircle, CheckCircle, XCircle, Car, User, Tag, FileText, LogOut } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { getSession } from '@/lib/auth'; // Assuming getSession can be called client-side or you adapt it
+import { getSession, logout } from '@/lib/auth'; // Assuming getSession can be called client-side or you adapt it
 import { OrderCard } from '@/components/orders/OrderCard';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 // Placeholder types - replace with actual types when data is integrated
 interface OrderItem {
@@ -42,6 +44,8 @@ export default function OrdersPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
   const [isShopOpen, setIsShopOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const router = useRouter();
 
   // Mock data for counts - replace with actual data fetching
   const newOrdersCount = 0; // Will be 0 as per no mock data requirement
@@ -68,6 +72,19 @@ export default function OrdersPage() {
   const handleToggleShopStatus = () => {
     setIsShopOpen(!isShopOpen);
     // Add logic to update shop status in the backend
+    toast({
+        title: `Shop is now ${!isShopOpen ? "Online" : "Offline"}`,
+        description: `You can now ${!isShopOpen ? "receive" : "no longer receive"} new orders.`,
+    });
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    // The server action will handle the redirect.
+    // For immediate feedback and to ensure client-side state is cleared,
+    // we can also push to login page, though middleware might also catch this.
+    // router.push('/login'); // This might be redundant if server action redirects properly
+    toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
   if (isLoading) {
@@ -110,6 +127,15 @@ export default function OrdersPage() {
                   {isShopOpen ? "Online" : "Offline"}
                 </label>
               </div>
+               <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleLogout}
+                className="text-primary-foreground border-primary-foreground/50 hover:bg-primary/80 hover:text-primary-foreground"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
             </div>
           </div>
           {/* Thru Loans Banner - Placeholder */}
