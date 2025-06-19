@@ -21,32 +21,37 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { Store, Info, MapPin, UploadCloud, PlusCircle, LocateFixed, Eye, EyeOff, Loader2, UserPlus } from 'lucide-react';
+import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { registerVendor } from '@/app/signup/actions';
-// Firebase imports for OTP are no longer needed here.
 
-const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Other"];
+import ReactCrop, {
+  centerCrop,
+  makeAspectCrop,
+  type Crop,
+  type PixelCrop,
+} from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+
+const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
 const genders = ["Male", "Female", "Other", "Prefer not to say"];
 const weeklyCloseDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Never Closed"];
 const countryCodes = ["+91", "+1", "+44", "+61", "+81"];
+const TARGET_IMAGE_WIDTH = 150;
+const TARGET_IMAGE_HEIGHT = 100;
+const TARGET_ASPECT_RATIO = TARGET_IMAGE_WIDTH / TARGET_IMAGE_HEIGHT;
+
 
 const generateTimeOptions = () => {
   const options = [];
-  for (let h = 0; h < 24; h++) { // Full 24-hour cycle
+  for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += 30) {
       const hour12 = h === 0 ? 12 : h % 12 === 0 ? 12 : h % 12;
       const period = h < 12 || h === 24 ? "AM" : "PM";
-      if (h === 12 && period === "AM") { // Noon edge case
-        // period = "PM"; // Actually 12:00 PM is noon
-      }
-
       const displayHour = hour12 < 10 ? `0${hour12}` : hour12;
       const displayMinute = m < 10 ? `0${m}` : m;
       let timeValue = `${displayHour}:${displayMinute} ${period}`;
       if (h === 0 && m === 0) timeValue = "12:00 AM (Midnight)";
       if (h === 12 && m === 0) timeValue = "12:00 PM (Noon)";
-
-
       options.push(timeValue.replace("12:00 AM (Midnight) AM", "12:00 AM (Midnight)").replace("12:00 PM (Noon) PM", "12:00 PM (Noon)"));
     }
   }
@@ -77,15 +82,14 @@ const signupFormSchema = z.object({
     (val) => val === "" ? undefined : parseFloat(String(val)),
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180, "Must be >= -180").max(180, "Must be <= 180")
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
-  shopImage: z.any().optional(),
+  shopImage: z.any().optional(), // Will be a File object if provided
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
-        // Handle "Never Closed" case if applicable, or ensure timeOptions has a consistent order
-        if (data.openingTime === data.closingTime && data.openingTime !== "12:00 AM (Midnight)") { // Could allow this if "Open 24 Hours" is an option
-            // return false; // Or handle as 24 hours
+        if (data.openingTime === data.closingTime && data.openingTime !== "12:00 AM (Midnight)") {
+            // Potentially allow this if "Open 24 Hours" is an option or implies it
         }
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
@@ -95,13 +99,74 @@ const signupFormSchema = z.object({
 }, { message: "Closing time must be after opening time.", path: ["closingTime"]});
 
 
+async function generateCroppedImage(
+  imageFile: File,
+  crop: PixelCrop,
+  targetWidth: number,
+  targetHeight: number
+): Promise<File | null> {
+  const image = new Image();
+  image.src = URL.createObjectURL(imageFile);
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+  });
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  canvas.width = crop.width;
+  canvas.height = crop.height;
+
+  ctx.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    crop.width,
+    crop.height
+  );
+
+  // Resize to target dimensions
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = targetWidth;
+  finalCanvas.height = targetHeight;
+  const finalCtx = finalCanvas.getContext('2d');
+  if (!finalCtx) return null;
+
+  finalCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+  return new Promise((resolve) => {
+    finalCanvas.toBlob((blob) => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+      resolve(new File([blob], imageFile.name, { type: imageFile.type || 'image/png' }));
+    }, imageFile.type || 'image/png', 0.9); // 0.9 quality for PNG/JPEG
+  });
+}
+
+
 export function SignupForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Image Cropping State
+  const [imgSrc, setImgSrc] = useState('');
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const form = useForm<z.infer<typeof signupFormSchema>>({
     resolver: zodResolver(signupFormSchema),
@@ -129,17 +194,38 @@ export function SignupForm() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      form.setValue('shopImage', file);
+      setCrop(undefined); // Clear crop on new image
+      setCompletedCrop(undefined);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImagePreview(reader.result as string);
-      };
+      reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''));
       reader.readAsDataURL(file);
+      setOriginalFile(file);
+      form.setValue('shopImage', file); // Store original file in form state for validation / if no crop
     } else {
+      setImgSrc('');
+      setOriginalFile(null);
       form.setValue('shopImage', undefined);
-      setSelectedImagePreview(null);
     }
   };
+  
+  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const { width, height } = e.currentTarget;
+    const crop = centerCrop(
+      makeAspectCrop(
+        {
+          unit: '%',
+          width: 90, // Initial crop selection width
+        },
+        TARGET_ASPECT_RATIO,
+        width,
+        height,
+      ),
+      width,
+      height,
+    );
+    setCrop(crop);
+  }
+
 
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -164,16 +250,41 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
     const formData = new FormData();
+    let finalShopImageFile: File | undefined | null = originalFile;
+
+    if (completedCrop && originalFile && imgRef.current) {
+      try {
+        const croppedFile = await generateCroppedImage(
+          originalFile,
+          completedCrop,
+          TARGET_IMAGE_WIDTH,
+          TARGET_IMAGE_HEIGHT
+        );
+        if (croppedFile) {
+          finalShopImageFile = croppedFile;
+        } else {
+          toast({ variant: "destructive", title: "Cropping Failed", description: "Could not process the image crop." });
+          // Potentially stop submission or allow original image? For now, continues with original if crop failed.
+        }
+      } catch (cropError) {
+        console.error("Error during image cropping:", cropError);
+        toast({ variant: "destructive", title: "Cropping Error", description: "An error occurred while cropping the image." });
+      }
+    }
+    
     Object.keys(values).forEach(key => {
       const valueKey = key as keyof typeof values;
-      if (values[valueKey] !== undefined) {
-        if (valueKey === 'shopImage' && values.shopImage instanceof File) {
-          formData.append(key, values.shopImage);
-        } else {
-          formData.append(key, String(values[valueKey]));
-        }
+      if (valueKey === 'shopImage') {
+        // Handled by finalShopImageFile
+      } else if (values[valueKey] !== undefined) {
+        formData.append(key, String(values[valueKey]));
       }
     });
+
+    if (finalShopImageFile) {
+      formData.append('shopImage', finalShopImageFile);
+    }
+
 
     try {
       const result = await registerVendor(formData);
@@ -205,42 +316,67 @@ export function SignupForm() {
     <TooltipProvider>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="flex flex-col items-center space-y-2 mb-6">
-            <FormLabel>Shop Image</FormLabel>
-            <div className="relative w-32 h-32 rounded-full border-2 border-dashed border-muted-foreground flex items-center justify-center bg-muted overflow-hidden">
-              {selectedImagePreview ? (
-                <img src={selectedImagePreview} alt="Shop preview" className="w-full h-full object-cover" data-ai-hint="store shop" />
-              ) : (
-                <Store className="w-16 h-16 text-muted-foreground" />
-              )}
-               <FormField
-                control={form.control}
-                name="shopImage"
-                render={({ field }) => (
-                  <FormItem className="absolute bottom-0 right-0">
-                    <FormControl>
-                      <>
-                        <input
-                          id="shopImageUpload"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageChange}
-                          ref={field.ref}
-                          disabled={isLoading}
-                        />
-                        <Button type="button" size="icon" variant="outline" className="rounded-full bg-background hover:bg-muted" onClick={() => document.getElementById('shopImageUpload')?.click()} disabled={isLoading}>
-                          <PlusCircle className="h-5 w-5 text-primary" />
-                        </Button>
-                      </>
-                    </FormControl>
-                  </FormItem>
+         
+          <FormField
+            control={form.control}
+            name="shopImage"
+            render={({ field }) => ( // field is not directly used for file input value, but for RHF connection
+              <FormItem className="flex flex-col items-center">
+                <FormLabel>Shop Image (Logo/Storefront)</FormLabel>
+                 <Input
+                    id="shopImageUpload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden" 
+                    ref={fileInputRef}
+                    disabled={isLoading}
+                  />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full max-w-xs mt-1 mb-2"
+                  disabled={isLoading}
+                >
+                  <UploadCloud className="mr-2 h-4 w-4" />
+                  Choose Image
+                </Button>
+
+                {imgSrc && (
+                  <div className="mt-2 p-2 border rounded-md w-full max-w-md">
+                    <ReactCrop
+                      crop={crop}
+                      onChange={(_, percentCrop) => setCrop(percentCrop)}
+                      onComplete={(c) => setCompletedCrop(c)}
+                      aspect={TARGET_ASPECT_RATIO}
+                      minWidth={TARGET_IMAGE_WIDTH / 5} // min crop selection width
+                      minHeight={TARGET_IMAGE_HEIGHT / 5} // min crop selection height
+                      // circularCrop // if you want circular logo crop
+                    >
+                      <img
+                        ref={imgRef}
+                        alt="Crop preview"
+                        src={imgSrc}
+                        onLoad={onImageLoad}
+                        style={{ maxHeight: '400px', display: 'block', margin: 'auto' }}
+                      />
+                    </ReactCrop>
+                  </div>
                 )}
-              />
-            </div>
-            {form.formState.errors.shopImage && <FormMessage>{form.formState.errors.shopImage?.message?.toString()}</FormMessage>}
-            <FormDescription className="text-xs">Upload a picture of your shop.</FormDescription>
-          </div>
+                {completedCrop && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Preview of 150x100 (Final image will be this size)
+                  </div>
+                )}
+                <FormDescription className="text-xs text-center mt-1">
+                  Upload a picture of your shop. It will be cropped to 150x100 pixels.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
@@ -612,3 +748,4 @@ export function SignupForm() {
     </TooltipProvider>
   );
 }
+
