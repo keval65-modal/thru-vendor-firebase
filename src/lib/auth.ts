@@ -82,7 +82,8 @@ export async function getSession(): Promise<{
     email?: string;
     name?: string; // ownerName
     shopName?: string;
-    storeCategory?: Vendor['storeCategory']; // Use type from Vendor
+    storeCategory?: Vendor['storeCategory'];
+    type?: Vendor['storeCategory']; // For customer app compatibility
     isActiveOnThru?: boolean;
   } | null> {
   const userEmailFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
@@ -93,13 +94,14 @@ export async function getSession(): Promise<{
       const userDocSnap = await getDoc(userDocRef);
 
       if (userDocSnap.exists()) {
-        const userData = userDocSnap.data() as Vendor; // Cast to Vendor
+        const userData = userDocSnap.data() as Vendor;
         return {
           isAuthenticated: true,
           email: userData.email,
           name: userData.ownerName,
           shopName: userData.shopName,
           storeCategory: userData.storeCategory,
+          type: userData.type || userData.storeCategory, // Fallback to storeCategory if type is missing for older docs
           isActiveOnThru: userData.isActiveOnThru,
         };
       } else {
@@ -118,24 +120,9 @@ export async function isAuthenticated(): Promise<boolean> {
   return session?.isAuthenticated || false;
 }
 
-export interface VendorRegistrationData {
-  shopName: string;
-  storeCategory: Vendor['storeCategory'];
-  ownerName: string;
-  phoneCountryCode: string;
-  phoneNumber: string;
-  email: string;
+export interface VendorRegistrationData extends Omit<Vendor, 'id' | 'createdAt' | 'shopImageUrl' | 'fullPhoneNumber' | 'isActiveOnThru' | 'type' | 'password'> {
   password?: string;
-  gender?: string;
-  city: string;
-  weeklyCloseOn: string;
-  openingTime: string;
-  closingTime: string;
-  shopFullAddress: string;
-  latitude: number;
-  longitude: number;
-  shopImage?: any; // Placeholder for now
-  isActiveOnThru?: boolean; // Added for customer app visibility
+  shopImage?: any; 
 }
 
 
@@ -166,26 +153,43 @@ export async function registerNewVendor(vendorData: VendorRegistrationData): Pro
       return { success: false, error: 'An account with this phone number already exists.' };
     }
     
-    // "Hash" the password (simulated - NOT SECURE)
     const hashedPassword = simulateHashPassword(vendorData.password);
 
-    const vendorDataToSave: Omit<Vendor, 'id' | 'createdAt'> & {password: string; createdAt: string; isActiveOnThru: boolean} = {
-      ...vendorData,
+    // Construct the full Vendor object to save
+    const vendorToSave: Omit<Vendor, 'id'> = {
+      shopName: vendorData.shopName,
+      storeCategory: vendorData.storeCategory,
+      ownerName: vendorData.ownerName,
+      phoneCountryCode: vendorData.phoneCountryCode,
+      phoneNumber: vendorData.phoneNumber,
       email: lowercasedEmail,
-      password: hashedPassword, // Store the "hashed" password
+      // password field should be part of the Vendor type if we are saving it directly
+      // However, VendorRegistrationData excludes password, so we add it here.
+      // The type of vendorToSave should accommodate `password`. For simplicity, I'm assuming `Vendor` model has `password`.
+      // If not, we need to adjust. Let's assume `Vendor` has an optional `password` for this example.
+      password: hashedPassword,
+      gender: vendorData.gender,
+      city: vendorData.city,
+      weeklyCloseOn: vendorData.weeklyCloseOn,
+      openingTime: vendorData.openingTime,
+      closingTime: vendorData.closingTime,
+      shopFullAddress: vendorData.shopFullAddress,
+      latitude: vendorData.latitude,
+      longitude: vendorData.longitude,
+      // shopImageUrl will be undefined if no image, or handled separately
       fullPhoneNumber: fullPhoneNumber,
-      isActiveOnThru: vendorData.isActiveOnThru ?? true, // Default to true for now
-      createdAt: new Date().toISOString(), // Add a timestamp
+      createdAt: new Date().toISOString(),
+      isActiveOnThru: vendorData.isActiveOnThru ?? true, // Default to true
+      type: vendorData.storeCategory, // Set 'type' field to mirror 'storeCategory'
     };
-    // Remove shopImage if it's not a File or not meant to be stored directly yet
+    
+    // Handle shopImage - it's not stored directly in this example
     if (!(vendorData.shopImage instanceof File) || vendorData.shopImage.size === 0) {
-        delete (vendorDataToSave as any).shopImage; // Cast to any to delete optional property
+      // No specific action for shopImage here, but it means shopImageUrl would be undefined
     }
-    // In a real app, you would handle file uploads separately (e.g., to Firebase Storage)
-    // and store the image URL in Firestore. For now, we're omitting direct File storage.
 
 
-    await setDoc(doc(db, 'vendors', lowercasedEmail), vendorDataToSave);
+    await setDoc(doc(db, 'vendors', lowercasedEmail), vendorToSave);
 
     console.log("[Auth Register] New vendor registered in Firestore. Email:", lowercasedEmail, "Shop:", vendorData.shopName);
     return { success: true, userId: lowercasedEmail };
@@ -199,4 +203,3 @@ export async function registerNewVendor(vendorData: VendorRegistrationData): Pro
     return { success: false, error: errorMessage };
   }
 }
-

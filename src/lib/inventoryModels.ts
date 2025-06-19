@@ -60,17 +60,16 @@ export interface VendorInventoryItem {
 /**
  * Represents a vendor.
  * Stored in the `vendors` collection.
- * (Extending slightly from auth.ts for clarity on inventory-related fields)
  */
 export interface Vendor {
-  // Fields from auth.ts VendorRegistrationData
+  id?: string; // Typically the email is used as the ID
   shopName: string;
   storeCategory: "Grocery Store" | "Restaurant" | "Bakery" | "Boutique" | "Electronics" | "Cafe" | "Pharmacy" | "Liquor Shop" | "Pet Shop" | "Gift Shop" | "Other";
   ownerName: string;
   phoneCountryCode: string;
   phoneNumber: string;
-  email: string; // Also used as document ID
-  // password is stored but not typically part of this model for client-side
+  email: string; 
+  password?: string; // Stored hashed, but included for type consistency if passing around before save
   gender?: string;
   city: string;
   weeklyCloseOn: string;
@@ -79,12 +78,11 @@ export interface Vendor {
   shopFullAddress: string;
   latitude: number;
   longitude: number;
-  shopImageUrl?: string; // URL from Firebase Storage
+  shopImageUrl?: string; 
   fullPhoneNumber?: string;
   createdAt?: Timestamp | string; 
   
-  // Additional fields
-  menuPdfUrl?: string; // For restaurants/cafes if they upload a PDF
-  isActiveOnThru?: boolean; // Overall shop status on Thru, for customer app visibility
+  menuPdfUrl?: string; 
+  isActiveOnThru?: boolean; 
+  type?: Vendor['storeCategory']; // Added 'type' field, mirroring storeCategory
 }
-
