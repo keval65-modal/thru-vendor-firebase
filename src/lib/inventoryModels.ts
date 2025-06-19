@@ -69,7 +69,7 @@ export interface Vendor {
   phoneCountryCode: string;
   phoneNumber: string;
   email: string; 
-  password?: string; // Stored hashed, but included for type consistency if passing around before save
+  password?: string; // Stored hashed. Not directly editable in profile form for security.
   gender?: string;
   city: string;
   weeklyCloseOn: string;
@@ -79,8 +79,9 @@ export interface Vendor {
   latitude: number;
   longitude: number;
   shopImageUrl?: string; 
-  fullPhoneNumber?: string;
+  fullPhoneNumber?: string; // Combined country code and number
   createdAt?: Timestamp | string; 
+  updatedAt?: Timestamp | string; // Add updatedAt field
   
   menuPdfUrl?: string; 
   isActiveOnThru?: boolean; 

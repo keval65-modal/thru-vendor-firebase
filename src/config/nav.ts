@@ -1,6 +1,6 @@
 
 import type { LucideProps } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle } from 'lucide-react'; // Added UserCircle for Profile
 
 export interface NavItem {
   title: string;
@@ -43,6 +43,11 @@ export const mainNavItems: NavItem[] = [
 ];
 
 export const bottomNavItems: NavItem[] = [
+    {
+      title: 'Profile',
+      href: '/profile',
+      icon: UserCircle, // Using UserCircle for profile/settings
+    },
     // Example:
     // {
     //   title: 'Settings',
@@ -50,4 +55,3 @@ export const bottomNavItems: NavItem[] = [
     //   icon: Settings,
     // },
 ];
-
