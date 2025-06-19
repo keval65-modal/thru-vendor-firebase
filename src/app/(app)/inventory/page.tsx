@@ -9,16 +9,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-    handleMenuPdfUpload, type MenuUploadFormState, 
-    handleSaveExtractedMenu, type SaveMenuFormState, 
-    getVendorInventory, 
+import {
+    handleMenuPdfUpload, type MenuUploadFormState,
+    handleSaveExtractedMenu, type SaveMenuFormState,
+    getVendorInventory,
     deleteVendorItem, type DeleteItemFormState,
-    handleRemoveDuplicateItems, type RemoveDuplicatesFormState
+    handleRemoveDuplicateItems, type RemoveDuplicatesFormState,
+    handleDeleteSelectedItems, type DeleteSelectedItemsFormState
 } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -42,6 +44,8 @@ const initialMenuUploadState: MenuUploadFormState = {};
 const initialSaveMenuState: SaveMenuFormState = {};
 const initialDeleteItemState: DeleteItemFormState = {};
 const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
+const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
+
 
 function MenuUploadSubmitButton() {
   const { pending } = useFormStatus();
@@ -67,7 +71,7 @@ function DeleteItemButton() {
   const { pending } = useFormStatus();
   return (
     <AlertDialogAction
-      type="submit" 
+      type="submit"
       disabled={pending}
       className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
     >
@@ -87,6 +91,20 @@ function RemoveDuplicatesButton() {
     );
 }
 
+function DeleteSelectedButton() {
+    const { pending } = useFormStatus();
+    return (
+        <AlertDialogAction
+            type="submit"
+            disabled={pending}
+            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+        >
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+            Delete Selected
+        </AlertDialogAction>
+    );
+}
+
 
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
@@ -98,16 +116,18 @@ export default function InventoryPage() {
   const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
   const [deleteItemState, deleteItemFormAction] = useActionState(deleteVendorItem, initialDeleteItemState);
   const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
+  const [deleteSelectedItemsState, deleteSelectedItemsFormAction] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
 
 
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const uniqueCategories = useMemo(() => {
-    const categories = new Set(vendorInventory.map(item => item.vendorItemCategory));
-    return ["all", ...Array.from(categories)];
+    const categories = new Set(vendorInventory.map(item => item.vendorItemCategory).filter(Boolean) as string[]);
+    return ["all", ...Array.from(categories).sort()];
   }, [vendorInventory]);
 
   const filteredInventory = useMemo(() => {
@@ -125,11 +145,12 @@ export default function InventoryPage() {
     }
     console.log(`[InventoryPage] Fetching inventory for ${vendorEmail}`);
     setIsLoadingInventory(true);
-    if (showToast) setIsRefreshingInventory(true); 
+    if (showToast) setIsRefreshingInventory(true);
 
     try {
       const items = await getVendorInventory(vendorEmail);
       setVendorInventory(items);
+      setSelectedItems([]); // Clear selection on refresh
       if (showToast) {
         toast({ title: "Inventory Refreshed", description: `Found ${items.length} items.` });
       }
@@ -169,7 +190,7 @@ export default function InventoryPage() {
     if (menuUploadState?.error) {
       toast({ variant: "destructive", title: "Menu Upload Error", description: menuUploadState.error });
     }
-    if (menuUploadState?.message && !menuUploadState.error) { 
+    if (menuUploadState?.message && !menuUploadState.error) {
       toast({ title: "Menu Processing", description: menuUploadState.message });
     }
   }, [menuUploadState, toast]);
@@ -181,7 +202,7 @@ export default function InventoryPage() {
     if (saveMenuState?.success && saveMenuState.message) {
       toast({ title: "Menu Saved", description: saveMenuState.message });
       if (session?.email) {
-        fetchAndSetInventory(session.email, true); 
+        fetchAndSetInventory(session.email, true);
       }
     }
   }, [saveMenuState, toast, session?.email]);
@@ -193,11 +214,11 @@ export default function InventoryPage() {
     if (deleteItemState?.success && deleteItemState.message) {
         toast({ title: "Item Deleted", description: deleteItemState.message });
         if (session?.email) {
-            fetchAndSetInventory(session.email, true); 
+            fetchAndSetInventory(session.email, true);
         }
     }
   }, [deleteItemState, toast, session?.email]);
-  
+
   useEffect(() => {
     if (removeDuplicatesState?.error) {
         toast({ variant: "destructive", title: "Remove Duplicates Error", description: removeDuplicatesState.error });
@@ -209,6 +230,18 @@ export default function InventoryPage() {
         }
     }
   }, [removeDuplicatesState, toast, session?.email]);
+
+  useEffect(() => {
+    if (deleteSelectedItemsState?.error) {
+        toast({ variant: "destructive", title: "Delete Selected Error", description: deleteSelectedItemsState.error });
+    }
+    if (deleteSelectedItemsState?.success && deleteSelectedItemsState.message) {
+        toast({ title: "Items Deleted", description: deleteSelectedItemsState.message });
+        if (session?.email) {
+            fetchAndSetInventory(session.email, true); // Refreshes inventory and clears selection
+        }
+    }
+  }, [deleteSelectedItemsState, toast, session?.email]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,6 +255,26 @@ export default function InventoryPage() {
       console.warn("[InventoryPage] Invalid file type selected or no file.");
     }
   };
+
+  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSelectedItems(filteredInventory.map(item => item.id || ''));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (itemId: string, checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSelectedItems(prev => [...prev, itemId]);
+    } else {
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    }
+  };
+
+  const isAllSelected = filteredInventory.length > 0 && selectedItems.length === filteredInventory.length;
+  const isSomeSelected = selectedItems.length > 0 && selectedItems.length < filteredInventory.length;
+
 
   const renderRestaurantCafeContent = () => {
     return (
@@ -238,13 +291,13 @@ export default function InventoryPage() {
             <form action={menuUploadFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
               {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
               <Label htmlFor="menuPdf" className="font-semibold">Upload Menu PDF</Label>
-              <Input 
-                id="menuPdf" 
-                name="menuPdf" 
-                type="file" 
+              <Input
+                id="menuPdf"
+                name="menuPdf"
+                type="file"
                 accept="application/pdf"
-                onChange={handleFileChange} 
-                required 
+                onChange={handleFileChange}
+                required
                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
               <MenuUploadSubmitButton />
@@ -269,13 +322,13 @@ export default function InventoryPage() {
                     {JSON.stringify(menuUploadState.extractedMenu.extractedItems, null, 2)}
                   </pre>
                 </div>
-                
+
                 <form action={saveMenuFormAction}>
                    {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
-                   <input 
-                    type="hidden" 
-                    name="extractedItemsJson" 
-                    value={JSON.stringify(menuUploadState.extractedMenu.extractedItems)} 
+                   <input
+                    type="hidden"
+                    name="extractedItemsJson"
+                    value={JSON.stringify(menuUploadState.extractedMenu.extractedItems)}
                    />
                   <SaveMenuButton />
                 </form>
@@ -287,7 +340,7 @@ export default function InventoryPage() {
                 )}
               </div>
             )}
-            
+
             {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length === 0 && !isMenuUploading && (
                 <Alert variant="destructive" className="mt-4">
                     <AlertTriangle className="h-4 w-4" />
@@ -299,10 +352,35 @@ export default function InventoryPage() {
                     </AlertDescription>
                 </Alert>
             )}
-            
+
             <div className="flex justify-between items-center mt-8 mb-4">
                 <h4 className="text-md font-semibold">Current Menu Items (from Database)</h4>
                 <div className="flex items-center gap-2">
+                     {selectedItems.length > 0 && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete ({selectedItems.length})
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <form action={deleteSelectedItemsFormAction}>
+                                    <input type="hidden" name="selectedItemIdsJson" value={JSON.stringify(selectedItems)} />
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete the selected {selectedItems.length} item(s) from your inventory.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <DeleteSelectedButton />
+                                    </AlertDialogFooter>
+                                </form>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
                     {session?.email && vendorInventory.length > 0 && (
                         <form action={removeDuplicatesFormAction}>
                             <input type="hidden" name="vendorId" value={session.email} />
@@ -332,7 +410,7 @@ export default function InventoryPage() {
                 </Select>
               </div>
             )}
-            {isLoadingInventory && !isRefreshingInventory ? ( 
+            {isLoadingInventory && !isRefreshingInventory ? (
                 <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
@@ -342,6 +420,14 @@ export default function InventoryPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                         <Checkbox
+                            checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)}
+                            onCheckedChange={handleSelectAll}
+                            aria-label="Select all items"
+                            disabled={filteredInventory.length === 0}
+                          />
+                      </TableHead>
                       <TableHead>Item Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -351,13 +437,20 @@ export default function InventoryPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredInventory.length > 0 ? filteredInventory.map((item) => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.id} data-state={selectedItems.includes(item.id || '') ? "selected" : ""}>
+                        <TableCell>
+                           <Checkbox
+                              checked={selectedItems.includes(item.id || '')}
+                              onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
+                              aria-label={`Select item ${item.itemName}`}
+                            />
+                        </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
@@ -387,8 +480,8 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          {selectedCategoryFilter === "all" 
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          {selectedCategoryFilter === "all"
                             ? "Your menu is empty. Add items manually or upload a PDF."
                             : `No items found in category: "${selectedCategoryFilter}".`}
                         </TableCell>
@@ -413,6 +506,7 @@ export default function InventoryPage() {
       case 'Grocery Store':
       case 'Pharmacy':
       case 'Liquor Shop':
+      case 'Pet Shop': // Added Pet Shop as per model
         return (
           <div className="space-y-8">
             <Card className="shadow-lg">
@@ -434,7 +528,34 @@ export default function InventoryPage() {
                     <CardTitle className="flex items-center"><Package className="mr-2 h-5 w-5 text-primary" />Your Current Inventory</CardTitle>
                     <CardDescription>Manage stock and prices for your listed items.</CardDescription>
                 </div>
-                <Button variant="outline"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
+                 <div className="flex items-center gap-2">
+                     {selectedItems.length > 0 && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete ({selectedItems.length})
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <form action={deleteSelectedItemsFormAction}>
+                                    <input type="hidden" name="selectedItemIdsJson" value={JSON.stringify(selectedItems)} />
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete the selected {selectedItems.length} item(s) from your inventory.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <DeleteSelectedButton />
+                                    </AlertDialogFooter>
+                                </form>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                    <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
+                </div>
               </CardHeader>
               <CardContent>
                  {vendorInventory.length > 0 && (
@@ -457,6 +578,14 @@ export default function InventoryPage() {
                  <Table>
                   <TableHeader>
                     <TableRow>
+                       <TableHead className="w-[50px]">
+                         <Checkbox
+                            checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)}
+                            onCheckedChange={handleSelectAll}
+                            aria-label="Select all items"
+                            disabled={filteredInventory.length === 0}
+                          />
+                      </TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -466,13 +595,20 @@ export default function InventoryPage() {
                   </TableHeader>
                   <TableBody>
                   {filteredInventory.length > 0 ? filteredInventory.map((item) => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.id} data-state={selectedItems.includes(item.id || '') ? "selected" : ""}>
+                        <TableCell>
+                           <Checkbox
+                              checked={selectedItems.includes(item.id || '')}
+                              onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
+                              aria-label={`Select item ${item.itemName}`}
+                            />
+                        </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                              <AlertDialog>
@@ -502,8 +638,8 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          {selectedCategoryFilter === "all" 
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          {selectedCategoryFilter === "all"
                             ? "No inventory items yet. Start by adding products."
                             : `No items found in category: "${selectedCategoryFilter}".`}
                         </TableCell>
@@ -517,6 +653,7 @@ export default function InventoryPage() {
         );
       case 'Restaurant':
       case 'Cafe':
+      case 'Bakery': // Added Bakery as per model
         return renderRestaurantCafeContent();
       case 'Gift Shop':
       case 'Boutique':
@@ -530,7 +667,34 @@ export default function InventoryPage() {
                 <CardTitle className="flex items-center"><ListPlus className="mr-2 h-5 w-5 text-primary" />Manage Your Products</CardTitle>
                 <CardDescription>Add and update your unique product listings.</CardDescription>
               </div>
-              <Button><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
+              <div className="flex items-center gap-2">
+                  {selectedItems.length > 0 && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete ({selectedItems.length})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <form action={deleteSelectedItemsFormAction}>
+                                <input type="hidden" name="selectedItemIdsJson" value={JSON.stringify(selectedItems)} />
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the selected {selectedItems.length} item(s) from your inventory.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <DeleteSelectedButton />
+                                </AlertDialogFooter>
+                            </form>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
+              </div>
             </CardHeader>
             <CardContent>
              {vendorInventory.length > 0 && (
@@ -553,6 +717,14 @@ export default function InventoryPage() {
               <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                         <Checkbox
+                            checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)}
+                            onCheckedChange={handleSelectAll}
+                            aria-label="Select all items"
+                            disabled={filteredInventory.length === 0}
+                          />
+                      </TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -562,13 +734,20 @@ export default function InventoryPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredInventory.length > 0 ? filteredInventory.map((item) => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.id} data-state={selectedItems.includes(item.id || '') ? "selected" : ""}>
+                        <TableCell>
+                           <Checkbox
+                              checked={selectedItems.includes(item.id || '')}
+                              onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
+                              aria-label={`Select item ${item.itemName}`}
+                            />
+                        </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled> 
+                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                              <AlertDialog>
@@ -598,8 +777,8 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                      <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                         {selectedCategoryFilter === "all" 
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                         {selectedCategoryFilter === "all"
                             ? "You haven't added any products yet."
                             : `No items found in category: "${selectedCategoryFilter}".`}
                       </TableCell>
@@ -653,4 +832,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-

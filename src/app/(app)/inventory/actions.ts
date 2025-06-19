@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { z } from 'zod';
@@ -28,20 +28,20 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
     console.error("[getVendorInventory] Error: vendorId is undefined, empty, or not a string.");
     throw new Error("Vendor ID is missing or invalid. Cannot fetch inventory.");
   }
-  
+
   console.log(`[getVendorInventory] Constructing query for vendorId: '${vendorId}'`);
 
   try {
     const q = query(
-      collection(db, "vendor_inventory"), 
+      collection(db, "vendor_inventory"),
       where("vendorId", "==", vendorId),
-      orderBy("itemName", "asc") 
+      orderBy("itemName", "asc")
     );
     const querySnapshot = await getDocs(q);
     const inventoryItems = querySnapshot.docs.map(docSnap => {
       const data = docSnap.data();
-      return { 
-        id: docSnap.id, 
+      return {
+        id: docSnap.id,
         ...data,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
         updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()),
@@ -52,7 +52,7 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
     return inventoryItems;
   } catch (error) {
     console.error(`[getVendorInventory] Firestore error fetching inventory for vendor ${vendorId}:`, error);
-    if (error instanceof Error && (error.message.includes("indexes") || error.message.includes("requires an index"))) {
+    if (error instanceof Error && (error.message.includes("indexes") || error.message.includes("requires an index") || error.message.includes("The query requires an index"))) {
          console.error("[getVendorInventory] Firestore index missing or not yet active. Please create/check the required composite index in Firebase console on 'vendor_inventory' for (vendorId ASC, itemName ASC). Error details:", error.message);
          throw new Error("Database setup error: Missing index. Please contact support or check Firebase console for index creation link.");
     }
@@ -82,7 +82,7 @@ export async function linkGlobalItemToVendorInventory(
   stockQuantity: number,
   price: number,
   isAvailableOnThru: boolean,
-  vendorItemCategory?: string 
+  vendorItemCategory?: string
 ): Promise<{ success: boolean; vendorInventoryItemId?: string; error?: string }> {
   console.log(`Placeholder: Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
   return { success: true, vendorInventoryItemId: "mock_vendor_item_id_linked" };
@@ -179,7 +179,7 @@ export async function handleMenuPdfUpload(
 
   const menuFile = formData.get('menuPdf') as File;
   const vendorId = formData.get('vendorId') as string;
-  
+
   console.log("[handleMenuPdfUpload] Received menuFile:", menuFile?.name, "vendorId:", vendorId);
 
   if (!menuFile || menuFile.size === 0) {
@@ -222,20 +222,20 @@ export async function handleMenuPdfUpload(
   try {
     console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
-    console.log("[handleMenuPdfUpload] Genkit flow successful, result (first 500 chars of rawText if present):", 
+    console.log("[handleMenuPdfUpload] Genkit flow successful, result (first 500 chars of rawText if present):",
         result ? {
             extractedItemsCount: result.extractedItems?.length,
             rawTextSample: result.rawText?.substring(0,500)
         } : "No result from Genkit flow."
     );
-    
+
     if (!result || !result.extractedItems) {
         console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
         const rawTextInfo = result?.rawText ? `Raw text was extracted: ${result.rawText.substring(0, 200)}...` : "No raw text extracted.";
-        return { 
-            error: 'AI menu extraction returned an unexpected result. No structured items found. ' + rawTextInfo, 
-            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] } 
-        }; 
+        return {
+            error: 'AI menu extraction returned an unexpected result. No structured items found. ' + rawTextInfo,
+            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] }
+        };
     }
 
     return { extractedMenu: result, message: `Menu processed. ${result.extractedItems.length} items found.` };
@@ -243,9 +243,9 @@ export async function handleMenuPdfUpload(
     console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
     let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
     if (error instanceof Error) {
-        errorMessage = `AI processing error: ${error.message}`; 
+        errorMessage = `AI processing error: ${error.message}`;
     }
-    
+
     if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
         errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF, or check the AI service status.';
     }
@@ -257,11 +257,11 @@ export async function handleMenuPdfUpload(
 
 const SaveExtractedMenuSchema = z.object({
   vendorId: z.string().min(1, { message: "Vendor ID is required." }),
-  extractedItems: z.string().refine(
+  extractedItemsJson: z.string().refine( // Changed from extractedItems
     (val) => {
       try {
         const parsed = JSON.parse(val);
-        return Array.isArray(parsed); 
+        return Array.isArray(parsed);
       } catch (e) {
         return false;
       }
@@ -288,7 +288,7 @@ export async function handleSaveExtractedMenu(
   formData: FormData
 ): Promise<SaveMenuFormState> {
   console.log('[handleSaveExtractedMenu] Server action started.');
-  
+
   const rawFormData = {
     vendorId: formData.get('vendorId') as string,
     extractedItemsJson: formData.get('extractedItemsJson') as string,
@@ -305,7 +305,7 @@ export async function handleSaveExtractedMenu(
   }
 
   const { vendorId, extractedItemsJson } = validatedFields.data;
-  let itemsToSave: ExtractMenuOutput['extractedItems']; 
+  let itemsToSave: ExtractMenuOutput['extractedItems'];
   try {
     itemsToSave = JSON.parse(extractedItemsJson);
      console.log(`[handleSaveExtractedMenu] Parsed ${itemsToSave.length} items to save for vendor: ${vendorId}`);
@@ -319,19 +319,19 @@ export async function handleSaveExtractedMenu(
   }
 
   try {
-    const now = Timestamp.now(); 
+    const now = Timestamp.now();
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
-        isCustomItem: true, 
+        isCustomItem: true,
         itemName: item.itemName,
         vendorItemCategory: item.category,
-        stockQuantity: 0, 
+        stockQuantity: 0,
         price: parsePrice(item.price),
-        unit: 'serving', 
-        isAvailableOnThru: true, 
-        createdAt: now, 
-        updatedAt: now, 
+        unit: 'serving',
+        isAvailableOnThru: true,
+        createdAt: now,
+        updatedAt: now,
         lastStockUpdate: now,
         ...(item.description !== undefined && { description: item.description }),
       };
@@ -387,7 +387,7 @@ export async function handleRemoveDuplicateItems(
                 continue;
             }
             const itemKey = `${item.itemName.toLowerCase().trim()}-${item.vendorItemCategory.toLowerCase().trim()}`;
-            
+
             if (seenItems.has(itemKey)) {
                 // This is a duplicate
                 duplicateIdsToDelete.push(item.id);
@@ -407,10 +407,10 @@ export async function handleRemoveDuplicateItems(
         await Promise.all(deletePromises);
 
         console.log(`[handleRemoveDuplicateItems] Successfully deleted ${duplicateIdsToDelete.length} duplicate items for vendor ${vendorId}.`);
-        return { 
-            success: true, 
-            message: `Successfully removed ${duplicateIdsToDelete.length} duplicate items.`, 
-            duplicatesRemoved: duplicateIdsToDelete.length 
+        return {
+            success: true,
+            message: `Successfully removed ${duplicateIdsToDelete.length} duplicate items.`,
+            duplicatesRemoved: duplicateIdsToDelete.length
         };
 
     } catch (error) {
@@ -418,4 +418,89 @@ export async function handleRemoveDuplicateItems(
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return { error: `Failed to remove duplicate items. ${errorMessage}` };
     }
+}
+
+// --- Delete Selected Items ---
+const DeleteSelectedItemsSchema = z.object({
+  selectedItemIdsJson: z.string().refine(
+    (val) => {
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed) && parsed.every(id => typeof id === 'string');
+      } catch (e) {
+        return false;
+      }
+    },
+    { message: 'Selected item IDs must be a valid JSON array of strings.' }
+  ),
+});
+
+export type DeleteSelectedItemsFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  itemsDeleted?: number;
+};
+
+export async function handleDeleteSelectedItems(
+  prevState: DeleteSelectedItemsFormState,
+  formData: FormData
+): Promise<DeleteSelectedItemsFormState> {
+  console.log('[handleDeleteSelectedItems] Server action started.');
+
+  const rawFormData = {
+    selectedItemIdsJson: formData.get('selectedItemIdsJson') as string,
+  };
+  console.log('[handleDeleteSelectedItems] Raw form data:', rawFormData);
+
+  const validatedFields = DeleteSelectedItemsSchema.safeParse(rawFormData);
+
+  if (!validatedFields.success) {
+    console.error("[handleDeleteSelectedItems] Validation error:", validatedFields.error.flatten().fieldErrors);
+    return {
+      error: 'Invalid data for deleting items. ' + (validatedFields.error.flatten().fieldErrors.selectedItemIdsJson?.[0] || 'Unknown validation error.'),
+    };
+  }
+
+  const { selectedItemIdsJson } = validatedFields.data;
+  let itemIdsToDelete: string[];
+  try {
+    itemIdsToDelete = JSON.parse(selectedItemIdsJson);
+    console.log(`[handleDeleteSelectedItems] Parsed ${itemIdsToDelete.length} item IDs to delete.`);
+  } catch (e) {
+    console.error("[handleDeleteSelectedItems] Error parsing selectedItemIds JSON:", e);
+    return { error: 'Failed to parse selected item IDs.' };
+  }
+
+  if (!Array.isArray(itemIdsToDelete) || itemIdsToDelete.length === 0) {
+    return { error: 'No item IDs provided for deletion or format is incorrect.', itemsDeleted: 0 };
+  }
+
+  try {
+    const batch = writeBatch(db);
+    itemIdsToDelete.forEach(itemId => {
+      if (itemId && typeof itemId === 'string') {
+        const itemRef = doc(db, 'vendor_inventory', itemId);
+        batch.delete(itemRef);
+      } else {
+         console.warn(`[handleDeleteSelectedItems] Invalid item ID found in batch: ${itemId}`);
+      }
+    });
+
+    await batch.commit();
+    console.log(`[handleDeleteSelectedItems] Successfully deleted ${itemIdsToDelete.length} items from Firestore.`);
+    return {
+        success: true,
+        message: `${itemIdsToDelete.length} item(s) deleted successfully.`,
+        itemsDeleted: itemIdsToDelete.length
+    };
+
+  } catch (error) {
+    console.error('[handleDeleteSelectedItems] Error deleting items from Firestore:', error);
+    let errorMessage = 'Failed to delete selected items from the database.';
+    if (error instanceof Error && error.message) {
+      errorMessage = `Firestore error: ${error.message}`;
+    }
+    return { error: errorMessage };
+  }
 }
