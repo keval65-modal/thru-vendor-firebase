@@ -326,10 +326,11 @@ export async function handleSaveExtractedMenu(
         isCustomItem: true,
         itemName: item.itemName,
         vendorItemCategory: item.category,
-        stockQuantity: 0,
+        stockQuantity: 0, // Default for menu items
         price: parsePrice(item.price),
-        unit: 'serving',
+        unit: 'serving', // Default for menu items
         isAvailableOnThru: true,
+        imageUrl: 'https://placehold.co/50x50.png', // Default placeholder image
         createdAt: now,
         updatedAt: now,
         lastStockUpdate: now,
@@ -504,3 +505,4 @@ export async function handleDeleteSelectedItems(
     return { error: errorMessage };
   }
 }
+

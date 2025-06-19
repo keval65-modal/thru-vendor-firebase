@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useActionState, useMemo } from 'react';
 import { useFormStatus } from 'react-dom';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Image as ImageIcon } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -204,6 +205,8 @@ export default function InventoryPage() {
       if (session?.email) {
         fetchAndSetInventory(session.email, true);
       }
+      // Reset menuUploadState to hide the extracted JSON after saving
+      // This is a bit tricky with useActionState, might need to clear menuUploadState.extractedMenu
     }
   }, [saveMenuState, toast, session?.email]);
 
@@ -428,6 +431,7 @@ export default function InventoryPage() {
                             disabled={filteredInventory.length === 0}
                           />
                       </TableHead>
+                      <TableHead className="w-[60px]">Image</TableHead>
                       <TableHead>Item Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -444,6 +448,16 @@ export default function InventoryPage() {
                               onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
                               aria-label={`Select item ${item.itemName}`}
                             />
+                        </TableCell>
+                        <TableCell>
+                          <Image
+                            src={item.imageUrl || 'https://placehold.co/50x50.png'}
+                            alt={item.itemName}
+                            width={50}
+                            height={50}
+                            className="rounded-md object-cover"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                          />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
@@ -480,7 +494,7 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           {selectedCategoryFilter === "all"
                             ? "Your menu is empty. Add items manually or upload a PDF."
                             : `No items found in category: "${selectedCategoryFilter}".`}
@@ -586,6 +600,7 @@ export default function InventoryPage() {
                             disabled={filteredInventory.length === 0}
                           />
                       </TableHead>
+                      <TableHead className="w-[60px]">Image</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -602,6 +617,16 @@ export default function InventoryPage() {
                               onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
                               aria-label={`Select item ${item.itemName}`}
                             />
+                        </TableCell>
+                        <TableCell>
+                           <Image
+                            src={item.imageUrl || 'https://placehold.co/50x50.png'}
+                            alt={item.itemName}
+                            width={50}
+                            height={50}
+                            className="rounded-md object-cover"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                          />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
@@ -638,7 +663,7 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           {selectedCategoryFilter === "all"
                             ? "No inventory items yet. Start by adding products."
                             : `No items found in category: "${selectedCategoryFilter}".`}
@@ -725,6 +750,7 @@ export default function InventoryPage() {
                             disabled={filteredInventory.length === 0}
                           />
                       </TableHead>
+                      <TableHead className="w-[60px]">Image</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead className="text-right">Price</TableHead>
@@ -741,6 +767,16 @@ export default function InventoryPage() {
                               onCheckedChange={(checked) => item.id && handleSelectItem(item.id, checked)}
                               aria-label={`Select item ${item.itemName}`}
                             />
+                        </TableCell>
+                        <TableCell>
+                           <Image
+                            src={item.imageUrl || 'https://placehold.co/50x50.png'}
+                            alt={item.itemName}
+                            width={50}
+                            height={50}
+                            className="rounded-md object-cover"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                          />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
@@ -777,7 +813,7 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                      <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                          {selectedCategoryFilter === "all"
                             ? "You haven't added any products yet."
                             : `No items found in category: "${selectedCategoryFilter}".`}
@@ -832,3 +868,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+
