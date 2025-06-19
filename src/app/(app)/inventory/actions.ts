@@ -23,7 +23,6 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
  * Fetches a specific vendor's inventory items.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
-  console.log(`[getVendorInventory] Attempting to fetch inventory for vendor: ${vendorId}`);
   if (!vendorId || typeof vendorId !== 'string' || vendorId.trim() === '') {
     console.error("[getVendorInventory] Error: vendorId is undefined, empty, or not a string.");
     throw new Error("Vendor ID is missing or invalid. Cannot fetch inventory.");
@@ -106,14 +105,73 @@ export async function updateVendorItemPrice(vendorInventoryItemId: string, newPr
   return { success: true };
 }
 
-/**
- * Updates other details of a vendor inventory item.
- * NOTE: This is a placeholder.
- */
-export async function updateVendorItemDetails(vendorInventoryItemId: string, updates: Partial<VendorInventoryItem>): Promise<{ success: boolean; error?: string }> {
-    console.log(`Placeholder: Updating details for item ${vendorInventoryItemId}:`, updates);
-    return { success: true };
+
+export type UpdateItemFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  fields?: Record<string, string>; // For field-specific errors
+};
+
+// Schema for updating item details
+const UpdateVendorItemSchema = z.object({
+  itemId: z.string().min(1, "Item ID is required."),
+  itemName: z.string().min(1, "Item name cannot be empty."),
+  vendorItemCategory: z.string().min(1, "Category cannot be empty."),
+  price: z.preprocess(
+    (val) => parseFloat(String(val)),
+    z.number().min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10),
+    z.number().int().min(0, "Stock must be a non-negative integer.")
+  ),
+  description: z.string().optional(),
+  imageUrl: z.string().url({ message: "Please enter a valid URL for the image." }).or(z.literal('')).optional(),
+});
+
+
+export async function updateVendorItemDetails(
+  prevState: UpdateItemFormState,
+  formData: FormData
+): Promise<UpdateItemFormState> {
+  const rawData = Object.fromEntries(formData.entries());
+  console.log('[updateVendorItemDetails] Received raw form data:', rawData);
+
+  const validatedFields = UpdateVendorItemSchema.safeParse(rawData);
+
+  if (!validatedFields.success) {
+    console.error("[updateVendorItemDetails] Validation error:", validatedFields.error.flatten().fieldErrors);
+    return {
+      error: "Invalid data for updating item. Please check your inputs.",
+      fields: validatedFields.error.flatten().fieldErrors as Record<string, string>,
+    };
+  }
+
+  const { itemId, ...updates } = validatedFields.data;
+  
+  const dataToUpdate: Partial<VendorInventoryItem> = {
+    ...updates,
+    updatedAt: Timestamp.now(),
+  };
+
+  // Ensure optional fields are not set to undefined if they are empty strings
+  if (dataToUpdate.description === '') dataToUpdate.description = undefined;
+  if (dataToUpdate.imageUrl === '') dataToUpdate.imageUrl = 'https://placehold.co/50x50.png'; // Default back to placeholder if cleared
+
+
+  try {
+    const itemRef = doc(db, "vendor_inventory", itemId);
+    await updateDoc(itemRef, dataToUpdate);
+    console.log(`[updateVendorItemDetails] Successfully updated item ${itemId}`);
+    return { success: true, message: "Item details updated successfully." };
+  } catch (error) {
+    console.error(`[updateVendorItemDetails] Error updating item ${itemId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error during update.";
+    return { success: false, error: `Failed to update item. ${errorMessage}` };
+  }
 }
+
 
 export type DeleteItemFormState = {
   success?: boolean;
@@ -330,7 +388,7 @@ export async function handleSaveExtractedMenu(
         price: parsePrice(item.price),
         unit: 'serving', // Default for menu items
         isAvailableOnThru: true,
-        imageUrl: 'https://placehold.co/50x50.png', // Default placeholder image
+        imageUrl: item.description ? `https://placehold.co/50x50.png?text=${item.itemName.substring(0,10)}` : 'https://placehold.co/50x50.png', // Default placeholder image
         createdAt: now,
         updatedAt: now,
         lastStockUpdate: now,

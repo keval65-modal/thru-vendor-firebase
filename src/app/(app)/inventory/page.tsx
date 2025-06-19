@@ -1,17 +1,19 @@
 
 'use client';
 
-import { useEffect, useState, useActionState, useMemo } from 'react';
+import { useEffect, useState, useActionState, useMemo, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Image as ImageIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, ImageIcon } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,7 +23,8 @@ import {
     getVendorInventory,
     deleteVendorItem, type DeleteItemFormState,
     handleRemoveDuplicateItems, type RemoveDuplicatesFormState,
-    handleDeleteSelectedItems, type DeleteSelectedItemsFormState
+    handleDeleteSelectedItems, type DeleteSelectedItemsFormState,
+    updateVendorItemDetails, type UpdateItemFormState
 } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -36,6 +39,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
 
 interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCategory'> {
   isAuthenticated: boolean;
@@ -46,6 +54,23 @@ const initialSaveMenuState: SaveMenuFormState = {};
 const initialDeleteItemState: DeleteItemFormState = {};
 const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
+const initialUpdateItemState: UpdateItemFormState = {};
+
+
+const EditItemFormSchema = z.object({
+  itemName: z.string().min(1, "Item name cannot be empty."),
+  vendorItemCategory: z.string().min(1, "Category cannot be empty."),
+  price: z.preprocess(
+    (val) => parseFloat(String(val)), // Ensure string conversion before parseFloat
+    z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10), // Ensure string conversion before parseInt
+    z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
+  ),
+  description: z.string().optional(),
+  imageUrl: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional(),
+});
 
 
 function MenuUploadSubmitButton() {
@@ -106,6 +131,167 @@ function DeleteSelectedButton() {
     );
 }
 
+function UpdateItemSubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button type="submit" disabled={pending} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Changes
+        </Button>
+    );
+}
+
+interface EditItemDialogProps {
+  item: VendorInventoryItem | null;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  updateItemAction: (payload: FormData) => void;
+  initialState: UpdateItemFormState;
+}
+
+function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialState }: EditItemDialogProps) {
+  const [updateState, formAction, isUpdating] = useActionState(updateItemAction, initialState);
+  const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const form = useForm<z.infer<typeof EditItemFormSchema>>({
+    resolver: zodResolver(EditItemFormSchema),
+    defaultValues: {
+      itemName: item?.itemName || '',
+      vendorItemCategory: item?.vendorItemCategory || '',
+      price: item?.price || 0,
+      stockQuantity: item?.stockQuantity || 0,
+      description: item?.description || '',
+      imageUrl: item?.imageUrl || '',
+    }
+  });
+
+  useEffect(() => {
+    if (item) {
+      form.reset({
+        itemName: item.itemName || '',
+        vendorItemCategory: item.vendorItemCategory || '',
+        price: item.price || 0,
+        stockQuantity: item.stockQuantity || 0,
+        description: item.description || '',
+        imageUrl: item.imageUrl || '',
+      });
+    }
+  }, [item, form]);
+
+  useEffect(() => {
+    if (updateState?.success) {
+      toast({ title: "Item Updated", description: updateState.message });
+      onOpenChange(false); // Close dialog on success
+    }
+    if (updateState?.error) {
+      toast({ variant: "destructive", title: "Update Failed", description: updateState.error });
+    }
+  }, [updateState, toast, onOpenChange]);
+
+  const onSubmit = (values: z.infer<typeof EditItemFormSchema>) => {
+    if (!item?.id) return;
+    const formData = new FormData();
+    formData.append('itemId', item.id);
+    Object.entries(values).forEach(([key, value]) => {
+        if (value !== undefined) {
+            formData.append(key, String(value));
+        }
+    });
+    formAction(formData);
+  };
+
+
+  if (!item) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Item: {item.itemName}</DialogTitle>
+          <DialogDescription>Make changes to your inventory item here. Click save when you're done.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+            <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <input type="hidden" name="itemId" value={item.id || ''} />
+                <FormField
+                    control={form.control}
+                    name="itemName"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Item Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="vendorItemCategory"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Price (₹)</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="stockQuantity"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Stock Quantity</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Description (Optional)</FormLabel>
+                        <FormControl><Textarea {...field} rows={3} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Image URL (Optional)</FormLabel>
+                        <FormControl><Input type="url" placeholder="https://example.com/image.png" {...field} /></FormControl>
+                        <FormMessage />
+                        {field.value && <Image src={field.value} alt="Preview" width={80} height={80} className="mt-2 rounded object-cover" data-ai-hint="product image"/>}
+                        </FormItem>
+                    )}
+                />
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                    <UpdateItemSubmitButton />
+                </DialogFooter>
+            </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
@@ -115,9 +301,10 @@ export default function InventoryPage() {
 
   const [menuUploadState, menuUploadFormAction, isMenuUploading] = useActionState(handleMenuPdfUpload, initialMenuUploadState);
   const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
-  const [deleteItemState, deleteItemFormAction] = useActionState(deleteVendorItem, initialDeleteItemState);
+  const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
   const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
   const [deleteSelectedItemsState, deleteSelectedItemsFormAction] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
+  const [updateItemGlobalState, updateItemFormAction] = useActionState(updateVendorItemDetails, initialUpdateItemState);
 
 
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
@@ -125,6 +312,10 @@ export default function InventoryPage() {
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
+  const [editingItem, setEditingItem] = useState<VendorInventoryItem | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
 
   const uniqueCategories = useMemo(() => {
     const categories = new Set(vendorInventory.map(item => item.vendorItemCategory).filter(Boolean) as string[]);
@@ -205,13 +396,11 @@ export default function InventoryPage() {
       if (session?.email) {
         fetchAndSetInventory(session.email, true);
       }
-      // Reset menuUploadState to hide the extracted JSON after saving
-      // This is a bit tricky with useActionState, might need to clear menuUploadState.extractedMenu
     }
   }, [saveMenuState, toast, session?.email]);
 
   useEffect(() => {
-    if (deleteItemState?.error) {
+    if (deleteItemState?.error && !isDeletingItem) { // Check isDeletingItem to avoid double toast if form action is re-run by react-hook-form
         toast({ variant: "destructive", title: "Delete Item Error", description: deleteItemState.error });
     }
     if (deleteItemState?.success && deleteItemState.message) {
@@ -220,7 +409,7 @@ export default function InventoryPage() {
             fetchAndSetInventory(session.email, true);
         }
     }
-  }, [deleteItemState, toast, session?.email]);
+  }, [deleteItemState, toast, session?.email, isDeletingItem]);
 
   useEffect(() => {
     if (removeDuplicatesState?.error) {
@@ -245,6 +434,17 @@ export default function InventoryPage() {
         }
     }
   }, [deleteSelectedItemsState, toast, session?.email]);
+
+  useEffect(() => {
+    // This effect listens to the global state from useActionState used by the dialog
+    if (updateItemGlobalState?.success) {
+        // Toast is handled within the dialog, but we need to refresh inventory here
+        if (session?.email) {
+            fetchAndSetInventory(session.email, true);
+        }
+    }
+    // Error toast is handled in dialog
+  }, [updateItemGlobalState, session?.email, toast]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,6 +473,11 @@ export default function InventoryPage() {
     } else {
       setSelectedItems(prev => prev.filter(id => id !== itemId));
     }
+  };
+
+  const openEditDialog = (item: VendorInventoryItem) => {
+    setEditingItem(item);
+    setIsEditDialogOpen(true);
   };
 
   const isAllSelected = filteredInventory.length > 0 && selectedItems.length === filteredInventory.length;
@@ -464,7 +669,7 @@ export default function InventoryPage() {
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
@@ -633,7 +838,7 @@ export default function InventoryPage() {
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                              <AlertDialog>
@@ -783,7 +988,7 @@ export default function InventoryPage() {
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
-                            <Button variant="outline" size="icon" className="h-8 w-8" disabled>
+                           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
                                 <Edit3 className="h-4 w-4" />
                             </Button>
                              <AlertDialog>
@@ -862,6 +1067,13 @@ export default function InventoryPage() {
         </div>
       </div>
       {renderInventoryContent()}
+      <EditItemDialog
+        item={editingItem}
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        updateItemAction={updateVendorItemDetails} // Pass the server action directly
+        initialState={initialUpdateItemState} // Pass the global initial state
+      />
        <p className="mt-8 text-center text-sm text-muted-foreground">
         Admin features for managing global item catalogs will be available separately.
       </p>
