@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, ImageIcon } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, ImageIcon, Upload } from "lucide-react"; // Added Upload
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -43,6 +43,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { storage } from '@/lib/firebase'; // Firebase storage
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Progress } from '@/components/ui/progress';
 
 
 interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCategory'> {
@@ -61,11 +64,11 @@ const EditItemFormSchema = z.object({
   itemName: z.string().min(1, "Item name cannot be empty."),
   vendorItemCategory: z.string().min(1, "Category cannot be empty."),
   price: z.preprocess(
-    (val) => parseFloat(String(val)), // Ensure string conversion before parseFloat
+    (val) => parseFloat(String(val)),
     z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
   ),
   stockQuantity: z.preprocess(
-    (val) => parseInt(String(val), 10), // Ensure string conversion before parseInt
+    (val) => parseInt(String(val), 10),
     z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
   ),
   description: z.string().optional(),
@@ -131,28 +134,36 @@ function DeleteSelectedButton() {
     );
 }
 
-function UpdateItemSubmitButton() {
+function UpdateItemSubmitButton({ isUploadingFile }: { isUploadingFile: boolean }) {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" disabled={pending} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Changes
+        <Button type="submit" disabled={pending || isUploadingFile} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            {pending || isUploadingFile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {isUploadingFile ? 'Uploading...' : (pending ? 'Saving...' : 'Save Changes')}
         </Button>
     );
 }
 
 interface EditItemDialogProps {
   item: VendorInventoryItem | null;
+  vendorId: string | null; // For Firebase Storage path
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   updateItemAction: (payload: FormData) => void;
   initialState: UpdateItemFormState;
 }
 
-function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialState }: EditItemDialogProps) {
-  const [updateState, formAction, isUpdating] = useActionState(updateItemAction, initialState);
+function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction, initialState }: EditItemDialogProps) {
+  const [updateState, formAction, isSaving] = useActionState(updateItemAction, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const form = useForm<z.infer<typeof EditItemFormSchema>>({
     resolver: zodResolver(EditItemFormSchema),
@@ -176,25 +187,85 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
         description: item.description || '',
         imageUrl: item.imageUrl || '',
       });
+      setImagePreviewUrl(item.imageUrl || null);
+      setSelectedFile(null);
+      setUploadProgress(null);
+      setIsUploadingFile(false);
     }
-  }, [item, form]);
+  }, [item, form, isOpen]); // Reset when dialog opens with a new item or is re-opened
 
   useEffect(() => {
-    if (updateState?.success) {
+    if (updateState?.success && !isSaving) {
       toast({ title: "Item Updated", description: updateState.message });
-      onOpenChange(false); // Close dialog on success
+      onOpenChange(false);
     }
-    if (updateState?.error) {
+    if (updateState?.error && !isSaving) {
       toast({ variant: "destructive", title: "Update Failed", description: updateState.error });
     }
-  }, [updateState, toast, onOpenChange]);
+  }, [updateState, toast, onOpenChange, isSaving]);
 
-  const onSubmit = (values: z.infer<typeof EditItemFormSchema>) => {
-    if (!item?.id) return;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setImagePreviewUrl(URL.createObjectURL(file));
+      form.setValue('imageUrl', ''); // Clear any pasted URL if a file is chosen
+    }
+  };
+
+  const currentImageUrlForDisplay = selectedFile ? imagePreviewUrl : form.watch('imageUrl');
+
+  const onSubmit = async (values: z.infer<typeof EditItemFormSchema>) => {
+    if (!item?.id || !vendorId) {
+        toast({ variant: "destructive", title: "Error", description: "Item ID or Vendor ID is missing."});
+        return;
+    }
+
     const formData = new FormData();
     formData.append('itemId', item.id);
+
+    let finalImageUrl = values.imageUrl;
+
+    if (selectedFile) {
+        setIsUploadingFile(true);
+        setUploadProgress(0);
+        const filePath = `vendor_inventory_images/${vendorId}/${item.id}/${Date.now()}-${selectedFile.name}`;
+        const fileStorageRef = storageRef(storage, filePath);
+        const uploadTask = uploadBytesResumable(fileStorageRef, selectedFile);
+
+        try {
+            await new Promise<void>((resolve, reject) => {
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        setUploadProgress(progress);
+                    },
+                    (error) => {
+                        console.error("Upload failed:", error);
+                        toast({ variant: "destructive", title: "Image Upload Failed", description: error.message });
+                        reject(error);
+                    },
+                    async () => {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        finalImageUrl = downloadURL;
+                        resolve();
+                    }
+                );
+            });
+        } catch (error) {
+            setIsUploadingFile(false);
+            setUploadProgress(null);
+            return; // Stop form submission if upload fails
+        }
+        setIsUploadingFile(false);
+        setUploadProgress(null);
+    }
+    
+    // Append all values to formData, using finalImageUrl
     Object.entries(values).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (key === 'imageUrl') {
+            formData.append(key, finalImageUrl || '');
+        } else if (value !== undefined) {
             formData.append(key, String(value));
         }
     });
@@ -205,7 +276,10 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
   if (!item) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+        if (isUploadingFile || isSaving) return; // Prevent closing while operations are in progress
+        onOpenChange(open);
+    }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Item: {item.itemName}</DialogTitle>
@@ -213,14 +287,13 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
         </DialogHeader>
         <Form {...form}>
             <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <input type="hidden" name="itemId" value={item.id || ''} />
                 <FormField
                     control={form.control}
                     name="itemName"
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Item Name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} disabled={isUploadingFile || isSaving} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -231,7 +304,7 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input {...field} disabled={isUploadingFile || isSaving} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -242,7 +315,7 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Price (₹)</FormLabel>
-                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormControl><Input type="number" step="0.01" {...field} disabled={isUploadingFile || isSaving} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -253,7 +326,7 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Stock Quantity</FormLabel>
-                        <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                        <FormControl><Input type="number" step="1" {...field} disabled={isUploadingFile || isSaving}/></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -264,26 +337,64 @@ function EditItemDialog({ item, isOpen, onOpenChange, updateItemAction, initialS
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Description (Optional)</FormLabel>
-                        <FormControl><Textarea {...field} rows={3} /></FormControl>
+                        <FormControl><Textarea {...field} rows={3} disabled={isUploadingFile || isSaving}/></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="imageUrl"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Image URL (Optional)</FormLabel>
-                        <FormControl><Input type="url" placeholder="https://example.com/image.png" {...field} /></FormControl>
-                        <FormMessage />
-                        {field.value && <Image src={field.value} alt="Preview" width={80} height={80} className="mt-2 rounded object-cover" data-ai-hint="product image"/>}
-                        </FormItem>
+                
+                {/* Image URL and Upload Section */}
+                <FormItem>
+                    <FormLabel>Item Image</FormLabel>
+                    {currentImageUrlForDisplay && (
+                        <Image src={currentImageUrlForDisplay} alt="Current item image" width={100} height={100} className="mt-2 rounded object-cover" data-ai-hint="item current image" />
                     )}
-                />
+                     <FormField
+                        control={form.control}
+                        name="imageUrl"
+                        render={({ field }) => (
+                            <FormItem className="mt-2">
+                                <FormLabel className="text-xs">Image URL (or upload new below)</FormLabel>
+                                <FormControl>
+                                    <Input 
+                                        type="url" 
+                                        placeholder="https://example.com/image.png" 
+                                        {...field} 
+                                        onChange={(e) => {
+                                            field.onChange(e);
+                                            setSelectedFile(null); // Clear selected file if URL is manually changed
+                                            setImagePreviewUrl(e.target.value);
+                                        }}
+                                        disabled={isUploadingFile || isSaving}
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="mt-2">
+                        <Label htmlFor="newImageFile" className="text-xs">Upload New Image</Label>
+                        <Input 
+                            id="newImageFile" 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleFileChange} 
+                            ref={fileInputRef}
+                            className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                            disabled={isUploadingFile || isSaving}
+                        />
+                    </div>
+                    {isUploadingFile && uploadProgress !== null && (
+                        <div className="mt-2 space-y-1">
+                            <Progress value={uploadProgress} className="w-full h-2" />
+                            <p className="text-xs text-muted-foreground text-center">Uploading: {Math.round(uploadProgress)}%</p>
+                        </div>
+                    )}
+                </FormItem>
+
                 <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <UpdateItemSubmitButton />
+                    <DialogClose asChild><Button type="button" variant="outline" disabled={isUploadingFile || isSaving}>Cancel</Button></DialogClose>
+                    <UpdateItemSubmitButton isUploadingFile={isUploadingFile} />
                 </DialogFooter>
             </form>
         </Form>
@@ -342,7 +453,7 @@ export default function InventoryPage() {
     try {
       const items = await getVendorInventory(vendorEmail);
       setVendorInventory(items);
-      setSelectedItems([]); // Clear selection on refresh
+      setSelectedItems([]);
       if (showToast) {
         toast({ title: "Inventory Refreshed", description: `Found ${items.length} items.` });
       }
@@ -396,11 +507,14 @@ export default function InventoryPage() {
       if (session?.email) {
         fetchAndSetInventory(session.email, true);
       }
+      // Clear menu upload state after successful save
+      // This assumes menuUploadState is being managed by a form action that resets or provides a mechanism to clear it
+      // For now, we'll just rely on the user not re-submitting the same extracted data
     }
   }, [saveMenuState, toast, session?.email]);
 
   useEffect(() => {
-    if (deleteItemState?.error && !isDeletingItem) { // Check isDeletingItem to avoid double toast if form action is re-run by react-hook-form
+    if (deleteItemState?.error && !isDeletingItem) { 
         toast({ variant: "destructive", title: "Delete Item Error", description: deleteItemState.error });
     }
     if (deleteItemState?.success && deleteItemState.message) {
@@ -430,24 +544,21 @@ export default function InventoryPage() {
     if (deleteSelectedItemsState?.success && deleteSelectedItemsState.message) {
         toast({ title: "Items Deleted", description: deleteSelectedItemsState.message });
         if (session?.email) {
-            fetchAndSetInventory(session.email, true); // Refreshes inventory and clears selection
+            fetchAndSetInventory(session.email, true); 
         }
     }
   }, [deleteSelectedItemsState, toast, session?.email]);
 
   useEffect(() => {
-    // This effect listens to the global state from useActionState used by the dialog
     if (updateItemGlobalState?.success) {
-        // Toast is handled within the dialog, but we need to refresh inventory here
         if (session?.email) {
             fetchAndSetInventory(session.email, true);
         }
     }
-    // Error toast is handled in dialog
-  }, [updateItemGlobalState, session?.email, toast]);
+  }, [updateItemGlobalState, session?.email]);
 
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === "application/pdf") {
       setMenuPdfFile(file);
@@ -504,7 +615,7 @@ export default function InventoryPage() {
                 name="menuPdf"
                 type="file"
                 accept="application/pdf"
-                onChange={handleFileChange}
+                onChange={handlePdfFileChange}
                 required
                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
@@ -620,9 +731,7 @@ export default function InventoryPage() {
             )}
             {isLoadingInventory && !isRefreshingInventory ? (
                 <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
+                    {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
                 </div>
             ) : (
                 <Table>
@@ -658,10 +767,10 @@ export default function InventoryPage() {
                           <Image
                             src={item.imageUrl || 'https://placehold.co/50x50.png'}
                             alt={item.itemName}
-                            width={50}
-                            height={50}
-                            className="rounded-md object-cover"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                            width={40}
+                            height={40}
+                            className="rounded object-cover aspect-square"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} food`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -725,7 +834,7 @@ export default function InventoryPage() {
       case 'Grocery Store':
       case 'Pharmacy':
       case 'Liquor Shop':
-      case 'Pet Shop': // Added Pet Shop as per model
+      case 'Pet Shop': 
         return (
           <div className="space-y-8">
             <Card className="shadow-lg">
@@ -794,6 +903,11 @@ export default function InventoryPage() {
                     </Select>
                   </div>
                  )}
+                {isLoadingInventory && !isRefreshingInventory ? (
+                    <div className="space-y-2">
+                         {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+                    </div>
+                ) : (
                  <Table>
                   <TableHeader>
                     <TableRow>
@@ -827,10 +941,10 @@ export default function InventoryPage() {
                            <Image
                             src={item.imageUrl || 'https://placehold.co/50x50.png'}
                             alt={item.itemName}
-                            width={50}
-                            height={50}
-                            className="rounded-md object-cover"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                            width={40}
+                            height={40}
+                            className="rounded object-cover aspect-square"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} product`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -877,13 +991,14 @@ export default function InventoryPage() {
                     )}
                   </TableBody>
                 </Table>
+                )}
               </CardContent>
             </Card>
           </div>
         );
       case 'Restaurant':
       case 'Cafe':
-      case 'Bakery': // Added Bakery as per model
+      case 'Bakery':
         return renderRestaurantCafeContent();
       case 'Gift Shop':
       case 'Boutique':
@@ -944,6 +1059,11 @@ export default function InventoryPage() {
                     </Select>
                 </div>
                 )}
+              {isLoadingInventory && !isRefreshingInventory ? (
+                <div className="space-y-2">
+                    {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+                </div>
+                ) : (
               <Table>
                   <TableHeader>
                     <TableRow>
@@ -977,10 +1097,10 @@ export default function InventoryPage() {
                            <Image
                             src={item.imageUrl || 'https://placehold.co/50x50.png'}
                             alt={item.itemName}
-                            width={50}
-                            height={50}
-                            className="rounded-md object-cover"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')}`}
+                            width={40}
+                            height={40}
+                            className="rounded object-cover aspect-square"
+                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} product`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -1027,6 +1147,7 @@ export default function InventoryPage() {
                     )}
                   </TableBody>
                 </Table>
+                )}
             </CardContent>
           </Card>
         );
@@ -1069,10 +1190,11 @@ export default function InventoryPage() {
       {renderInventoryContent()}
       <EditItemDialog
         item={editingItem}
+        vendorId={session?.email || null}
         isOpen={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
-        updateItemAction={updateVendorItemDetails} // Pass the server action directly
-        initialState={initialUpdateItemState} // Pass the global initial state
+        updateItemAction={updateVendorItemDetails} 
+        initialState={initialUpdateItemState} 
       />
        <p className="mt-8 text-center text-sm text-muted-foreground">
         Admin features for managing global item catalogs will be available separately.
