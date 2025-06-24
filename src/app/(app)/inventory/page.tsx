@@ -13,9 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X } from "lucide-react";
 import { getSession } from '@/lib/auth';
-import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
+import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     handleMenuPdfUpload, type MenuUploadFormState,
@@ -24,7 +24,9 @@ import {
     deleteVendorItem, type DeleteItemFormState,
     handleRemoveDuplicateItems, type RemoveDuplicatesFormState,
     handleDeleteSelectedItems, type DeleteSelectedItemsFormState,
-    updateVendorItemDetails, type UpdateItemFormState
+    updateVendorItemDetails, type UpdateItemFormState,
+    getGlobalItemsByType,
+    linkGlobalItemToVendorInventory, type LinkGlobalItemFormState
 } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -59,6 +61,7 @@ const initialDeleteItemState: DeleteItemFormState = {};
 const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
 const initialUpdateItemState: UpdateItemFormState = {};
+const initialLinkGlobalItemState: LinkGlobalItemFormState = {};
 
 
 const EditItemFormSchema = z.object({
@@ -301,7 +304,8 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Item Name</FormLabel>
-                        <FormControl><Input {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
+                        <FormControl><Input {...field} disabled={item.isCustomItem === false || isUploadingFile || isSubmitting} /></FormControl>
+                        {!item.isCustomItem && <FormDescription className="text-xs">Item name cannot be changed for global items.</FormDescription>}
                         <FormMessage />
                         </FormItem>
                     )}
@@ -312,7 +316,8 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <FormControl><Input {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
+                        <FormControl><Input {...field} disabled={item.isCustomItem === false || isUploadingFile || isSubmitting} /></FormControl>
+                         {!item.isCustomItem && <FormDescription className="text-xs">Category cannot be changed for global items.</FormDescription>}
                         <FormMessage />
                         </FormItem>
                     )}
@@ -345,7 +350,8 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Description (Optional)</FormLabel>
-                        <FormControl><Textarea {...field} rows={3} disabled={isUploadingFile || isSubmitting}/></FormControl>
+                        <FormControl><Textarea {...field} rows={3} disabled={item.isCustomItem === false || isUploadingFile || isSubmitting}/></FormControl>
+                         {!item.isCustomItem && <FormDescription className="text-xs">Description cannot be changed for global items.</FormDescription>}
                         <FormMessage />
                         </FormItem>
                     )}
@@ -411,6 +417,89 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
   );
 }
 
+const AddGlobalItemFormSchema = z.object({
+  price: z.preprocess(
+    (val) => parseFloat(String(val)),
+    z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10),
+    z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
+  ),
+});
+
+function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item: GlobalItem | null; isOpen: boolean; onOpenChange: (open: boolean) => void; onItemAdded: () => void }) {
+  const [state, formAction] = useActionState(linkGlobalItemToVendorInventory, initialLinkGlobalItemState);
+  const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const form = useForm<z.infer<typeof AddGlobalItemFormSchema>>({
+    resolver: zodResolver(AddGlobalItemFormSchema),
+    defaultValues: { price: 0, stockQuantity: 0 }
+  });
+
+  useEffect(() => {
+    if (state.success) {
+      toast({ title: "Item Added", description: state.message });
+      form.reset();
+      onItemAdded();
+      onOpenChange(false);
+    }
+    if (state.error) {
+      toast({ variant: "destructive", title: "Failed to Add Item", description: state.error });
+    }
+  }, [state, toast, onItemAdded, onOpenChange, form]);
+  
+  if (!item) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add "{item.itemName}" to Your Inventory</DialogTitle>
+          <DialogDescription>Set your selling price and current stock for this item. Other details are managed globally.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+            <form action={formAction} ref={formRef} className="space-y-4" onSubmit={(evt) => {
+                evt.preventDefault();
+                form.handleSubmit(() => {
+                    formAction(new FormData(formRef.current!));
+                })(evt);
+            }}>
+                <input type="hidden" name="globalItemId" value={item.id} />
+                <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Your Selling Price (₹)</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="stockQuantity"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Current Stock Quantity</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                    <Button type="submit">Add to Inventory</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
@@ -433,6 +522,51 @@ export default function InventoryPage() {
 
   const [editingItem, setEditingItem] = useState<VendorInventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // For Global Catalog Search
+  const [globalItemsResult, setGlobalItemsResult] = useState<GlobalItem[]>([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [itemToAdd, setItemToAdd] = useState<GlobalItem | null>(null);
+  const [isAddGlobalItemDialogOpen, setIsAddGlobalItemDialogOpen] = useState(false);
+  
+  function mapStoreCategoryToItemType(category: Vendor['storeCategory']): GlobalItem['sharedItemType'] | null {
+    switch (category) {
+        case 'Grocery Store': return 'grocery';
+        case 'Pharmacy': return 'medical';
+        case 'Liquor Shop': return 'liquor';
+        case 'Pet Shop': return 'other'; // Or a dedicated 'pet' type if added to model
+        default: return null;
+    }
+  }
+
+  const handleSearchGlobalItems = async () => {
+    if (!session?.storeCategory) return;
+    const itemType = mapStoreCategoryToItemType(session.storeCategory);
+    
+    if (!itemType) {
+        toast({ variant: "destructive", title: "Not Applicable", description: "Global catalog is not available for this store type." });
+        return;
+    }
+
+    setIsSearchingGlobal(true);
+    setGlobalItemsResult([]);
+    try {
+        const items = await getGlobalItemsByType(itemType);
+        setGlobalItemsResult(items);
+        if (items.length === 0) {
+            toast({ title: "No Items Found", description: `No global items were found for the '${itemType}' category.` });
+        }
+    } catch (error) {
+        toast({ variant: "destructive", title: "Search Failed", description: (error as Error).message });
+    } finally {
+        setIsSearchingGlobal(false);
+    }
+  };
+
+  const openAddGlobalItemDialog = (item: GlobalItem) => {
+    setItemToAdd(item);
+    setIsAddGlobalItemDialogOpen(true);
+  };
 
 
   const uniqueCategories = useMemo(() => {
@@ -836,15 +970,55 @@ export default function InventoryPage() {
           <div className="space-y-8">
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center"><ShoppingBasket className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
-                <CardDescription>Search and add items from a shared catalog for {session.storeCategory}.</CardDescription>
+                <CardTitle className="flex items-center"><Globe className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
+                <CardDescription>Search for standard products and add them to your inventory for {session.storeCategory}.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2 mb-4">
-                  <Input type="text" placeholder="Search global items..." className="flex-grow" />
-                  <Button><Search className="mr-2 h-4 w-4" />Search</Button>
+                  <Button onClick={handleSearchGlobalItems} disabled={isSearchingGlobal} className="w-full">
+                    {isSearchingGlobal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                    Search All Global Items for my Category
+                  </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">Global item search results will appear here.</p>
+                {isSearchingGlobal ? (
+                     <div className="flex justify-center items-center p-4">
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <span>Searching...</span>
+                    </div>
+                ) : globalItemsResult.length > 0 ? (
+                  <div className="mt-4 border rounded-lg">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Image</TableHead>
+                                <TableHead>Item Name</TableHead>
+                                <TableHead>Brand</TableHead>
+                                <TableHead>Default Category</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {globalItemsResult.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>
+                                        <Image src={item.defaultImageUrl || 'https://placehold.co/50x50.png'} alt={item.itemName} width={40} height={40} className="rounded object-cover aspect-square"/>
+                                    </TableCell>
+                                    <TableCell className="font-medium">{item.itemName}</TableCell>
+                                    <TableCell>{item.brand || 'N/A'}</TableCell>
+                                    <TableCell>{item.defaultCategory}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button size="sm" onClick={() => openAddGlobalItemDialog(item)}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Add
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                    <p className="text-sm text-center text-muted-foreground mt-4">No global items found. Click search to begin.</p>
+                )}
               </CardContent>
             </Card>
             <Card className="shadow-lg">
@@ -943,7 +1117,10 @@ export default function InventoryPage() {
                             className="rounded object-cover aspect-square"
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{item.itemName}</TableCell>
+                        <TableCell className="font-medium flex items-center gap-2">
+                            {item.itemName}
+                            {!item.isCustomItem && <Globe className="h-3 w-3 text-muted-foreground" title="Global Item"/>}
+                        </TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
@@ -1190,11 +1367,15 @@ export default function InventoryPage() {
         onOpenChange={setIsEditDialogOpen}
         onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
       />
+       <AddGlobalItemDialog 
+        item={itemToAdd}
+        isOpen={isAddGlobalItemDialogOpen}
+        onOpenChange={setIsAddGlobalItemDialogOpen}
+        onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+       />
        <p className="mt-8 text-center text-sm text-muted-foreground">
         Admin features for managing global item catalogs will be available separately.
       </p>
     </div>
   );
 }
-
-    

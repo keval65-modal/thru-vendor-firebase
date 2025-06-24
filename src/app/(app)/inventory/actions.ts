@@ -13,12 +13,39 @@ import { getSession } from '@/lib/auth';
 
 /**
  * Fetches global items based on their shared type (e.g., "grocery", "medical").
- * NOTE: This is a placeholder. Full implementation requires querying Firestore.
  */
 export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType']): Promise<GlobalItem[]> {
-  console.log(`Placeholder: Fetching global items for type: ${itemType}`);
-  return [];
+  console.log(`[getGlobalItemsByType] Fetching global items for type: ${itemType}`);
+  if (!itemType) return [];
+
+  try {
+    const q = query(
+      collection(db, "global_items"),
+      where("sharedItemType", "==", itemType),
+      orderBy("itemName", "asc")
+    );
+    const querySnapshot = await getDocs(q);
+    const items = querySnapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+      } as GlobalItem;
+    });
+     console.log(`[getGlobalItemsByType] Found ${items.length} global items for type '${itemType}'`);
+    return items;
+  } catch (error) {
+     console.error(`[getGlobalItemsByType] Firestore error fetching global items for type ${itemType}:`, error);
+     if (error instanceof Error && (error.message.includes("indexes") || error.message.includes("requires an index"))) {
+         console.error("[getGlobalItemsByType] Firestore index missing for 'global_items'. Please create a composite index in your Firebase console for the 'global_items' collection on (sharedItemType ASC, itemName ASC).");
+         throw new Error("Database setup error: Missing index for global items. Please contact support or check Firebase console.");
+     }
+     throw new Error(`Failed to fetch global items. Database error: ${(error as Error).message}`);
+  }
 }
+
 
 /**
  * Fetches a specific vendor's inventory items.
@@ -72,21 +99,83 @@ export async function addCustomVendorItem(vendorId: string, itemData: AddCustomV
   return { success: true, itemId: "mock_item_id_custom" };
 }
 
+
+const LinkGlobalItemSchema = z.object({
+  globalItemId: z.string().min(1, "Global Item ID is required."),
+  price: z.preprocess(
+    (val) => parseFloat(String(val)),
+    z.number().min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10),
+    z.number().int().min(0, "Stock must be a non-negative integer.")
+  ),
+});
+
+export type LinkGlobalItemFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
+
 /**
  * Links a global item to a vendor's inventory, creating a new vendor_inventory entry.
- * NOTE: This is a placeholder.
  */
 export async function linkGlobalItemToVendorInventory(
-  vendorId: string,
-  globalItemId: string,
-  stockQuantity: number,
-  price: number,
-  isAvailableOnThru: boolean,
-  vendorItemCategory?: string
-): Promise<{ success: boolean; vendorInventoryItemId?: string; error?: string }> {
-  console.log(`Placeholder: Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
-  return { success: true, vendorInventoryItemId: "mock_vendor_item_id_linked" };
+  prevState: LinkGlobalItemFormState,
+  formData: FormData
+): Promise<LinkGlobalItemFormState> {
+  const session = await getSession();
+  const vendorId = session?.uid;
+  if (!vendorId) {
+    return { error: 'Authentication required.' };
+  }
+
+  const validatedFields = LinkGlobalItemSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    console.error("[linkGlobalItemToVendorInventory] Validation failed:", validatedFields.error.flatten().fieldErrors);
+    return { error: "Invalid data submitted." };
+  }
+
+  const { globalItemId, price, stockQuantity } = validatedFields.data;
+  console.log(`[linkGlobalItemToVendorInventory] Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
+
+  try {
+    const globalItemRef = doc(db, 'global_items', globalItemId);
+    const globalItemSnap = await getDoc(globalItemRef);
+
+    if (!globalItemSnap.exists()) {
+      return { success: false, error: 'Global item not found.' };
+    }
+    const globalItemData = globalItemSnap.data() as GlobalItem;
+
+    const newItemData: Omit<VendorInventoryItem, 'id'> = {
+      vendorId,
+      globalItemRef,
+      isCustomItem: false,
+      itemName: globalItemData.itemName,
+      vendorItemCategory: globalItemData.defaultCategory,
+      stockQuantity,
+      price,
+      unit: globalItemData.defaultUnit,
+      isAvailableOnThru: true,
+      imageUrl: globalItemData.defaultImageUrl || `https://placehold.co/50x50.png?text=${globalItemData.itemName.substring(0,10)}`,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      lastStockUpdate: Timestamp.now(),
+    };
+
+    const docRef = await addDoc(collection(db, 'vendor_inventory'), newItemData);
+    console.log(`[linkGlobalItemToVendorInventory] Successfully created vendor inventory item ${docRef.id}`);
+    return { success: true, message: `${globalItemData.itemName} added to your inventory.` };
+  } catch (error) {
+    console.error(`[linkGlobalItemToVendorInventory] Error linking global item ${globalItemId} for vendor ${vendorId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { success: false, error: `Failed to link item. ${errorMessage}` };
+  }
 }
+
 
 /**
  * Updates the stock quantity of a specific item in vendor's inventory.
@@ -200,20 +289,20 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
     }
 }
 
-// --- Admin Actions for Global Items (Placeholders) ---
+// --- Admin Actions for Global Items (Placeholders for Admin UI) ---
 
 export async function addGlobalItem(itemData: Omit<GlobalItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; itemId?: string; error?: string }> {
-  console.log("Placeholder: ADMIN - Adding global item:", itemData);
+  console.log("Placeholder for Admin UI: Adding global item:", itemData);
   return { success: true, itemId: "mock_global_item_id" };
 }
 
 export async function updateGlobalItem(itemId: string, updates: Partial<GlobalItem>): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder: ADMIN - Updating global item:", itemId, updates);
+  console.log("Placeholder for Admin UI: Updating global item:", itemId, updates);
   return { success: true };
 }
 
 export async function deleteGlobalItem(itemId: string): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder: ADMIN - Deleting global item:", itemId);
+  console.log("Placeholder for Admin UI: Deleting global item:", itemId);
   return { success: true };
 }
 
@@ -395,7 +484,7 @@ export async function handleSaveExtractedMenu(
         price: parsePrice(item.price),
         unit: 'serving', // Default for menu items
         isAvailableOnThru: true,
-        imageUrl: item.description ? `https://placehold.co/50x50.png?text=${item.itemName.substring(0,10)}` : 'https://placehold.co/50x50.png', // Default placeholder image
+        imageUrl: `https://placehold.co/50x50.png?text=${encodeURIComponent(item.itemName.substring(0,10))}`, // Default placeholder image
         createdAt: now,
         updatedAt: now,
         lastStockUpdate: now,
@@ -571,5 +660,3 @@ export async function handleDeleteSelectedItems(
     return { error: errorMessage };
   }
 }
-
-    
