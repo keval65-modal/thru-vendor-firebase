@@ -6,8 +6,9 @@ import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, Docu
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { z } from 'zod';
+import { getSession } from '@/lib/auth';
 
-// Ensure vendorId is typically the email/uid used as doc ID in 'vendors' collection
+// Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
 // Ensure globalItemId is the Firestore document ID from 'global_items'
 
 /**
@@ -234,19 +235,19 @@ export async function handleMenuPdfUpload(
   formData: FormData
 ): Promise<MenuUploadFormState> {
   console.log("[handleMenuPdfUpload] Server action started.");
+  const session = await getSession();
+  const vendorId = session?.uid;
+
+  if (!vendorId) {
+    return { error: 'You must be logged in to upload a menu.' };
+  }
 
   const menuFile = formData.get('menuPdf') as File;
-  const vendorId = formData.get('vendorId') as string;
-
   console.log("[handleMenuPdfUpload] Received menuFile:", menuFile?.name, "vendorId:", vendorId);
 
   if (!menuFile || menuFile.size === 0) {
     console.warn("[handleMenuPdfUpload] No PDF file uploaded or file is empty.");
     return { error: 'No PDF file uploaded or file is empty.' };
-  }
-  if (!vendorId) {
-    console.warn("[handleMenuPdfUpload] Vendor ID is missing.");
-    return { error: 'Vendor ID is missing.' };
   }
   if (menuFile.type !== 'application/pdf') {
     console.warn("[handleMenuPdfUpload] Uploaded file is not a PDF. Type:", menuFile.type);
@@ -346,9 +347,15 @@ export async function handleSaveExtractedMenu(
   formData: FormData
 ): Promise<SaveMenuFormState> {
   console.log('[handleSaveExtractedMenu] Server action started.');
+  const session = await getSession();
+  const vendorId = session?.uid;
+
+  if (!vendorId) {
+    return { error: 'You must be logged in to save menu items.' };
+  }
 
   const rawFormData = {
-    vendorId: formData.get('vendorId') as string,
+    vendorId: vendorId, // Use vendorId from session
     extractedItemsJson: formData.get('extractedItemsJson') as string,
   };
   console.log('[handleSaveExtractedMenu] Raw form data:', rawFormData);
@@ -362,7 +369,7 @@ export async function handleSaveExtractedMenu(
     };
   }
 
-  const { vendorId, extractedItemsJson } = validatedFields.data;
+  const { extractedItemsJson } = validatedFields.data;
   let itemsToSave: ExtractMenuOutput['extractedItems'];
   try {
     itemsToSave = JSON.parse(extractedItemsJson);
@@ -423,7 +430,8 @@ export async function handleRemoveDuplicateItems(
     prevState: RemoveDuplicatesFormState,
     formData: FormData
 ): Promise<RemoveDuplicatesFormState> {
-    const vendorId = formData.get('vendorId') as string;
+    const session = await getSession();
+    const vendorId = session?.uid;
     console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
 
     if (!vendorId) {
@@ -563,4 +571,3 @@ export async function handleDeleteSelectedItems(
     return { error: errorMessage };
   }
 }
-

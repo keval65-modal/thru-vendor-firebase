@@ -28,7 +28,7 @@ export interface GlobalItem {
  */
 export interface VendorInventoryItem {
   id?: string; // Firestore document ID
-  vendorId: string; // Reference to the vendor's document ID (email)
+  vendorId: string; // Reference to the vendor's document ID (Firebase Auth UID)
 
   globalItemRef?: DocumentReference<GlobalItem>; // Optional link to a global_item
   isCustomItem: boolean;
@@ -62,14 +62,14 @@ export interface VendorInventoryItem {
  * Stored in the `vendors` collection.
  */
 export interface Vendor {
-  id?: string; // Typically the email is used as the ID
+  id?: string; // The Firebase Auth UID is used as the document ID
   shopName: string;
   storeCategory: "Grocery Store" | "Restaurant" | "Bakery" | "Boutique" | "Electronics" | "Cafe" | "Pharmacy" | "Liquor Shop" | "Pet Shop" | "Gift Shop" | "Other";
   ownerName: string;
   phoneCountryCode: string;
   phoneNumber: string;
   email: string; 
-  password?: string; // Stored hashed. Not directly editable in profile form for security.
+  password?: string; // This should not be stored here if using Firebase Auth. Kept for model compatibility during transition.
   gender?: string;
   city: string;
   weeklyCloseOn: string;

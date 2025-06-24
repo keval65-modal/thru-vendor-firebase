@@ -22,7 +22,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
-import { registerVendor } from '@/app/signup/actions';
+import { createVendorRecord } from '@/app/signup/actions';
+import { createSession } from '@/lib/auth';
+
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, storage } from '@/lib/firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
   centerCrop,
@@ -249,63 +254,71 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
-    const formData = new FormData();
-    let finalShopImageFile: File | undefined | null = originalFile;
-
-    if (completedCrop && originalFile && imgRef.current) {
-      try {
-        const croppedFile = await generateCroppedImage(
-          originalFile,
-          completedCrop,
-          TARGET_IMAGE_WIDTH,
-          TARGET_IMAGE_HEIGHT
-        );
-        if (croppedFile) {
-          finalShopImageFile = croppedFile;
-        } else {
-          toast({ variant: "destructive", title: "Cropping Failed", description: "Could not process the image crop." });
-          // Potentially stop submission or allow original image? For now, continues with original if crop failed.
-        }
-      } catch (cropError) {
-        console.error("Error during image cropping:", cropError);
-        toast({ variant: "destructive", title: "Cropping Error", description: "An error occurred while cropping the image." });
-      }
-    }
     
-    Object.keys(values).forEach(key => {
-      const valueKey = key as keyof typeof values;
-      if (valueKey === 'shopImage') {
-        // Handled by finalShopImageFile
-      } else if (values[valueKey] !== undefined) {
-        formData.append(key, String(values[valueKey]));
-      }
-    });
-
-    if (finalShopImageFile) {
-      formData.append('shopImage', finalShopImageFile);
-    }
-
-
     try {
-      const result = await registerVendor(formData);
-      if (result.success) {
-        toast({
-          title: 'Signup Successful',
-          description: 'Your shop has been registered. Redirecting to login...',
-        });
-        router.push('/login');
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Signup Failed',
-          description: result.error || 'An unknown error occurred.',
-        });
+      // Step 1: Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+      console.log('Firebase Auth user created:', user.uid);
+
+      // Step 2: Handle image upload to Firebase Storage
+      let imageUrl: string | undefined = undefined;
+      if (completedCrop && originalFile && imgRef.current) {
+        const croppedFile = await generateCroppedImage(originalFile, completedCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
+        if (croppedFile) {
+          const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;
+          const imageStorageRef = storageRef(storage, imagePath);
+          await uploadBytes(imageStorageRef, croppedFile);
+          imageUrl = await getDownloadURL(imageStorageRef);
+          console.log('Image uploaded, URL:', imageUrl);
+        }
       }
-    } catch (error) {
+
+      // Step 3: Prepare data and create vendor document in Firestore via Server Action
+      const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
+      const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
+      
+      const firestoreResult = await createVendorRecord(user.uid, {
+          ...vendorDataForFirestore,
+          fullPhoneNumber,
+          shopImageUrl: imageUrl,
+      });
+
+      if (!firestoreResult.success) {
+        throw new Error(firestoreResult.error || 'Failed to save vendor details.');
+      }
+      
+      console.log('Vendor document created in Firestore.');
+
+      // Step 4 (Optional but good UX): Log the user in and redirect
+      await createSession(user.uid);
       toast({
+        title: 'Signup Successful',
+        description: 'Your shop has been registered. Redirecting...',
+      });
+      router.push('/orders'); // Redirect to main app page
+
+    } catch (error: any) {
+      let errorMessage = 'An unknown error occurred.';
+      if (error.code) {
+        switch (error.code) {
+            case 'auth/email-already-in-use':
+                errorMessage = 'This email address is already in use.';
+                break;
+            case 'auth/weak-password':
+                errorMessage = 'The password is too weak.';
+                break;
+            default:
+                errorMessage = error.message;
+                break;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+       toast({
         variant: 'destructive',
-        title: 'Signup Error',
-        description: 'Something went wrong. Please try again.',
+        title: 'Signup Failed',
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -748,4 +761,3 @@ export function SignupForm() {
     </TooltipProvider>
   );
 }
-

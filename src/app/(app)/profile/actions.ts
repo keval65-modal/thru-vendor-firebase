@@ -57,12 +57,12 @@ const UpdateProfileSchema = z.object({
 
 export async function getVendorDetails(): Promise<{ vendor?: Vendor; error?: string }> {
   const session = await getSession();
-  if (!session?.isAuthenticated || !session.email) {
+  if (!session?.isAuthenticated || !session.uid) {
     return { error: "User not authenticated." };
   }
 
   try {
-    const vendorRef = doc(db, 'vendors', session.email);
+    const vendorRef = doc(db, 'vendors', session.uid);
     const vendorSnap = await getDoc(vendorRef);
 
     if (!vendorSnap.exists()) {
@@ -91,14 +91,13 @@ export type UpdateProfileFormState = {
 };
 
 export async function updateVendorProfile(
-  prevState: UpdateProfileFormState,
   formData: FormData
 ): Promise<UpdateProfileFormState> {
   const session = await getSession();
-  if (!session?.isAuthenticated || !session.email) {
+  if (!session?.isAuthenticated || !session.uid) {
     return { error: "User not authenticated. Cannot update profile." };
   }
-  const vendorId = session.email;
+  const vendorId = session.uid;
 
   const rawData = Object.fromEntries(formData.entries());
   const shopImageFile = formData.get('shopImage') as File | null;

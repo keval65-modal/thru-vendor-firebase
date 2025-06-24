@@ -50,6 +50,7 @@ import { Progress } from '@/components/ui/progress';
 
 interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCategory'> {
   isAuthenticated: boolean;
+  uid?: string;
 }
 
 const initialMenuUploadState: MenuUploadFormState = {};
@@ -441,17 +442,17 @@ export default function InventoryPage() {
   }, [vendorInventory, selectedCategoryFilter]);
 
 
-  const fetchAndSetInventory = async (vendorEmail: string, showToast = false) => {
-    if (!vendorEmail) {
-      console.warn("[InventoryPage] fetchAndSetInventory called without vendorEmail.");
+  const fetchAndSetInventory = async (vendorId: string, showToast = false) => {
+    if (!vendorId) {
+      console.warn("[InventoryPage] fetchAndSetInventory called without vendorId.");
       return;
     }
-    console.log(`[InventoryPage] Fetching inventory for ${vendorEmail}`);
+    console.log(`[InventoryPage] Fetching inventory for ${vendorId}`);
     setIsLoadingInventory(true);
     if (showToast) setIsRefreshingInventory(true);
 
     try {
-      const items = await getVendorInventory(vendorEmail);
+      const items = await getVendorInventory(vendorId);
       setVendorInventory(items);
       setSelectedItems([]);
       if (showToast) {
@@ -471,15 +472,16 @@ export default function InventoryPage() {
       setIsLoadingSession(true);
       console.log("[InventoryPage] Fetching session data...");
       const currentSession = await getSession();
-      if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName) {
-        console.log("[InventoryPage] Session data fetched:", currentSession.email);
+      if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName && currentSession.uid) {
+        console.log("[InventoryPage] Session data fetched:", currentSession.uid);
         setSession({
           isAuthenticated: true,
           email: currentSession.email,
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
+          uid: currentSession.uid,
         });
-        fetchAndSetInventory(currentSession.email);
+        fetchAndSetInventory(currentSession.uid);
       } else {
         console.warn("[InventoryPage] Session not authenticated or missing data.");
         setSession(null);
@@ -504,14 +506,14 @@ export default function InventoryPage() {
     }
     if (saveMenuState?.success && saveMenuState.message) {
       toast({ title: "Menu Saved", description: saveMenuState.message });
-      if (session?.email) {
-        fetchAndSetInventory(session.email, true);
+      if (session?.uid) {
+        fetchAndSetInventory(session.uid, true);
       }
       // Clear menu upload state after successful save
       // This assumes menuUploadState is being managed by a form action that resets or provides a mechanism to clear it
       // For now, we'll just rely on the user not re-submitting the same extracted data
     }
-  }, [saveMenuState, toast, session?.email]);
+  }, [saveMenuState, toast, session?.uid]);
 
   useEffect(() => {
     if (deleteItemState?.error && !isDeletingItem) { 
@@ -519,11 +521,11 @@ export default function InventoryPage() {
     }
     if (deleteItemState?.success && deleteItemState.message) {
         toast({ title: "Item Deleted", description: deleteItemState.message });
-        if (session?.email) {
-            fetchAndSetInventory(session.email, true);
+        if (session?.uid) {
+            fetchAndSetInventory(session.uid, true);
         }
     }
-  }, [deleteItemState, toast, session?.email, isDeletingItem]);
+  }, [deleteItemState, toast, session?.uid, isDeletingItem]);
 
   useEffect(() => {
     if (removeDuplicatesState?.error) {
@@ -531,11 +533,11 @@ export default function InventoryPage() {
     }
     if (removeDuplicatesState?.success) {
         toast({ title: "Duplicates Processed", description: removeDuplicatesState.message });
-        if (session?.email) {
-            fetchAndSetInventory(session.email, true);
+        if (session?.uid) {
+            fetchAndSetInventory(session.uid, true);
         }
     }
-  }, [removeDuplicatesState, toast, session?.email]);
+  }, [removeDuplicatesState, toast, session?.uid]);
 
   useEffect(() => {
     if (deleteSelectedItemsState?.error) {
@@ -543,19 +545,19 @@ export default function InventoryPage() {
     }
     if (deleteSelectedItemsState?.success && deleteSelectedItemsState.message) {
         toast({ title: "Items Deleted", description: deleteSelectedItemsState.message });
-        if (session?.email) {
-            fetchAndSetInventory(session.email, true); 
+        if (session?.uid) {
+            fetchAndSetInventory(session.uid, true); 
         }
     }
-  }, [deleteSelectedItemsState, toast, session?.email]);
+  }, [deleteSelectedItemsState, toast, session?.uid]);
 
   useEffect(() => {
     if (updateItemGlobalState?.success) {
-        if (session?.email) {
-            fetchAndSetInventory(session.email, true);
+        if (session?.uid) {
+            fetchAndSetInventory(session.uid, true);
         }
     }
-  }, [updateItemGlobalState, session?.email]);
+  }, [updateItemGlobalState, session?.uid]);
 
 
   const handlePdfFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -608,7 +610,6 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <form action={menuUploadFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
-              {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
               <Label htmlFor="menuPdf" className="font-semibold">Upload Menu PDF</Label>
               <Input
                 id="menuPdf"
@@ -643,7 +644,6 @@ export default function InventoryPage() {
                 </div>
 
                 <form action={saveMenuFormAction}>
-                   {session?.email && <input type="hidden" name="vendorId" value={session.email} />}
                    <input
                     type="hidden"
                     name="extractedItemsJson"
@@ -700,13 +700,13 @@ export default function InventoryPage() {
                             </AlertDialogContent>
                         </AlertDialog>
                     )}
-                    {session?.email && vendorInventory.length > 0 && (
+                    {session?.uid && vendorInventory.length > 0 && (
                         <form action={removeDuplicatesFormAction}>
-                            <input type="hidden" name="vendorId" value={session.email} />
+                            <input type="hidden" name="vendorId" value={session.uid} />
                             <RemoveDuplicatesButton />
                         </form>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => session?.email && fetchAndSetInventory(session.email, true)} disabled={isRefreshingInventory || isLoadingInventory || isRemovingDuplicates}>
+                    <Button variant="outline" size="sm" onClick={() => session?.uid && fetchAndSetInventory(session.uid, true)} disabled={isRefreshingInventory || isLoadingInventory || isRemovingDuplicates}>
                         {isRefreshingInventory || isLoadingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
                         Refresh
                     </Button>
@@ -1190,7 +1190,7 @@ export default function InventoryPage() {
       {renderInventoryContent()}
       <EditItemDialog
         item={editingItem}
-        vendorId={session?.email || null}
+        vendorId={session?.uid || null}
         isOpen={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         updateItemAction={updateVendorItemDetails} 
@@ -1202,4 +1202,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-

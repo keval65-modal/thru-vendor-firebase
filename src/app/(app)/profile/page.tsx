@@ -151,15 +151,21 @@ async function generateCroppedImage(
   });
 }
 
-const initialFormState: UpdateProfileFormState = {};
+function SubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Changes
+        </Button>
+    )
+}
 
 export default function ProfilePage() {
   const { toast } = useToast();
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
-
-  const [updateState, setUpdateState] = useState<UpdateProfileFormState>(initialFormState);
 
   // Image Cropping State
   const [imgSrc, setImgSrc] = useState(''); // For displaying the image to be cropped
@@ -203,21 +209,6 @@ export default function ProfilePage() {
     }
     fetchVendor();
   }, [form, toast]);
-
-  useEffect(() => {
-    if (updateState?.success && updateState.message) {
-      toast({ title: "Profile Updated", description: updateState.message });
-      // Optionally re-fetch vendor data if something critical changed that needs UI update beyond form
-      // For now, form is source of truth after successful update until next full load.
-    }
-    if (updateState?.error) {
-      toast({ variant: "destructive", title: "Update Failed", description: updateState.error });
-    }
-    if(!updateState?.success && !updateState?.error && updateState?.message){ // Edge case for non-error messages
-        toast({title: "Info", description: updateState.message});
-    }
-    setIsSubmittingForm(false); // Reset submitting state after action completes
-  }, [updateState, toast]);
 
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,7 +258,7 @@ export default function ProfilePage() {
   };
 
   async function onSubmit(values: z.infer<typeof profileFormSchema>) {
-    if (!vendorData?.email) {
+    if (!vendorData?.id) {
         toast({ variant: "destructive", title: "Error", description: "Vendor ID is missing." });
         return;
     }
@@ -302,8 +293,18 @@ export default function ProfilePage() {
       formDataToSubmit.append('shopImage', finalShopImageFile);
     }
     
-    const result = await updateVendorProfile(initialFormState, formDataToSubmit);
-    setUpdateState(result);
+    const result = await updateVendorProfile(formDataToSubmit);
+    
+    if(result.success) {
+      toast({ title: "Profile Updated", description: result.message });
+      // Refetch data to show updated image
+      const updatedVendor = await getVendorDetails();
+      if(updatedVendor.vendor) setVendorData(updatedVendor.vendor);
+
+    } else {
+      toast({ variant: "destructive", title: "Update Failed", description: result.error });
+    }
+    setIsSubmittingForm(false);
   }
 
   if (isLoadingData) {

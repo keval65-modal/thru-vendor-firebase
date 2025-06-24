@@ -7,11 +7,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { loginWithEmailPassword } from '@/lib/auth';
+import { createSession } from '@/lib/auth';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 
 const loginFormSchema = z.object({
@@ -36,39 +39,47 @@ export function LoginForm() {
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
     console.log('[LoginForm] Submitting login form with values:', values);
+    
     try {
-      const result = await loginWithEmailPassword(values.email, values.password);
+      // Step 1: Authenticate with Firebase Auth on the client
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+      console.log('[LoginForm] Firebase client-side sign-in successful. UID:', user.uid);
 
-      if (result.success) {
-        toast({ title: 'Login Successful', description: result.message || 'Welcome back!' });
-        console.log('[LoginForm] Login successful. Attempting to redirect to /orders...');
-        try {
-          // Await router.push to ensure navigation completes before refresh
-          await router.push('/orders');
-          console.log('[LoginForm] Successfully pushed to /orders. Refreshing route...');
-          router.refresh(); // Refresh the new route to ensure server components and middleware have fresh state
-        } catch (navError) {
-          console.error('[LoginForm] Navigation error to /orders:', navError);
-          toast({
-            variant: 'destructive',
-            title: 'Navigation Error',
-            description: 'Could not redirect to the home screen.',
-          });
-        }
+      // Step 2: Create a server-side session (cookie)
+      const sessionResult = await createSession(user.uid);
+
+      if (sessionResult.success) {
+        toast({ title: 'Login Successful', description: 'Welcome back!' });
+        router.push('/orders');
+        router.refresh();
       } else {
-        console.log('[LoginForm] Login failed:', result.error);
+        // This case is unlikely if Firebase Auth succeeds, but handle it just in case
         toast({
           variant: 'destructive',
           title: 'Login Failed',
-          description: result.error || 'Invalid credentials or an error occurred.',
+          description: sessionResult.error || 'Could not create a server session.',
         });
       }
     } catch (error: any) {
       console.error('[LoginForm] Login submission error:', error);
+      let errorMessage = 'An unexpected error occurred.';
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            errorMessage = 'Invalid email or password.';
+            break;
+          default:
+            errorMessage = error.message;
+            break;
+        }
+      }
       toast({
         variant: 'destructive',
         title: 'Login Error',
-        description: error.message || 'An unexpected error occurred.',
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
