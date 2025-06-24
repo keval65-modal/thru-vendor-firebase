@@ -81,9 +81,11 @@ export interface Vendor {
   shopImageUrl?: string; 
   fullPhoneNumber?: string; // Combined country code and number
   createdAt?: Timestamp | string; 
-  updatedAt?: Timestamp | string; // Add updatedAt field
+  updatedAt?: Timestamp | string;
   
   menuPdfUrl?: string; 
   isActiveOnThru?: boolean; 
-  type?: Vendor['storeCategory']; // Added 'type' field, mirroring storeCategory
+  type?: Vendor['storeCategory'];
 }
+
+    

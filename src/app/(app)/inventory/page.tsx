@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, ImageIcon, Upload } from "lucide-react"; // Added Upload
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -43,7 +43,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { storage } from '@/lib/firebase'; // Firebase storage
+import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Progress } from '@/components/ui/progress';
 
@@ -147,18 +147,18 @@ function UpdateItemSubmitButton({ isUploadingFile }: { isUploadingFile: boolean 
 
 interface EditItemDialogProps {
   item: VendorInventoryItem | null;
-  vendorId: string | null; // For Firebase Storage path
+  vendorId: string | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  updateItemAction: (payload: FormData) => void;
-  initialState: UpdateItemFormState;
+  onItemUpdate: () => void;
 }
 
-function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction, initialState }: EditItemDialogProps) {
-  const [updateState, formAction, isSaving] = useActionState(updateItemAction, initialState);
+function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: EditItemDialogProps) {
+  const [updateState, setUpdateState] = useState<UpdateItemFormState>({});
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -196,14 +196,15 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
   }, [item, form, isOpen]); // Reset when dialog opens with a new item or is re-opened
 
   useEffect(() => {
-    if (updateState?.success && !isSaving) {
+    if (updateState?.success) {
       toast({ title: "Item Updated", description: updateState.message });
+      onItemUpdate();
       onOpenChange(false);
     }
-    if (updateState?.error && !isSaving) {
+    if (updateState?.error) {
       toast({ variant: "destructive", title: "Update Failed", description: updateState.error });
     }
-  }, [updateState, toast, onOpenChange, isSaving]);
+  }, [updateState, toast, onOpenChange, onItemUpdate]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -221,6 +222,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
         toast({ variant: "destructive", title: "Error", description: "Item ID or Vendor ID is missing."});
         return;
     }
+    setIsSubmitting(true);
 
     const formData = new FormData();
     formData.append('itemId', item.id);
@@ -256,6 +258,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
         } catch (error) {
             setIsUploadingFile(false);
             setUploadProgress(null);
+            setIsSubmitting(false);
             return; // Stop form submission if upload fails
         }
         setIsUploadingFile(false);
@@ -270,7 +273,11 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
             formData.append(key, String(value));
         }
     });
-    formAction(formData);
+    
+    // Call server action
+    const result = await updateVendorItemDetails(updateState, formData);
+    setUpdateState(result);
+    setIsSubmitting(false);
   };
 
 
@@ -278,7 +285,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-        if (isUploadingFile || isSaving) return; // Prevent closing while operations are in progress
+        if (isUploadingFile || isSubmitting) return; // Prevent closing while operations are in progress
         onOpenChange(open);
     }}>
       <DialogContent className="sm:max-w-md">
@@ -294,7 +301,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Item Name</FormLabel>
-                        <FormControl><Input {...field} disabled={isUploadingFile || isSaving} /></FormControl>
+                        <FormControl><Input {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -305,7 +312,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <FormControl><Input {...field} disabled={isUploadingFile || isSaving} /></FormControl>
+                        <FormControl><Input {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -316,7 +323,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Price (₹)</FormLabel>
-                        <FormControl><Input type="number" step="0.01" {...field} disabled={isUploadingFile || isSaving} /></FormControl>
+                        <FormControl><Input type="number" step="0.01" {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -327,7 +334,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Stock Quantity</FormLabel>
-                        <FormControl><Input type="number" step="1" {...field} disabled={isUploadingFile || isSaving}/></FormControl>
+                        <FormControl><Input type="number" step="1" {...field} disabled={isUploadingFile || isSubmitting}/></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -338,7 +345,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Description (Optional)</FormLabel>
-                        <FormControl><Textarea {...field} rows={3} disabled={isUploadingFile || isSaving}/></FormControl>
+                        <FormControl><Textarea {...field} rows={3} disabled={isUploadingFile || isSubmitting}/></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -348,7 +355,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                 <FormItem>
                     <FormLabel>Item Image</FormLabel>
                     {currentImageUrlForDisplay && (
-                        <Image src={currentImageUrlForDisplay} alt="Current item image" width={100} height={100} className="mt-2 rounded object-cover" data-ai-hint="item current image" />
+                        <Image src={currentImageUrlForDisplay} alt="Current item image" width={100} height={100} className="mt-2 rounded object-cover" />
                     )}
                      <FormField
                         control={form.control}
@@ -366,7 +373,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                                             setSelectedFile(null); // Clear selected file if URL is manually changed
                                             setImagePreviewUrl(e.target.value);
                                         }}
-                                        disabled={isUploadingFile || isSaving}
+                                        disabled={isUploadingFile || isSubmitting}
                                     />
                                 </FormControl>
                                 <FormMessage />
@@ -382,7 +389,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                             onChange={handleFileChange} 
                             ref={fileInputRef}
                             className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                            disabled={isUploadingFile || isSaving}
+                            disabled={isUploadingFile || isSubmitting}
                         />
                     </div>
                     {isUploadingFile && uploadProgress !== null && (
@@ -394,7 +401,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, updateItemAction
                 </FormItem>
 
                 <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="outline" disabled={isUploadingFile || isSaving}>Cancel</Button></DialogClose>
+                    <DialogClose asChild><Button type="button" variant="outline" disabled={isUploadingFile || isSubmitting}>Cancel</Button></DialogClose>
                     <UpdateItemSubmitButton isUploadingFile={isUploadingFile} />
                 </DialogFooter>
             </form>
@@ -416,7 +423,6 @@ export default function InventoryPage() {
   const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
   const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
   const [deleteSelectedItemsState, deleteSelectedItemsFormAction] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
-  const [updateItemGlobalState, updateItemFormAction] = useActionState(updateVendorItemDetails, initialUpdateItemState);
 
 
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
@@ -550,14 +556,6 @@ export default function InventoryPage() {
         }
     }
   }, [deleteSelectedItemsState, toast, session?.uid]);
-
-  useEffect(() => {
-    if (updateItemGlobalState?.success) {
-        if (session?.uid) {
-            fetchAndSetInventory(session.uid, true);
-        }
-    }
-  }, [updateItemGlobalState, session?.uid]);
 
 
   const handlePdfFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -770,7 +768,6 @@ export default function InventoryPage() {
                             width={40}
                             height={40}
                             className="rounded object-cover aspect-square"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} food`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -944,7 +941,6 @@ export default function InventoryPage() {
                             width={40}
                             height={40}
                             className="rounded object-cover aspect-square"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} product`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -1100,7 +1096,6 @@ export default function InventoryPage() {
                             width={40}
                             height={40}
                             className="rounded object-cover aspect-square"
-                            data-ai-hint={`${item.itemName.split(' ').slice(0,2).join(' ')} product`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
@@ -1193,8 +1188,7 @@ export default function InventoryPage() {
         vendorId={session?.uid || null}
         isOpen={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
-        updateItemAction={updateVendorItemDetails} 
-        initialState={initialUpdateItemState} 
+        onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
       />
        <p className="mt-8 text-center text-sm text-muted-foreground">
         Admin features for managing global item catalogs will be available separately.
@@ -1202,3 +1196,5 @@ export default function InventoryPage() {
     </div>
   );
 }
+
+    

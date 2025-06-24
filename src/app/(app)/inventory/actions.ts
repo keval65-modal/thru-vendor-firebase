@@ -111,7 +111,7 @@ export type UpdateItemFormState = {
   success?: boolean;
   error?: string;
   message?: string;
-  fields?: Record<string, string>; // For field-specific errors
+  fields?: Record<string, string[]>; // For field-specific errors
 };
 
 // Schema for updating item details
@@ -145,7 +145,7 @@ export async function updateVendorItemDetails(
     console.error("[updateVendorItemDetails] Validation error:", validatedFields.error.flatten().fieldErrors);
     return {
       error: "Invalid data for updating item. Please check your inputs.",
-      fields: validatedFields.error.flatten().fieldErrors as Record<string, string>,
+      fields: validatedFields.error.flatten().fieldErrors as Record<string, string[]>,
     };
   }
 
@@ -571,3 +571,5 @@ export async function handleDeleteSelectedItems(
     return { error: errorMessage };
   }
 }
+
+    
