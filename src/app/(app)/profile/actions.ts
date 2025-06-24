@@ -9,6 +9,24 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 
+const generateTimeOptions = () => {
+    const options = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const hour12 = h === 0 ? 12 : h % 12 === 0 ? 12 : h % 12;
+            const period = h < 12 || h === 24 ? "AM" : "PM";
+            const displayHour = hour12 < 10 ? `0${hour12}` : hour12;
+            const displayMinute = m < 10 ? `0${m}` : m;
+            let timeValue = `${displayHour}:${displayMinute} ${period}`;
+            if (h === 0 && m === 0) timeValue = "12:00 AM (Midnight)";
+            if (h === 12 && m === 0) timeValue = "12:00 PM (Noon)";
+            options.push(timeValue.replace("12:00 AM (Midnight) AM", "12:00 AM (Midnight)").replace("12:00 PM (Noon) PM", "12:00 PM (Noon)"));
+        }
+    }
+    return options;
+};
+const timeOptions = generateTimeOptions();
+
 // Schema for validating profile updates
 // Similar to registerVendorSchema, but password fields are removed, email is not updatable here.
 const UpdateProfileSchema = z.object({
@@ -27,23 +45,10 @@ const UpdateProfileSchema = z.object({
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   shopImage: z.any().optional(), // File object if new image is uploaded
 }).refine(data => {
-    // Basic time validation (can be made more robust)
-    const timeOptions = [];
-    for (let h = 0; h < 24; h++) {
-        for (let m = 0; m < 60; m += 30) {
-        const hour12 = h === 0 ? 12 : h % 12 === 0 ? 12 : h % 12;
-        const period = h < 12 || h === 24 ? "AM" : "PM";
-        const displayHour = hour12 < 10 ? `0${hour12}` : hour12;
-        const displayMinute = m < 10 ? `0${m}` : m;
-        let timeValue = `${displayHour}:${displayMinute} ${period}`;
-        if (h === 0 && m === 0) timeValue = "12:00 AM (Midnight)";
-        if (h === 12 && m === 0) timeValue = "12:00 PM (Noon)";
-        options.push(timeValue.replace("12:00 AM (Midnight) AM", "12:00 AM (Midnight)").replace("12:00 PM (Noon) PM", "12:00 PM (Noon)"));
-        }
-    }
     if(data.openingTime && data.closingTime) {
-        const openTimeIndex = options.indexOf(data.openingTime);
-        const closeTimeIndex = options.indexOf(data.closingTime);
+        const openTimeIndex = timeOptions.indexOf(data.openingTime);
+        const closeTimeIndex = timeOptions.indexOf(data.closingTime);
+        if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
         return closeTimeIndex > openTimeIndex;
     }
     return true;

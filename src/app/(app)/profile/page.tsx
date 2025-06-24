@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useRef, useActionState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserCog, UploadCloud, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -153,33 +153,13 @@ async function generateCroppedImage(
 
 const initialFormState: UpdateProfileFormState = {};
 
-function SubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
-    const { pending } = useFormStatus();
-    const disabled = pending || isSubmitting;
-    return (
-        <Button
-            type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-            disabled={disabled}
-        >
-            {disabled ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-                <Save className="mr-2 h-4 w-4" />
-            )}
-            {pending ? 'Saving...' : (isSubmitting ? 'Processing...' : 'Save Changes')}
-        </Button>
-    );
-}
-
-
 export default function ProfilePage() {
   const { toast } = useToast();
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
-  const [updateState, formAction] = useActionState(updateVendorProfile, initialFormState);
+  const [updateState, setUpdateState] = useState<UpdateProfileFormState>(initialFormState);
 
   // Image Cropping State
   const [imgSrc, setImgSrc] = useState(''); // For displaying the image to be cropped
@@ -322,7 +302,8 @@ export default function ProfilePage() {
       formDataToSubmit.append('shopImage', finalShopImageFile);
     }
     
-    formAction(formDataToSubmit);
+    const result = await updateVendorProfile(initialFormState, formDataToSubmit);
+    setUpdateState(result);
   }
 
   if (isLoadingData) {
@@ -512,7 +493,10 @@ export default function ProfilePage() {
                 </Button>
               </div>
 
-              <SubmitButton isSubmitting={isSubmittingForm} />
+              <Button type="submit" className="w-full" disabled={isSubmittingForm}>
+                  {isSubmittingForm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save Changes
+              </Button>
             </form>
           </Form>
         </TooltipProvider>
