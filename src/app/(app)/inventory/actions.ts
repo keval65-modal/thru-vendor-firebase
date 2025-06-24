@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
+import { parseCsvData, type ParseCsvInput, type ParseCsvOutput } from '@/ai/flows/parse-items-flow';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 
@@ -659,4 +660,86 @@ export async function handleDeleteSelectedItems(
     }
     return { error: errorMessage };
   }
+}
+
+
+// --- AI Bulk Add Global Items ---
+
+export type CsvParseFormState = {
+  parsedItems?: ParseCsvOutput['parsedItems'];
+  error?: string;
+  message?: string;
+};
+
+export async function handleCsvUpload(
+  prevState: CsvParseFormState,
+  formData: FormData
+): Promise<CsvParseFormState> {
+  const csvData = formData.get('csvData') as string;
+  if (!csvData || csvData.trim().length === 0) {
+    return { error: "CSV data cannot be empty." };
+  }
+  
+  try {
+    const result = await parseCsvData({ csvData });
+    if (!result || !result.parsedItems) {
+      return { error: "AI failed to parse items. The format might be incorrect." };
+    }
+    return { parsedItems: result.parsedItems, message: `Successfully parsed ${result.parsedItems.length} items for preview.` };
+  } catch(error) {
+    console.error('[handleCsvUpload] Error processing CSV with AI:', error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
+    return { error: errorMessage };
+  }
+}
+
+export type BulkSaveFormState = {
+    success?: boolean;
+    error?: string;
+    message?: string;
+    itemsAdded?: number;
+};
+
+export async function handleBulkSaveItems(
+    prevState: BulkSaveFormState,
+    formData: FormData
+): Promise<BulkSaveFormState> {
+    const itemsJson = formData.get('itemsJson') as string;
+    if (!itemsJson) {
+        return { error: "No items to save." };
+    }
+
+    let itemsToSave: Omit<GlobalItem, 'id'>[];
+    try {
+        itemsToSave = JSON.parse(itemsJson);
+    } catch(e) {
+        return { error: "Invalid items format." };
+    }
+
+    if (!Array.isArray(itemsToSave) || itemsToSave.length === 0) {
+        return { error: "No items to save." };
+    }
+
+    try {
+        const batch = writeBatch(db);
+        const now = Timestamp.now();
+
+        itemsToSave.forEach(item => {
+            const newItemRef = doc(collection(db, 'global_items'));
+            const newItemData: Omit<GlobalItem, 'id'> = {
+                ...item,
+                createdAt: now,
+                updatedAt: now,
+            };
+            batch.set(newItemRef, newItemData);
+        });
+
+        await batch.commit();
+
+        return { success: true, message: `Successfully added ${itemsToSave.length} items to the global catalog.`, itemsAdded: itemsToSave.length };
+    } catch (error) {
+        console.error('[handleBulkSaveItems] Error saving items to Firestore:', error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        return { error: `Failed to save items. ${errorMessage}` };
+    }
 }

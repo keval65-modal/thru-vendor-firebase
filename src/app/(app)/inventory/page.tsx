@@ -12,8 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from "@/components/ui/dialog";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X, FileUp } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,7 +26,9 @@ import {
     handleDeleteSelectedItems, type DeleteSelectedItemsFormState,
     updateVendorItemDetails, type UpdateItemFormState,
     getGlobalItemsByType,
-    linkGlobalItemToVendorInventory, type LinkGlobalItemFormState
+    linkGlobalItemToVendorInventory, type LinkGlobalItemFormState,
+    handleCsvUpload, type CsvParseFormState,
+    handleBulkSaveItems, type BulkSaveFormState
 } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -62,6 +64,8 @@ const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
 const initialUpdateItemState: UpdateItemFormState = {};
 const initialLinkGlobalItemState: LinkGlobalItemFormState = {};
+const initialCsvParseState: CsvParseFormState = {};
+const initialBulkSaveState: BulkSaveFormState = {};
 
 
 const EditItemFormSchema = z.object({
@@ -500,6 +504,117 @@ function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item
   );
 }
 
+function BulkAddDialog({ onItemsAdded }: { onItemsAdded: () => void }) {
+    const [csvParseState, csvParseFormAction, isParsing] = useActionState(handleCsvUpload, initialCsvParseState);
+    const [bulkSaveState, bulkSaveFormAction, isSaving] = useActionState(handleBulkSaveItems, initialBulkSaveState);
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        if (csvParseState.error) {
+            toast({ variant: "destructive", title: "Parsing Error", description: csvParseState.error });
+        }
+    }, [csvParseState, toast]);
+
+    useEffect(() => {
+        if (bulkSaveState.success) {
+            toast({ title: "Success", description: bulkSaveState.message });
+            onItemsAdded();
+            setIsOpen(false);
+        }
+        if (bulkSaveState.error) {
+            toast({ variant: "destructive", title: "Save Error", description: bulkSaveState.error });
+        }
+    }, [bulkSaveState, toast, onItemsAdded]);
+
+    const exampleCsv = `itemName,sharedItemType,defaultCategory,defaultUnit,brand,defaultImageUrl,description,barcode
+Parle-G Gold,grocery,Biscuits,1kg pack,Parle,https://placehold.co/100x100.png,The original gluco biscuit,89012345
+Crocin Pain Relief,medical,Tablets,15 tablets,GSK,https://placehold.co/100x100.png,For headache and body pain,89054321
+`;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Items</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Bulk Add Global Items via CSV</DialogTitle>
+                    <DialogDescription>
+                        Paste CSV data to add multiple items to the global catalog at once.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <form action={csvParseFormAction} className="space-y-4">
+                            <Label htmlFor="csvData">Paste CSV Data</Label>
+                            <Textarea
+                                id="csvData"
+                                name="csvData"
+                                rows={10}
+                                placeholder="Paste your comma-separated data here..."
+                                className="font-mono text-sm"
+                                defaultValue={exampleCsv}
+                                disabled={isParsing}
+                            />
+                             <p className="text-xs text-muted-foreground">
+                                Required headers: `itemName`, `sharedItemType`, `defaultCategory`, `defaultUnit`. Optional: `brand`, `defaultImageUrl`, `description`, `barcode`.
+                             </p>
+                            <Button type="submit" disabled={isParsing} className="w-full">
+                                {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Parse & Preview Items
+                            </Button>
+                        </form>
+                    </div>
+                    <div>
+                        <h4 className="font-semibold mb-2">Preview</h4>
+                        <div className="border rounded-md h-[320px] overflow-auto">
+                            {isParsing ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : csvParseState.parsedItems && csvParseState.parsedItems.length > 0 ? (
+                                <>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Name</TableHead>
+                                                <TableHead>Type</TableHead>
+                                                <TableHead>Category</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {csvParseState.parsedItems.map((item, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell className="font-medium">{item.itemName}</TableCell>
+                                                    <TableCell>{item.sharedItemType}</TableCell>
+                                                    <TableCell>{item.defaultCategory}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </>
+                            ) : (
+                                <div className="flex items-center justify-center h-full">
+                                    <p className="text-sm text-muted-foreground">Waiting for data to preview...</p>
+                                </div>
+                            )}
+                        </div>
+                        {csvParseState.parsedItems && csvParseState.parsedItems.length > 0 && (
+                            <form action={bulkSaveFormAction} className="mt-4">
+                                <input type="hidden" name="itemsJson" value={JSON.stringify(csvParseState.parsedItems)} />
+                                <Button type="submit" disabled={isSaving} className="w-full bg-green-600 hover:bg-green-700">
+                                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Confirm & Save {csvParseState.parsedItems.length} Items
+                                </Button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function InventoryPage() {
   const [session, setSession] = useState<VendorSession | null>(null);
@@ -969,17 +1084,20 @@ export default function InventoryPage() {
         return (
           <div className="space-y-8">
             <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center"><Globe className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
-                <CardDescription>Search for standard products and add them to your inventory for {session.storeCategory}.</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="flex items-center"><Globe className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
+                    <CardDescription>Search for standard products and add them to your inventory for {session.storeCategory}.</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                    <BulkAddDialog onItemsAdded={handleSearchGlobalItems} />
+                    <Button onClick={handleSearchGlobalItems} disabled={isSearchingGlobal}>
+                        {isSearchingGlobal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Search All Items
+                    </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-2 mb-4">
-                  <Button onClick={handleSearchGlobalItems} disabled={isSearchingGlobal} className="w-full">
-                    {isSearchingGlobal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                    Search All Global Items for my Category
-                  </Button>
-                </div>
                 {isSearchingGlobal ? (
                      <div className="flex justify-center items-center p-4">
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -1017,7 +1135,7 @@ export default function InventoryPage() {
                     </Table>
                   </div>
                 ) : (
-                    <p className="text-sm text-center text-muted-foreground mt-4">No global items found. Click search to begin.</p>
+                    <p className="text-sm text-center text-muted-foreground mt-4">No global items found. Click search or use the bulk add tool to populate the catalog.</p>
                 )}
               </CardContent>
             </Card>
