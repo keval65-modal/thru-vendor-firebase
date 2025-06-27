@@ -16,10 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X, FileUp } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
+import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
+import { db, storage } from '@/lib/firebase';
+import { collection, writeBatch, doc, Timestamp } from 'firebase/firestore';
+
 import {
     handleMenuPdfUpload, type MenuUploadFormState,
-    handleSaveExtractedMenu, type SaveMenuFormState,
     getVendorInventory,
     deleteVendorItem, type DeleteItemFormState,
     handleRemoveDuplicateItems, type RemoveDuplicatesFormState,
@@ -48,7 +51,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Progress } from '@/components/ui/progress';
 
@@ -59,7 +61,6 @@ interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCatego
 }
 
 const initialMenuUploadState: MenuUploadFormState = {};
-const initialSaveMenuState: SaveMenuFormState = {};
 const initialDeleteItemState: DeleteItemFormState = {};
 const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
@@ -96,11 +97,10 @@ function MenuUploadSubmitButton() {
   );
 }
 
-function SaveMenuButton() {
-  const { pending } = useFormStatus();
+function SaveMenuButton({ onClick, isSaving }: { onClick: () => void; isSaving: boolean }) {
   return (
-    <Button type="submit" disabled={pending} className="mt-4 bg-green-600 hover:bg-green-700 text-white">
-      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+    <Button onClick={onClick} disabled={isSaving} className="mt-4 bg-green-600 hover:bg-green-700 text-white">
+      {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
       Confirm & Save Extracted Menu
     </Button>
   );
@@ -715,7 +715,8 @@ export default function InventoryPage() {
   const { toast } = useToast();
 
   const [menuUploadState, menuUploadFormAction, isMenuUploading] = useActionState(handleMenuPdfUpload, initialMenuUploadState);
-  const [saveMenuState, saveMenuFormAction, isMenuSaving] = useActionState(handleSaveExtractedMenu, initialSaveMenuState);
+  const [isSavingMenu, setIsSavingMenu] = useState(false);
+
   const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
   const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
   const [deleteSelectedItemsState, deleteSelectedItemsFormAction] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
@@ -726,6 +727,8 @@ export default function InventoryPage() {
   const [isRefreshingInventory, setIsRefreshingInventory] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  
+  const [showExtractedMenu, setShowExtractedMenu] = useState(true);
 
   const [editingItem, setEditingItem] = useState<VendorInventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -840,6 +843,9 @@ export default function InventoryPage() {
   }, []);
 
   useEffect(() => {
+    if (menuUploadState?.extractedMenu) {
+      setShowExtractedMenu(true);
+    }
     if (menuUploadState?.error) {
       toast({ variant: "destructive", title: "Menu Upload Error", description: menuUploadState.error });
     }
@@ -847,21 +853,6 @@ export default function InventoryPage() {
       toast({ title: "Menu Processing", description: menuUploadState.message });
     }
   }, [menuUploadState, toast]);
-
-  useEffect(() => {
-    if (saveMenuState?.error) {
-      toast({ variant: "destructive", title: "Save Menu Error", description: saveMenuState.error });
-    }
-    if (saveMenuState?.success && saveMenuState.message) {
-      toast({ title: "Menu Saved", description: saveMenuState.message });
-      if (session?.uid) {
-        fetchAndSetInventory(session.uid, true);
-      }
-      // Clear menu upload state after successful save
-      // This assumes menuUploadState is being managed by a form action that resets or provides a mechanism to clear it
-      // For now, we'll just rely on the user not re-submitting the same extracted data
-    }
-  }, [saveMenuState, toast, session?.uid]);
 
   useEffect(() => {
     if (deleteItemState?.error && !isDeletingItem) { 
@@ -932,6 +923,64 @@ export default function InventoryPage() {
     setEditingItem(item);
     setIsEditDialogOpen(true);
   };
+  
+  const handleConfirmSaveMenu = async () => {
+    if (!session?.uid || !menuUploadState?.extractedMenu?.extractedItems) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Cannot save menu. User session or extracted items are missing.' });
+      return;
+    }
+
+    setIsSavingMenu(true);
+    const vendorId = session.uid;
+    const itemsToSave = menuUploadState.extractedMenu.extractedItems;
+    
+    function parsePrice(priceString: string): number {
+        if (!priceString) return 0;
+        const cleanedString = priceString.replace(/[$,£€₹,]/g, '').trim();
+        const price = parseFloat(cleanedString);
+        return isNaN(price) ? 0 : price;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
+      const now = Timestamp.now();
+      
+      itemsToSave.forEach(item => {
+        const newItemRef = doc(inventoryCollectionRef); // Create ref with auto-generated ID
+        const newItemData: Omit<VendorInventoryItem, 'id'> = {
+          vendorId: vendorId,
+          isCustomItem: true,
+          itemName: item.itemName,
+          vendorItemCategory: item.category,
+          stockQuantity: 0, // Default for menu items
+          price: parsePrice(item.price),
+          unit: 'serving', // Default for menu items
+          isAvailableOnThru: true,
+          imageUrl: `https://placehold.co/50x50.png?text=${encodeURIComponent(item.itemName.substring(0, 10))}`,
+          createdAt: now,
+          updatedAt: now,
+          lastStockUpdate: now,
+          ...(item.description !== undefined && { description: item.description }),
+        };
+        batch.set(newItemRef, newItemData);
+      });
+
+      await batch.commit();
+
+      toast({ title: 'Menu Saved', description: `${itemsToSave.length} menu items saved successfully!` });
+      fetchAndSetInventory(vendorId, true);
+      setShowExtractedMenu(false); // Hide the extracted items view after successful save
+      
+    } catch (error) {
+      console.error('Error saving menu items:', error);
+      const errorMessage = error instanceof Error ? `Firestore error: ${error.message}` : 'An unknown error occurred.';
+      toast({ variant: 'destructive', title: 'Save Menu Error', description: errorMessage });
+    } finally {
+      setIsSavingMenu(false);
+    }
+  };
+
 
   const isAllSelected = filteredInventory.length > 0 && selectedItems.length === filteredInventory.length;
   const isSomeSelected = selectedItems.length > 0 && selectedItems.length < filteredInventory.length;
@@ -975,7 +1024,7 @@ export default function InventoryPage() {
               </div>
             )}
 
-            {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length > 0 && !saveMenuState?.success && (
+            {menuUploadState?.extractedMenu && menuUploadState.extractedMenu.extractedItems.length > 0 && showExtractedMenu && (
               <div className="mt-6 p-4 border rounded-md">
                 <h3 className="text-lg font-semibold mb-2 text-foreground">Extracted Menu Items:</h3>
                 <p className="text-sm text-muted-foreground mb-2">Review the items below. You can edit them later after saving.</p>
@@ -985,20 +1034,7 @@ export default function InventoryPage() {
                   </pre>
                 </div>
 
-                <form action={saveMenuFormAction}>
-                   <input
-                    type="hidden"
-                    name="extractedItemsJson"
-                    value={JSON.stringify(menuUploadState.extractedMenu.extractedItems)}
-                   />
-                  <SaveMenuButton />
-                </form>
-                {isMenuSaving && (
-                    <div className="flex items-center mt-2">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Saving menu items...</p>
-                    </div>
-                )}
+                <SaveMenuButton onClick={handleConfirmSaveMenu} isSaving={isSavingMenu} />
               </div>
             )}
 
