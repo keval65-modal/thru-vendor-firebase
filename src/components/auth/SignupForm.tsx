@@ -22,11 +22,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
-import { createVendorRecord } from '@/app/signup/actions';
 import { createSession } from '@/lib/auth';
 
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, storage } from '@/lib/firebase';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { auth, db, storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
@@ -274,23 +274,25 @@ export function SignupForm() {
         }
       }
 
-      // Step 3: Prepare data and create vendor document in Firestore via Server Action
+      // Step 3: Prepare data and create vendor document in Firestore directly from the client
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
-      const firestoreResult = await createVendorRecord(user.uid, {
+      const vendorToSave = {
           ...vendorDataForFirestore,
           fullPhoneNumber,
           shopImageUrl: imageUrl,
-      });
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          type: values.storeCategory,
+          isActiveOnThru: true,
+          role: 'vendor' as const,
+      };
 
-      if (!firestoreResult.success) {
-        throw new Error(firestoreResult.error || 'Failed to save vendor details.');
-      }
-      
+      await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
 
-      // Step 4 (Optional but good UX): Log the user in and redirect
+      // Step 4: Log the user in and redirect by creating a server session
       await createSession(user.uid);
       toast({
         title: 'Signup Successful',
@@ -303,13 +305,16 @@ export function SignupForm() {
       if (error.code) {
         switch (error.code) {
             case 'auth/email-already-in-use':
-                errorMessage = 'This email address is already in use.';
+                errorMessage = 'This email address is already in use by another account.';
                 break;
             case 'auth/weak-password':
-                errorMessage = 'The password is too weak.';
+                errorMessage = 'The password is too weak. It must be at least 6 characters long.';
                 break;
+            case 'permission-denied':
+                 errorMessage = 'You do not have permission to perform this action. Please check your Firestore security rules.';
+                 break;
             default:
-                errorMessage = error.message;
+                errorMessage = `An unexpected error occurred: ${error.message}`;
                 break;
         }
       } else if (error.message) {
