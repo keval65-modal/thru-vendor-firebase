@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { createSession } from '@/lib/auth';
+import { createSession, getSession } from '@/lib/auth';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,9 +50,19 @@ export function LoginForm() {
       const sessionResult = await createSession(user.uid);
 
       if (sessionResult?.success) {
+        // NEW: Get session data to check the role
+        const session = await getSession();
         toast({ title: 'Login Successful', description: 'Welcome back!' });
-        router.push('/orders');
+
+        if (session?.role === 'admin') {
+            console.log('[LoginForm] Admin user detected. Redirecting to /admin');
+            router.push('/admin');
+        } else {
+            console.log('[LoginForm] Vendor user detected. Redirecting to /orders');
+            router.push('/orders');
+        }
         router.refresh();
+
       } else {
         // This case is unlikely if Firebase Auth succeeds, but handle it just in case
         toast({
