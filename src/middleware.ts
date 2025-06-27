@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
-const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts'];
-const PUBLIC_ROUTES = ['/login', '/signup']; // Added /signup
+const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts', '/profile'];
+const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,15 +20,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isPublicRoute && token && (pathname === '/login' || pathname === '/signup')) {
-    // If logged in and trying to access login or signup page, redirect to orders (home screen)
+  if (isPublicRoute && token) {
+    // If logged in and trying to access a public page, redirect to orders (home screen)
     return NextResponse.redirect(new URL('/orders', request.url));
   }
   
   // If it's the root path
   if (pathname === '/') {
     if (token) {
-      return NextResponse.redirect(new URL('/orders', request.url)); // Changed from /dashboard
+      return NextResponse.redirect(new URL('/orders', request.url));
     } else {
       return NextResponse.redirect(new URL('/login', request.url));
     }
