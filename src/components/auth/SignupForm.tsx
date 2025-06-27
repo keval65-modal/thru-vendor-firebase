@@ -70,7 +70,7 @@ const signupFormSchema = z.object({
   ownerName: z.string().min(2, { message: "Owner name must be at least 2 characters." }),
   phoneCountryCode: z.string().min(1, { message: "Please select a country code."}),
   phoneNumber: z.string().regex(/^\d{7,15}$/, { message: "Please enter a valid phone number (7-15 digits)." }),
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().email({ message: "Please enter a valid email address." }).toLowerCase(),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
   gender: z.string().optional(),

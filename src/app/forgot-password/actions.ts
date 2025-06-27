@@ -6,7 +6,7 @@ import { auth } from '@/lib/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 
 const ForgotPasswordSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().email({ message: "Please enter a valid email address." }).toLowerCase(),
 });
 
 export type ForgotPasswordFormState = {
