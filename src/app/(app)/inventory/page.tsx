@@ -27,6 +27,7 @@ import {
     updateVendorItemDetails, type UpdateItemFormState,
     getGlobalItemsByType,
     linkGlobalItemToVendorInventory, type LinkGlobalItemFormState,
+    addCustomVendorItem, type AddCustomItemFormState,
     handleCsvUpload, type CsvParseFormState,
     handleBulkSaveItems, type BulkSaveFormState
 } from './actions';
@@ -64,6 +65,7 @@ const initialRemoveDuplicatesState: RemoveDuplicatesFormState = {};
 const initialDeleteSelectedItemsState: DeleteSelectedItemsFormState = {};
 const initialUpdateItemState: UpdateItemFormState = {};
 const initialLinkGlobalItemState: LinkGlobalItemFormState = {};
+const initialAddCustomItemState: AddCustomItemFormState = {};
 const initialCsvParseState: CsvParseFormState = {};
 const initialBulkSaveState: BulkSaveFormState = {};
 
@@ -504,6 +506,96 @@ function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item
   );
 }
 
+const AddCustomItemFormSchema = z.object({
+  itemName: z.string().min(1, "Item name cannot be empty."),
+  vendorItemCategory: z.string().min(1, "Category cannot be empty."),
+  price: z.preprocess(
+    (val) => parseFloat(String(val)),
+    z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10),
+    z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
+  ),
+  unit: z.string().min(1, "Please specify a unit (e.g., 'piece', 'kg', 'serving')."),
+  description: z.string().optional(),
+});
+
+function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: boolean; onOpenChange: (open: boolean) => void; onItemAdded: () => void }) {
+  const [state, formAction, isPending] = useActionState(addCustomVendorItem, initialAddCustomItemState);
+  const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
+  
+  const form = useForm<z.infer<typeof AddCustomItemFormSchema>>({
+    resolver: zodResolver(AddCustomItemFormSchema),
+    defaultValues: {
+      itemName: '',
+      vendorItemCategory: '',
+      price: 0,
+      stockQuantity: 0,
+      unit: '',
+      description: '',
+    }
+  });
+
+  useEffect(() => {
+    if (state?.success) {
+      toast({ title: "Item Added", description: state.message });
+      form.reset();
+      onItemAdded();
+      onOpenChange(false);
+    }
+    if (state?.error) {
+      toast({ variant: "destructive", title: "Failed to Add Item", description: state.error });
+    }
+  }, [state, toast, onItemAdded, onOpenChange, form]);
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Custom Item</DialogTitle>
+          <DialogDescription>
+            Add a new product or menu item that is unique to your store.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+            <form ref={formRef} action={formAction} className="space-y-4">
+                <FormField control={form.control} name="itemName" render={({ field }) => (
+                    <FormItem><FormLabel>Item Name</FormLabel><FormControl><Input {...field} placeholder="e.g., 'Artisan Sourdough Bread'" /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="vendorItemCategory" render={({ field }) => (
+                    <FormItem><FormLabel>Category</FormLabel><FormControl><Input {...field} placeholder="e.g., 'Breads', 'Main Course'" /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="price" render={({ field }) => (
+                        <FormItem><FormLabel>Price (₹)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                    <FormField control={form.control} name="stockQuantity" render={({ field }) => (
+                        <FormItem><FormLabel>Stock Quantity</FormLabel><FormControl><Input type="number" step="1" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                </div>
+                <FormField control={form.control} name="unit" render={({ field }) => (
+                    <FormItem><FormLabel>Unit</FormLabel><FormControl><Input {...field} placeholder="e.g., 'piece', 'kg', 'serving'" /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="description" render={({ field }) => (
+                    <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                    <Button type="submit" disabled={isPending}>
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Add Item
+                    </Button>
+                </DialogFooter>
+            </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function BulkAddDialog({ onItemsAdded }: { onItemsAdded: () => void }) {
     const [csvParseState, csvParseFormAction, isParsing] = useActionState(handleCsvUpload, initialCsvParseState);
     const [bulkSaveState, bulkSaveFormAction, isSaving] = useActionState(handleBulkSaveItems, initialBulkSaveState);
@@ -643,6 +735,7 @@ export default function InventoryPage() {
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
   const [itemToAdd, setItemToAdd] = useState<GlobalItem | null>(null);
   const [isAddGlobalItemDialogOpen, setIsAddGlobalItemDialogOpen] = useState(false);
+  const [isAddCustomItemDialogOpen, setIsAddCustomItemDialogOpen] = useState(false);
   
   function mapStoreCategoryToItemType(category: Vendor['storeCategory']): GlobalItem['sharedItemType'] | null {
     switch (category) {
@@ -853,7 +946,9 @@ export default function InventoryPage() {
               <CardTitle className="flex items-center"><BookOpen className="mr-2 h-5 w-5 text-primary" />Manage Your Menu</CardTitle>
               <CardDescription>Add, edit, and organize your menu items. You can upload a PDF menu to get started.</CardDescription>
             </div>
-            <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
+            <DialogTrigger asChild>
+                <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
+            </DialogTrigger>
           </CardHeader>
           <CardContent>
             <form action={menuUploadFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
@@ -1171,7 +1266,9 @@ export default function InventoryPage() {
                             </AlertDialogContent>
                         </AlertDialog>
                     )}
-                    <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
+                    </DialogTrigger>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1329,7 +1426,9 @@ export default function InventoryPage() {
                         </AlertDialogContent>
                     </AlertDialog>
                   )}
-                  <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
+                  <DialogTrigger asChild>
+                    <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
+                  </DialogTrigger>
               </div>
             </CardHeader>
             <CardContent>
@@ -1468,32 +1567,39 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Inventory Management</h1>
-          <p className="text-muted-foreground">
-            {session?.shopName ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
-          </p>
+    <Dialog onOpenChange={setIsAddCustomItemDialogOpen}>
+        <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-8">
+            <div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Inventory Management</h1>
+            <p className="text-muted-foreground">
+                {session?.shopName ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
+            </p>
+            </div>
         </div>
-      </div>
-      {renderInventoryContent()}
-      <EditItemDialog
-        item={editingItem}
-        vendorId={session?.uid || null}
-        isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-        onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
-      />
-       <AddGlobalItemDialog 
-        item={itemToAdd}
-        isOpen={isAddGlobalItemDialogOpen}
-        onOpenChange={setIsAddGlobalItemDialogOpen}
-        onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
-       />
-       <p className="mt-8 text-center text-sm text-muted-foreground">
-        Admin features for managing global item catalogs will be available separately.
-      </p>
-    </div>
+        {renderInventoryContent()}
+        <EditItemDialog
+            item={editingItem}
+            vendorId={session?.uid || null}
+            isOpen={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+        />
+        <AddGlobalItemDialog 
+            item={itemToAdd}
+            isOpen={isAddGlobalItemDialogOpen}
+            onOpenChange={setIsAddGlobalItemDialogOpen}
+            onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+        />
+        <AddCustomItemDialog
+            isOpen={isAddCustomItemDialogOpen}
+            onOpenChange={setIsAddCustomItemDialogOpen}
+            onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+        />
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+            Admin features for managing global item catalogs will be available separately.
+        </p>
+        </div>
+    </Dialog>
   );
 }

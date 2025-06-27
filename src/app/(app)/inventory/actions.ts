@@ -86,16 +86,80 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
   }
 }
 
-interface AddCustomVendorItemData extends Omit<VendorInventoryItem, 'id' | 'vendorId' | 'createdAt' | 'updatedAt' | 'globalItemRef' | 'isCustomItem' | 'lastStockUpdate'> {
-}
+
+const AddCustomItemSchema = z.object({
+  itemName: z.string().min(1, "Item name cannot be empty."),
+  vendorItemCategory: z.string().min(1, "Category cannot be empty."),
+  price: z.preprocess(
+    (val) => parseFloat(String(val)),
+    z.number().min(0, "Price must be a positive number.")
+  ),
+  stockQuantity: z.preprocess(
+    (val) => parseInt(String(val), 10),
+    z.number().int().min(0, "Stock must be a non-negative integer.")
+  ),
+  unit: z.string().min(1, "Unit (e.g., 'piece', 'kg', 'serving') cannot be empty."),
+  description: z.string().optional(),
+});
+
+export type AddCustomItemFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  fields?: Record<string, string[]>;
+};
 
 /**
- * Adds a new custom item to a vendor's inventory.
- * NOTE: This is a placeholder.
+ * Adds a new custom item to a vendor's inventory subcollection.
  */
-export async function addCustomVendorItem(vendorId: string, itemData: AddCustomVendorItemData): Promise<{ success: boolean; itemId?: string; error?: string }> {
-  console.log(`Placeholder: Adding custom item for vendor ${vendorId}:`, itemData);
-  return { success: true, itemId: "mock_item_id_custom" };
+export async function addCustomVendorItem(
+  prevState: AddCustomItemFormState,
+  formData: FormData
+): Promise<AddCustomItemFormState> {
+  const session = await getSession();
+  if (!session?.uid) {
+    return { error: 'Authentication required.' };
+  }
+  const vendorId = session.uid;
+
+  const validatedFields = AddCustomItemSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return {
+      error: "Invalid data submitted.",
+      fields: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { ...itemData } = validatedFields.data;
+  
+  const newItemData: Omit<VendorInventoryItem, 'id'> = {
+    vendorId,
+    isCustomItem: true,
+    itemName: itemData.itemName,
+    vendorItemCategory: itemData.vendorItemCategory,
+    stockQuantity: itemData.stockQuantity,
+    price: itemData.price,
+    unit: itemData.unit,
+    description: itemData.description,
+    isAvailableOnThru: true,
+    imageUrl: `https://placehold.co/50x50.png?text=${encodeURIComponent(itemData.itemName.substring(0,10))}`,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+    lastStockUpdate: Timestamp.now(),
+  };
+  
+  try {
+    const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
+    await addDoc(inventoryCollectionRef, newItemData);
+    
+    revalidatePath('/inventory');
+    return { success: true, message: `${itemData.itemName} added successfully.` };
+  } catch (error) {
+    console.error(`[addCustomVendorItem] Error adding custom item for vendor ${vendorId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { success: false, error: `Failed to add item. ${errorMessage}` };
+  }
 }
 
 
