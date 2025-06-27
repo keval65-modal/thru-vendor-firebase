@@ -263,8 +263,18 @@ export function SignupForm() {
 
       // Step 2: Handle image upload to Firebase Storage
       let imageUrl: string | undefined = undefined;
-      if (completedCrop && originalFile && imgRef.current) {
-        const croppedFile = await generateCroppedImage(originalFile, completedCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
+      // Use the default crop if the user hasn't interacted with the cropper.
+      if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
+        const finalCrop = completedCrop || {
+            unit: 'px',
+            x: (imgRef.current.naturalWidth * crop.x) / 100,
+            y: (imgRef.current.naturalHeight * crop.y) / 100,
+            width: (imgRef.current.naturalWidth * crop.width) / 100,
+            height: (imgRef.current.naturalHeight * crop.height) / 100,
+        };
+
+        const croppedFile = await generateCroppedImage(originalFile, finalCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
+
         if (croppedFile) {
           const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;
           const imageStorageRef = storageRef(storage, imagePath);
@@ -281,13 +291,15 @@ export function SignupForm() {
       const vendorToSave = {
           ...vendorDataForFirestore,
           fullPhoneNumber,
-          ...(imageUrl && { shopImageUrl: imageUrl }),
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           type: values.storeCategory,
           isActiveOnThru: true,
           role: 'vendor' as const,
       };
+      if (imageUrl) {
+        (vendorToSave as any).shopImageUrl = imageUrl;
+      }
 
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
