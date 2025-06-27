@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
-const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts', '/profile'];
+const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts', '/profile', '/admin'];
 const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password'];
 
 export function middleware(request: NextRequest) {

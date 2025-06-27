@@ -1,6 +1,6 @@
 
 import type { LucideProps } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle } from 'lucide-react'; // Added UserCircle for Profile
+import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle, Shield } from 'lucide-react'; // Added UserCircle for Profile and Shield for Admin
 
 export interface NavItem {
   title: string;
@@ -39,6 +39,11 @@ export const mainNavItems: NavItem[] = [
     href: '/stock-alerts',
     icon: AlertTriangle,
     label: 'AI'
+  },
+   {
+    title: 'Admin',
+    href: '/admin',
+    icon: Shield,
   },
 ];
 
