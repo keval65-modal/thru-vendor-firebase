@@ -5,6 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flame } from 'lucide-react';
+import { getSession } from '@/lib/auth';
 
 import { cn } from '@/lib/utils';
 import { mainNavItems, bottomNavItems, type NavItem } from '@/config/nav';
@@ -64,6 +65,17 @@ function NavLinks({ items, currentPath }: { items: NavItem[]; currentPath: strin
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const [sessionRole, setSessionRole] = React.useState<'vendor' | 'admin' | undefined>();
+
+  React.useEffect(() => {
+    getSession().then(session => {
+      setSessionRole(session?.role);
+    });
+  }, []);
+
+  const visibleBottomNavItems = bottomNavItems.filter(item => {
+    return !item.adminOnly || (item.adminOnly && sessionRole === 'admin');
+  });
 
   return (
     <SidebarProvider defaultOpen>
@@ -78,10 +90,10 @@ export function AppShell({ children }: AppShellProps) {
             </SidebarMenu>
           </SidebarContent>
         </ScrollArea>
-        {bottomNavItems.length > 0 && (
+        {visibleBottomNavItems.length > 0 && (
           <SidebarFooter className="border-t">
             <SidebarMenu>
-              <NavLinks items={bottomNavItems} currentPath={pathname} />
+              <NavLinks items={visibleBottomNavItems} currentPath={pathname} />
             </SidebarMenu>
           </SidebarFooter>
         )}

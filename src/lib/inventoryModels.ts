@@ -86,6 +86,7 @@ export interface Vendor {
   menuPdfUrl?: string; 
   isActiveOnThru?: boolean; 
   type?: Vendor['storeCategory'];
+  role?: 'vendor' | 'admin';
 }
 
     

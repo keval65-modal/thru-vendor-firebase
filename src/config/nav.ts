@@ -11,6 +11,7 @@ export interface NavItem {
   label?: string;
   variant?: "default" | "ghost";
   children?: NavItem[];
+  adminOnly?: boolean;
 }
 
 export const mainNavItems: NavItem[] = [
@@ -48,10 +49,10 @@ export const bottomNavItems: NavItem[] = [
       href: '/profile',
       icon: UserCircle, // Using UserCircle for profile/settings
     },
-    // Example:
-    // {
-    //   title: 'Settings',
-    //   href: '/settings',
-    //   icon: Settings,
-    // },
+    {
+      title: 'Admin',
+      href: '/admin',
+      icon: Shield,
+      adminOnly: true,
+    },
 ];

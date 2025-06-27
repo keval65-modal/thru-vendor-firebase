@@ -18,6 +18,7 @@ export async function createVendorRecord(uid: string, data: Omit<Vendor, 'id' | 
       updatedAt: Timestamp.now(),
       type: data.storeCategory, // Ensure 'type' is set on creation
       isActiveOnThru: data.isActiveOnThru ?? true, // Default to active
+      role: 'vendor', // Default new signups to the 'vendor' role
     };
 
     await setDoc(doc(db, 'vendors', uid), vendorToSave);

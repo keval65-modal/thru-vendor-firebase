@@ -50,6 +50,7 @@ export async function getSession(): Promise<{
     storeCategory?: Vendor['storeCategory'];
     type?: Vendor['storeCategory']; // For customer app compatibility
     isActiveOnThru?: boolean;
+    role?: 'vendor' | 'admin';
   } | null> {
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
@@ -69,6 +70,7 @@ export async function getSession(): Promise<{
           storeCategory: userData.storeCategory,
           type: userData.type || userData.storeCategory, // Fallback to storeCategory if type is missing
           isActiveOnThru: userData.isActiveOnThru,
+          role: userData.role || 'vendor', // Return the role, default to 'vendor'
         };
       } else {
          console.log(`[Auth GetSession] User not found in Firestore during session check: ${userUidFromCookie}`);

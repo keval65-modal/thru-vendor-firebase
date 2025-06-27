@@ -18,11 +18,11 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
 // NOTE: A proper admin system would have role-based access control.
-// For now, we just check if the user is authenticated.
+// This function now enforces that the user has the 'admin' role.
 async function isAdmin() {
     const session = await getSession();
-    // In a real app, you'd check a role like: `return session?.role === 'admin';`
-    return session?.isAuthenticated === true;
+    // A proper admin check verifies the user's role.
+    return session?.role === 'admin';
 }
 
 
