@@ -281,7 +281,7 @@ export function SignupForm() {
       const vendorToSave = {
           ...vendorDataForFirestore,
           fullPhoneNumber,
-          shopImageUrl: imageUrl,
+          ...(imageUrl && { shopImageUrl: imageUrl }),
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           type: values.storeCategory,
