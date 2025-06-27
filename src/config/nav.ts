@@ -40,11 +40,6 @@ export const mainNavItems: NavItem[] = [
     icon: AlertTriangle,
     label: 'AI'
   },
-   {
-    title: 'Admin',
-    href: '/admin',
-    icon: Shield,
-  },
 ];
 
 export const bottomNavItems: NavItem[] = [
