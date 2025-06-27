@@ -146,8 +146,9 @@ export async function deleteVendorAndInventory(
         batch.delete(vendorRef);
         console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
 
-        // 2. Find and delete all inventory items for that vendor
-        const inventoryQuery = query(collection(db, 'vendor_inventory'), where('vendorId', '==', vendorId));
+        // 2. Find and delete all inventory items for that vendor from the subcollection
+        const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
+        const inventoryQuery = query(inventoryCollectionRef);
         const inventorySnapshot = await getDocs(inventoryQuery);
         
         if (!inventorySnapshot.empty) {

@@ -8,6 +8,7 @@ import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '
 import { parseCsvData, type ParseCsvInput, type ParseCsvOutput } from '@/ai/flows/parse-items-flow';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 
 // Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
 // Ensure globalItemId is the Firestore document ID from 'global_items'
@@ -49,7 +50,7 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
 
 
 /**
- * Fetches a specific vendor's inventory items.
+ * Fetches a specific vendor's inventory items from their subcollection.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
   if (!vendorId || typeof vendorId !== 'string' || vendorId.trim() === '') {
@@ -60,9 +61,9 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
   console.log(`[getVendorInventory] Constructing query for vendorId: '${vendorId}'`);
 
   try {
+    const inventoryCollectionRef = collection(db, "vendors", vendorId, "inventory");
     const q = query(
-      collection(db, "vendor_inventory"),
-      where("vendorId", "==", vendorId),
+      inventoryCollectionRef,
       orderBy("itemName", "asc")
     );
     const querySnapshot = await getDocs(q);
@@ -80,10 +81,7 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
     return inventoryItems;
   } catch (error) {
     console.error(`[getVendorInventory] Firestore error fetching inventory for vendor ${vendorId}:`, error);
-    if (error instanceof Error && (error.message.includes("indexes") || error.message.includes("requires an index") || error.message.includes("The query requires an index"))) {
-         console.error("[getVendorInventory] Firestore index missing or not yet active. Please create/check the required composite index in Firebase console on 'vendor_inventory' for (vendorId ASC, itemName ASC). Error details:", error.message);
-         throw new Error("Database setup error: Missing index. Please contact support or check Firebase console for index creation link.");
-    }
+    // Simple order by on a subcollection does not require a composite index, so the specific error check is removed.
     throw new Error(`Failed to fetch vendor inventory. Database error: ${(error as Error).message}`);
   }
 }
@@ -120,7 +118,7 @@ export type LinkGlobalItemFormState = {
 };
 
 /**
- * Links a global item to a vendor's inventory, creating a new vendor_inventory entry.
+ * Links a global item to a vendor's inventory, creating a new entry in their inventory subcollection.
  */
 export async function linkGlobalItemToVendorInventory(
   prevState: LinkGlobalItemFormState,
@@ -152,7 +150,7 @@ export async function linkGlobalItemToVendorInventory(
     const globalItemData = globalItemSnap.data() as GlobalItem;
 
     const newItemData: Omit<VendorInventoryItem, 'id'> = {
-      vendorId,
+      vendorId, // Keep for denormalization and easier client-side access
       globalItemRef,
       isCustomItem: false,
       itemName: globalItemData.itemName,
@@ -166,9 +164,11 @@ export async function linkGlobalItemToVendorInventory(
       updatedAt: Timestamp.now(),
       lastStockUpdate: Timestamp.now(),
     };
-
-    const docRef = await addDoc(collection(db, 'vendor_inventory'), newItemData);
+    
+    const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
+    const docRef = await addDoc(inventoryCollectionRef, newItemData);
     console.log(`[linkGlobalItemToVendorInventory] Successfully created vendor inventory item ${docRef.id}`);
+    revalidatePath('/inventory');
     return { success: true, message: `${globalItemData.itemName} added to your inventory.` };
   } catch (error) {
     console.error(`[linkGlobalItemToVendorInventory] Error linking global item ${globalItemId} for vendor ${vendorId}:`, error);
@@ -226,6 +226,12 @@ export async function updateVendorItemDetails(
   prevState: UpdateItemFormState,
   formData: FormData
 ): Promise<UpdateItemFormState> {
+  const session = await getSession();
+  if (!session?.uid) {
+    return { error: 'Authentication required.' };
+  }
+  const vendorId = session.uid;
+
   const rawData = Object.fromEntries(formData.entries());
   console.log('[updateVendorItemDetails] Received raw form data:', rawData);
 
@@ -252,9 +258,10 @@ export async function updateVendorItemDetails(
 
 
   try {
-    const itemRef = doc(db, "vendor_inventory", itemId);
+    const itemRef = doc(db, "vendors", vendorId, "inventory", itemId);
     await updateDoc(itemRef, dataToUpdate);
-    console.log(`[updateVendorItemDetails] Successfully updated item ${itemId}`);
+    console.log(`[updateVendorItemDetails] Successfully updated item ${itemId} for vendor ${vendorId}`);
+    revalidatePath('/inventory');
     return { success: true, message: "Item details updated successfully." };
   } catch (error) {
     console.error(`[updateVendorItemDetails] Error updating item ${itemId}:`, error);
@@ -270,18 +277,26 @@ export type DeleteItemFormState = {
   message?: string;
 };
 /**
- * Deletes an item from a vendor's inventory.
+ * Deletes an item from a vendor's inventory subcollection.
  */
 export async function deleteVendorItem(prevState: DeleteItemFormState, formData: FormData): Promise<DeleteItemFormState> {
+    const session = await getSession();
+    if (!session?.uid) {
+        return { success: false, error: "Authentication required." };
+    }
+    const vendorId = session.uid;
+
     const vendorInventoryItemId = formData.get('itemId') as string;
-    console.log(`[deleteVendorItem] Attempting to delete item ${vendorInventoryItemId}`);
+    console.log(`[deleteVendorItem] Attempting to delete item ${vendorInventoryItemId} for vendor ${vendorId}`);
     if (!vendorInventoryItemId) {
         console.error("[deleteVendorItem] Item ID is missing for deletion.");
         return { success: false, error: "Item ID is missing for deletion." };
     }
     try {
-        await deleteDoc(doc(db, "vendor_inventory", vendorInventoryItemId));
+        const itemRef = doc(db, "vendors", vendorId, "inventory", vendorInventoryItemId);
+        await deleteDoc(itemRef);
         console.log(`[deleteVendorItem] Successfully deleted item ${vendorInventoryItemId}`);
+        revalidatePath('/inventory');
         return { success: true, message: "Item deleted successfully." };
     } catch (error) {
         console.error(`[deleteVendorItem] Error deleting item ${vendorInventoryItemId}:`, error);
@@ -475,6 +490,7 @@ export async function handleSaveExtractedMenu(
 
   try {
     const now = Timestamp.now();
+    const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
     const batchPromises = itemsToSave.map(item => {
       const newItemData: Omit<VendorInventoryItem, 'id'> = {
         vendorId: vendorId,
@@ -491,11 +507,12 @@ export async function handleSaveExtractedMenu(
         lastStockUpdate: now,
         ...(item.description !== undefined && { description: item.description }),
       };
-      return addDoc(collection(db, 'vendor_inventory'), newItemData);
+      return addDoc(inventoryCollectionRef, newItemData);
     });
 
     await Promise.all(batchPromises);
     console.log(`[handleSaveExtractedMenu] Successfully saved ${itemsToSave.length} menu items for vendor ${vendorId} to Firestore.`);
+    revalidatePath('/inventory');
     return { success: true, message: `${itemsToSave.length} menu items saved successfully!` };
 
   } catch (error) {
@@ -560,10 +577,11 @@ export async function handleRemoveDuplicateItems(
 
         console.log(`[handleRemoveDuplicateItems] Found ${duplicateIdsToDelete.length} duplicates to delete for vendor ${vendorId}. IDs:`, duplicateIdsToDelete);
 
-        const deletePromises = duplicateIdsToDelete.map(id => deleteDoc(doc(db, "vendor_inventory", id)));
+        const deletePromises = duplicateIdsToDelete.map(id => deleteDoc(doc(db, "vendors", vendorId, "inventory", id)));
         await Promise.all(deletePromises);
 
         console.log(`[handleRemoveDuplicateItems] Successfully deleted ${duplicateIdsToDelete.length} duplicate items for vendor ${vendorId}.`);
+        revalidatePath('/inventory');
         return {
             success: true,
             message: `Successfully removed ${duplicateIdsToDelete.length} duplicate items.`,
@@ -604,6 +622,11 @@ export async function handleDeleteSelectedItems(
   formData: FormData
 ): Promise<DeleteSelectedItemsFormState> {
   console.log('[handleDeleteSelectedItems] Server action started.');
+  const session = await getSession();
+  if (!session?.uid) {
+    return { error: 'Authentication required.' };
+  }
+  const vendorId = session.uid;
 
   const rawFormData = {
     selectedItemIdsJson: formData.get('selectedItemIdsJson') as string,
@@ -637,7 +660,7 @@ export async function handleDeleteSelectedItems(
     const batch = writeBatch(db);
     itemIdsToDelete.forEach(itemId => {
       if (itemId && typeof itemId === 'string') {
-        const itemRef = doc(db, 'vendor_inventory', itemId);
+        const itemRef = doc(db, 'vendors', vendorId, 'inventory', itemId);
         batch.delete(itemRef);
       } else {
          console.warn(`[handleDeleteSelectedItems] Invalid item ID found in batch: ${itemId}`);
@@ -646,6 +669,7 @@ export async function handleDeleteSelectedItems(
 
     await batch.commit();
     console.log(`[handleDeleteSelectedItems] Successfully deleted ${itemIdsToDelete.length} items from Firestore.`);
+    revalidatePath('/inventory');
     return {
         success: true,
         message: `${itemIdsToDelete.length} item(s) deleted successfully.`,
