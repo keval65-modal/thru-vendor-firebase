@@ -293,12 +293,23 @@ export function SignupForm() {
       console.log('Vendor document created in Firestore.');
 
       // Step 4: Log the user in and redirect by creating a server session
-      await createSession(user.uid);
-      toast({
-        title: 'Signup Successful',
-        description: 'Your shop has been registered. Redirecting...',
-      });
-      router.push('/orders'); // Redirect to main app page
+      const sessionResult = await createSession(user.uid);
+      if (sessionResult?.success) {
+          toast({
+            title: 'Signup Successful',
+            description: 'Your shop has been registered. Redirecting...',
+          });
+          router.push('/orders'); // Redirect to main app page
+      } else {
+          // This path is taken if session creation fails after signup.
+          // The user is authenticated but doesn't have a server session.
+          toast({
+            variant: 'destructive',
+            title: 'Signup Almost Complete',
+            description: sessionResult?.error || 'Your account was created, but we couldn\'t log you in automatically. Please go to the login page.',
+          });
+          router.push('/login'); // Send to login page as a fallback
+      }
 
     } catch (error: any) {
       let errorMessage = 'An unknown error occurred.';

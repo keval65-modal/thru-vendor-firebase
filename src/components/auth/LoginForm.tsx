@@ -49,7 +49,7 @@ export function LoginForm() {
       // Step 2: Create a server-side session (cookie)
       const sessionResult = await createSession(user.uid);
 
-      if (sessionResult.success) {
+      if (sessionResult?.success) {
         toast({ title: 'Login Successful', description: 'Welcome back!' });
         router.push('/orders');
         router.refresh();
@@ -58,7 +58,7 @@ export function LoginForm() {
         toast({
           variant: 'destructive',
           title: 'Login Failed',
-          description: sessionResult.error || 'Could not create a server session.',
+          description: sessionResult?.error || 'Could not create a server session.',
         });
       }
     } catch (error: any) {
