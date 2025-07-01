@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -14,10 +15,9 @@ import { Timestamp } from 'firebase/firestore';
 
 interface OrderCardProps {
   order: VendorDisplayOrder;
-  onStatusUpdate: () => void;
 }
 
-export function OrderCard({ order, onStatusUpdate }: OrderCardProps) {
+export function OrderCard({ order }: OrderCardProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -33,15 +33,15 @@ export function OrderCard({ order, onStatusUpdate }: OrderCardProps) {
         title: "Order Status Updated",
         description: `Order ${order.orderId} is now '${newStatus}'.`
       });
-      onStatusUpdate(); // Trigger a refresh on the parent page
+      // The onSnapshot listener will handle the UI update automatically.
     } else {
       toast({
         variant: "destructive",
         title: "Update Failed",
         description: result.error || "Could not update order status.",
       });
-      setIsLoading(false); // Only set loading to false on error, as success will unmount/re-render
     }
+    setIsLoading(false);
   };
   
   const handleAcceptOrder = () => handleStatusUpdate('Preparing');

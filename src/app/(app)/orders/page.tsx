@@ -1,19 +1,22 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Bell, ShoppingCart, Power, Clock, CheckCircle, LogOut, Loader2, RefreshCw } from "lucide-react";
+import { ShoppingCart, Clock, CheckCircle, LogOut, Loader2, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { getSession, logout } from '@/lib/auth';
 import { OrderCard } from '@/components/orders/OrderCard';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import type { VendorDisplayOrder } from '@/lib/orderModels';
-import { fetchVendorOrders } from './actions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { collection, query, where, onSnapshot, Timestamp } from "firebase/firestore";
+import { db } from '@/lib/firebase';
+import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
+import { Card, CardContent } from '@/components/ui/card';
+
 
 interface VendorSession {
   uid?: string;
@@ -30,8 +33,7 @@ export default function OrdersPage() {
   const router = useRouter();
 
   useEffect(() => {
-    async function loadInitialData() {
-      setIsLoading(true);
+    async function loadSession() {
       const currentSession = await getSession();
       if (currentSession && currentSession.isAuthenticated && currentSession.uid) {
         setSession({
@@ -39,39 +41,68 @@ export default function OrdersPage() {
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory,
         });
-        
-        try {
-          const fetchedOrders = await fetchVendorOrders(currentSession.uid);
-          setOrders(fetchedOrders);
-        } catch (error) {
-          toast({
-            variant: 'destructive',
-            title: 'Failed to load orders',
-            description: (error as Error).message
-          });
-        }
-
       } else {
-        // This case should be handled by middleware, but as a fallback
         router.push('/login');
       }
-      setIsLoading(false);
     }
-    loadInitialData();
-  }, [router, toast]);
-  
-  const handleRefresh = async () => {
-    if (!session?.uid) return;
+    loadSession();
+  }, [router]);
+
+  useEffect(() => {
+    if (!session?.uid) {
+      setIsLoading(true);
+      return;
+    }
+
     setIsLoading(true);
-    try {
-        const fetchedOrders = await fetchVendorOrders(session.uid);
+    console.log(`Setting up order listener for vendor ID: ${session.uid}`);
+
+    const ordersRef = collection(db, "orders");
+    const q = query(ordersRef,
+        where("vendorIds", "array-contains", session.uid),
+        where("overallStatus", "in", ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"])
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const fetchedOrders: VendorDisplayOrder[] = [];
+        querySnapshot.forEach((doc) => {
+            const orderData = { id: doc.id, ...doc.data() } as PlacedOrder;
+            const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.uid);
+
+            if (vendorPortion) {
+                const { vendorPortions, ...rootOrderData } = orderData;
+                fetchedOrders.push({
+                    ...rootOrderData,
+                    vendorPortion: vendorPortion
+                });
+            }
+        });
+        
+        fetchedOrders.sort((a, b) => {
+            const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as string).getTime();
+            const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as string).getTime();
+            return dateB - dateA;
+        });
+
         setOrders(fetchedOrders);
-        toast({ title: 'Orders refreshed successfully!' });
-    } catch(e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not refresh orders.' });
-    }
-    setIsLoading(false);
-  }
+        setIsLoading(false);
+        console.log("Active orders fetched:", fetchedOrders);
+    }, (error) => {
+        console.error("Error fetching orders: ", error);
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Listen for Orders',
+            description: 'Please check the developer console. A Firestore index may be required.'
+        });
+        setIsLoading(false);
+    });
+
+    return () => {
+      console.log("Cleaning up order listener.");
+      unsubscribe();
+    };
+  }, [session, toast]);
+  
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     return {
@@ -108,7 +139,7 @@ export default function OrdersPage() {
       return (
         <div className="space-y-4">
           {orderList.map(order => (
-            <OrderCard key={order.orderId} order={order} onStatusUpdate={handleRefresh} />
+            <OrderCard key={order.orderId} order={order} />
           ))}
         </div>
       );
@@ -163,9 +194,6 @@ export default function OrdersPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary/80" onClick={handleRefresh} disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : <RefreshCw className="h-5 w-5" />}
-              </Button>
               <div className="flex items-center gap-2">
                 <Switch
                   id="shop-status-toggle"
