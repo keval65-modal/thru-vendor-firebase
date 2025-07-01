@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -7,35 +8,41 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
 /**
- * Fetches all relevant orders for a given vendor.
- * An order is relevant if its overallStatus is active and it contains a portion for the vendor.
+ * Fetches all relevant orders for a given vendor using an efficient 'array-contains' query.
+ * An order is relevant if its vendorIds array contains the vendor's ID and its status is active.
  */
 export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplayOrder[]> {
   if (!vendorId) {
     console.error("[fetchVendorOrders] vendorId is required.");
     return [];
   }
-  
-  const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
+
   const ordersRef = collection(db, 'orders');
-  const q = query(ordersRef, where("overallStatus", "in", activeStatuses));
+  // New, more efficient query using 'array-contains' on the vendorIds field.
+  const q = query(ordersRef, where("vendorIds", "array-contains", vendorId));
   
   try {
     const querySnapshot = await getDocs(q);
     const relevantOrders: VendorDisplayOrder[] = [];
+    
+    // These are the statuses we consider "active" and want to display on the main dashboard.
+    const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
 
     querySnapshot.forEach(docSnap => {
       const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
       
-      const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
+      // Filter for active statuses on the client side after the main query.
+      if (activeStatuses.includes(orderData.overallStatus)) {
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
-      if (vendorPortion) {
-        // Exclude the full vendorPortions array and add the specific one
-        const { vendorPortions, ...rootOrderData } = orderData;
-        relevantOrders.push({
-          ...rootOrderData,
-          vendorPortion: vendorPortion
-        });
+        if (vendorPortion) {
+          // Exclude the full vendorPortions array and add the specific one for the display model.
+          const { vendorPortions, ...rootOrderData } = orderData;
+          relevantOrders.push({
+            ...rootOrderData,
+            vendorPortion: vendorPortion
+          });
+        }
       }
     });
 
@@ -53,11 +60,12 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     console.error(`[fetchVendorOrders] Error fetching orders for vendor ${vendorId}:`, error);
     // Handle potential index errors
     if (error instanceof Error && error.message.includes("requires an index")) {
-      console.error("Firestore index missing. Please create an index on the 'orders' collection for 'overallStatus'.");
+      console.error("Firestore index missing. Please create an index on the 'orders' collection for 'vendorIds'.");
     }
     return [];
   }
 }
+
 
 /**
  * Updates the status of a specific vendor's portion of an order.

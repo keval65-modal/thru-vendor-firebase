@@ -17,6 +17,7 @@ export interface PlacedOrder {
   platformFee: number;
   paymentGatewayFee: number;
   vendorPortions: VendorOrderPortion[];
+  vendorIds: string[]; // NEW: Used for efficient querying.
   // Firestore might add an 'id' field after fetching
   id?: string; 
 }
