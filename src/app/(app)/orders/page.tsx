@@ -20,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 
 interface VendorSession {
   uid?: string;
+  email?: string;
   shopName?: string;
   storeCategory?: string;
 }
@@ -35,9 +36,10 @@ export default function OrdersPage() {
   useEffect(() => {
     async function loadSession() {
       const currentSession = await getSession();
-      if (currentSession && currentSession.isAuthenticated && currentSession.uid) {
+      if (currentSession && currentSession.isAuthenticated && currentSession.uid && currentSession.email) {
         setSession({
           uid: currentSession.uid,
+          email: currentSession.email,
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory,
         });
@@ -49,17 +51,17 @@ export default function OrdersPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!session?.uid) {
+    if (!session?.email) {
       setIsLoading(true);
       return;
     }
 
     setIsLoading(true);
-    console.log(`Setting up order listener for vendor ID: ${session.uid}`);
+    console.log(`Setting up order listener for vendor email: ${session.email}`);
 
     const ordersRef = collection(db, "orders");
     const q = query(ordersRef,
-        where("vendorIds", "array-contains", session.uid),
+        where("vendorIds", "array-contains", session.email),
         where("overallStatus", "in", ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"])
     );
 
@@ -67,7 +69,7 @@ export default function OrdersPage() {
         const fetchedOrders: VendorDisplayOrder[] = [];
         querySnapshot.forEach((doc) => {
             const orderData = { id: doc.id, ...doc.data() } as PlacedOrder;
-            const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.uid);
+            const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.email);
 
             if (vendorPortion) {
                 const { vendorPortions, ...rootOrderData } = orderData;
@@ -86,7 +88,7 @@ export default function OrdersPage() {
 
         setOrders(fetchedOrders);
         setIsLoading(false);
-        console.log("Active orders fetched:", fetchedOrders);
+        console.log("Fetched orders for", session.email, ":", fetchedOrders);
     }, (error) => {
         console.error("Error fetching orders: ", error);
         toast({
