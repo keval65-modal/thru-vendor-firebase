@@ -5,16 +5,18 @@ import { useEffect, useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { ShoppingCart, Clock, CheckCircle, LogOut, Loader2, RefreshCw } from "lucide-react";
+import { ShoppingCart, Clock, CheckCircle, LogOut, Loader2 } from "lucide-react";
 import Image from "next/image";
-import { getSession, logout } from '@/lib/auth';
+import { logout } from '@/lib/auth';
 import { OrderCard } from '@/components/orders/OrderCard';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
-import { collection, query, where, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, Timestamp, doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
+import type { Vendor } from '@/lib/inventoryModels';
 import { Card, CardContent } from '@/components/ui/card';
 
 
@@ -33,78 +35,100 @@ export default function OrdersPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  // 1. Get the logged-in vendor's auth state and profile data
   useEffect(() => {
-    async function loadSession() {
-      const currentSession = await getSession();
-      if (currentSession && currentSession.isAuthenticated && currentSession.uid && currentSession.email) {
-        setSession({
-          uid: currentSession.uid,
-          email: currentSession.email,
-          shopName: currentSession.shopName,
-          storeCategory: currentSession.storeCategory,
-        });
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user && user.email) {
+        // User is logged in, now fetch their vendor profile from Firestore
+        const vendorDocRef = doc(db, 'vendors', user.uid);
+        const vendorDocSnap = await getDoc(vendorDocRef);
+        if (vendorDocSnap.exists()) {
+          const vendorData = vendorDocSnap.data() as Vendor;
+          setSession({
+            uid: user.uid,
+            email: user.email,
+            shopName: vendorData.shopName,
+            storeCategory: vendorData.storeCategory,
+          });
+        } else {
+           // Auth record exists but no vendor profile, treat as error/logged out
+           console.error("User authenticated but no vendor profile found in Firestore.");
+           setSession(null);
+           router.push('/login');
+        }
       } else {
+        // User is logged out
+        setSession(null);
         router.push('/login');
       }
-    }
-    loadSession();
+    });
+    return () => unsubscribeAuth(); // Cleanup listener on unmount
   }, [router]);
 
+  // 2. Set up the real-time listener when the email is available
   useEffect(() => {
     if (!session?.email) {
-      setIsLoading(true);
+      // If there's no logged-in user email, clear orders and stop loading.
+      setOrders([]);
+      setIsLoading(false); // Set to false since we are not fetching
       return;
     }
 
     setIsLoading(true);
-    console.log(`Setting up order listener for vendor email: ${session.email}`);
+    console.log(`Setting up real-time order listener for vendor email: ${session.email}`);
 
     const ordersRef = collection(db, "orders");
+    const activeStatuses = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup", "New"];
+
+    // 3. The specific, real-time query
     const q = query(ordersRef,
         where("vendorIds", "array-contains", session.email),
-        where("overallStatus", "in", ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"])
+        where("overallStatus", "in", activeStatuses)
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const fetchedOrders: VendorDisplayOrder[] = [];
-        querySnapshot.forEach((doc) => {
-            const orderData = { id: doc.id, ...doc.data() } as PlacedOrder;
-            const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.email);
+    // 4. onSnapshot listens for real-time updates
+    const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
+      const fetchedOrders: VendorDisplayOrder[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.email);
 
-            if (vendorPortion) {
-                const { vendorPortions, ...rootOrderData } = orderData;
-                fetchedOrders.push({
-                    ...rootOrderData,
-                    vendorPortion: vendorPortion
-                });
-            }
-        });
-        
-        fetchedOrders.sort((a, b) => {
-            const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as string).getTime();
-            const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as string).getTime();
-            return dateB - dateA;
-        });
+        if (vendorPortion) {
+            const { vendorPortions, ...rootOrderData } = orderData;
+            fetchedOrders.push({
+                ...rootOrderData,
+                vendorPortion: vendorPortion
+            });
+        }
+      });
 
-        setOrders(fetchedOrders);
-        setIsLoading(false);
-        console.log("Fetched orders for", session.email, ":", fetchedOrders);
+      // Sort by creation date, newest first
+      fetchedOrders.sort((a, b) => {
+          const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as string).getTime();
+          const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as string).getTime();
+          return dateB - dateA;
+      });
+      
+      setOrders(fetchedOrders);
+      setIsLoading(false);
+      console.log(`Real-time update for ${session.email}! Orders:`, fetchedOrders);
     }, (error) => {
-        console.error("Error fetching orders: ", error);
-        toast({
+      console.error("Error with real-time order listener:", error);
+      toast({
             variant: 'destructive',
             title: 'Failed to Listen for Orders',
             description: 'Please check the developer console. A Firestore index may be required.'
-        });
-        setIsLoading(false);
+      });
+      setIsLoading(false);
     });
 
+    // 5. Cleanup function to stop listening when the component unmounts
     return () => {
-      console.log("Cleaning up order listener.");
-      unsubscribe();
+        console.log("Cleaning up order listener.");
+        unsubscribeSnapshot();
     };
+
   }, [session, toast]);
-  
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     return {
