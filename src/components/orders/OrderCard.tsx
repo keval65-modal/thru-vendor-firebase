@@ -5,13 +5,15 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MinusCircle, PlusCircle, CheckCircle, XCircle, User, Tag, Clock, FileText, ShoppingBag, Loader2, CookingPot } from "lucide-react";
+import { MinusCircle, PlusCircle, CheckCircle, XCircle, User, Tag, Clock, FileText, ShoppingBag, Loader2, CookingPot, QrCode } from "lucide-react";
 import Link from "next/link";
 import type { VendorDisplayOrder } from '@/lib/orderModels';
 import { updateVendorOrderStatus } from '@/app/(app)/orders/actions';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { QRCodeCanvas as QRCode } from 'qrcode.react';
 
 interface OrderCardProps {
   order: VendorDisplayOrder;
@@ -124,32 +126,57 @@ export function OrderCard({ order }: OrderCardProps) {
         )}
       </CardContent>
 
-      {vendorPortion.status === 'New' && (
-        <CardFooter className="p-3 bg-muted/50 border-t grid grid-cols-2 gap-2">
-          <Button variant="destructive" className="w-full" onClick={handleRejectOrder} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />} Reject
-          </Button>
-          <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={handleAcceptOrder} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4" />} Accept
-          </Button>
-        </CardFooter>
-      )}
-      {vendorPortion.status === 'Preparing' && (
-         <CardFooter className="p-3 bg-muted/50 border-t">
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleMarkAsReady} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CookingPot className="mr-2 h-4 w-4" />} Mark as Ready
+      <CardFooter className="p-3 bg-muted/50 border-t">
+        {vendorPortion.status === 'New' && (
+          <div className="grid grid-cols-2 gap-2 w-full">
+            <Button variant="destructive" className="w-full" onClick={handleRejectOrder} disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4" />} Reject
             </Button>
-         </CardFooter>
-      )}
-       {(vendorPortion.status === 'Ready for Pickup' || vendorPortion.status === 'Picked Up') && (
-         <CardFooter className="p-3 bg-muted/50 border-t">
+            <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={handleAcceptOrder} disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4" />} Accept
+            </Button>
+          </div>
+        )}
+        {vendorPortion.status === 'Preparing' && (
+           <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleMarkAsReady} disabled={isLoading}>
+               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CookingPot className="mr-2 h-4 w-4" />} Mark as Ready
+           </Button>
+        )}
+         {vendorPortion.status === 'Ready for Pickup' && (
+            <div className="grid grid-cols-2 gap-2 w-full">
+                <Button asChild variant="outline" className="w-full" disabled={isLoading}>
+                    <Link href={`/orders/${order.orderId}`}>
+                      <FileText className="mr-2 h-4 w-4" /> Details
+                    </Link>
+                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                      <QrCode className="mr-2 h-4 w-4" /> Show QR
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-xs">
+                    <DialogHeader>
+                      <DialogTitle>Order: {order.orderId}</DialogTitle>
+                      <DialogDescription>
+                        Have customer scan this to confirm pickup.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center justify-center p-4 bg-white rounded-md">
+                      <QRCode value={order.orderId} size={256} />
+                    </div>
+                  </DialogContent>
+                </Dialog>
+            </div>
+        )}
+        {vendorPortion.status === 'Picked Up' && (
             <Button asChild variant="outline" className="w-full" disabled={isLoading}>
                 <Link href={`/orders/${order.orderId}`}>
                   <FileText className="mr-2 h-4 w-4" /> View Details
                 </Link>
             </Button>
-         </CardFooter>
-      )}
+        )}
+      </CardFooter>
     </Card>
   );
 }
