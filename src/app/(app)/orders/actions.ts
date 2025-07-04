@@ -75,9 +75,9 @@ export async function updateVendorOrderStatus(
   newStatus: VendorOrderPortion['status']
 ): Promise<{ success: boolean; error?: string }> {
   const session = await getSession();
-  const vendorId = session?.uid;
+  const vendorEmail = session?.email;
 
-  if (!vendorId) {
+  if (!vendorEmail) {
     return { success: false, error: "Authentication required." };
   }
   if (!orderId) {
@@ -96,7 +96,7 @@ export async function updateVendorOrderStatus(
     let vendorFound = false;
 
     const updatedPortions = orderData.vendorPortions.map(portion => {
-      if (portion.vendorId === vendorId) {
+      if (portion.vendorId === vendorEmail) {
         vendorFound = true;
         return { ...portion, status: newStatus };
       }
@@ -120,7 +120,7 @@ export async function updateVendorOrderStatus(
 
     await updateDoc(orderRef, updatePayload);
 
-    console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorId} in order ${orderId}`);
+    console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorEmail} in order ${orderId}`);
     revalidatePath('/orders');
     revalidatePath(`/orders/${orderId}`);
     return { success: true };
@@ -137,9 +137,9 @@ export async function updateVendorOrderStatus(
  */
 export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayOrder | null> {
     const session = await getSession();
-    const vendorId = session?.uid;
+    const vendorEmail = session?.email;
 
-    if (!vendorId) {
+    if (!vendorEmail) {
         console.error("[fetchOrderDetails] Not authenticated.");
         return null;
     }
@@ -153,10 +153,10 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         }
 
         const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorEmail);
 
         if (!vendorPortion) {
-            console.warn(`[fetchOrderDetails] Vendor ${vendorId} not part of order ${orderId}.`);
+            console.warn(`[fetchOrderDetails] Vendor ${vendorEmail} not part of order ${orderId}.`);
             return null;
         }
 
