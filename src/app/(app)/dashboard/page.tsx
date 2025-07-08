@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ShoppingCart, Archive, AlertTriangle, ArrowRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Mock data - replace with actual data fetching
 const summaryData = {
@@ -18,54 +19,65 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Here's an overview of your current status.</p>
       </header>
 
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
-            <ShoppingCart className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{summaryData.activeOrders}</div>
-            <p className="text-xs text-muted-foreground pt-1">
-              Manage incoming and ongoing orders.
-            </p>
-            <Button variant="outline" size="sm" className="mt-4" asChild>
-              <Link href="/orders">View Orders <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inventory Status</CardTitle>
-            <Archive className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{summaryData.itemsLowStock} <span className="text-lg font-normal">items low</span></div>
-            <p className="text-xs text-muted-foreground pt-1">
-              Keep your stock levels updated.
-            </p>
-            <Button variant="outline" size="sm" className="mt-4" asChild>
-              <Link href="/inventory">Manage Inventory <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Pickups</CardTitle>
-            <AlertTriangle className="h-5 w-5 text-accent" /> {/* Using accent for alerts/attention */}
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{summaryData.pendingPickups}</div>
-            <p className="text-xs text-muted-foreground pt-1">
-              Customers awaiting pickup confirmation.
-            </p>
-            <Button variant="outline" size="sm" className="mt-4" asChild>
-              <Link href="/pickup">Confirm Pickups <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <section>
+        <Tabs defaultValue="orders" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="orders">Orders</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="pickups">Pickups</TabsTrigger>
+          </TabsList>
+          <TabsContent value="orders">
+            <Card className="shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
+                <ShoppingCart className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground">{summaryData.activeOrders}</div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Manage incoming and ongoing orders.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" asChild>
+                  <Link href="/orders">View Orders <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="inventory">
+            <Card className="shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Inventory Status</CardTitle>
+                <Archive className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground">{summaryData.itemsLowStock} <span className="text-lg font-normal">items low</span></div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Keep your stock levels updated.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" asChild>
+                  <Link href="/inventory">Manage Inventory <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="pickups">
+            <Card className="shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Pickups</CardTitle>
+                <AlertTriangle className="h-5 w-5 text-accent" /> {/* Using accent for alerts/attention */}
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground">{summaryData.pendingPickups}</div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Customers awaiting pickup confirmation.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" asChild>
+                  <Link href="/pickup">Confirm Pickups <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </section>
 
       <section className="mt-12">
