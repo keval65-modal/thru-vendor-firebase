@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 // This schema should mirror the GlobalItem interface but is used for AI output validation.
 const ParsedItemSchema = z.object({

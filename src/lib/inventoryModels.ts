@@ -24,7 +24,7 @@ export interface GlobalItem {
 /**
  * Represents a specific item in a vendor's inventory.
  * This can be linked to a GlobalItem or be a custom item (e.g., restaurant menu item).
- * Stored in the `vendor_inventory` collection.
+ * Stored in the `vendors/{vendorId}/inventory` subcollection.
  */
 export interface VendorInventoryItem {
   id?: string; // Firestore document ID
