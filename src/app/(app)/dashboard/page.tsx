@@ -3,15 +3,39 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ShoppingCart, Archive, AlertTriangle, ArrowRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getSession } from "@/lib/auth";
+import { getVendorInventory } from "@/app/(app)/inventory/actions";
+import { fetchVendorOrders } from "@/app/(app)/orders/actions";
+import { getReadyForPickupOrders } from "@/app/(app)/pickup/actions";
 
-// Mock data - replace with actual data fetching
-const summaryData = {
-  activeOrders: 5,
-  itemsLowStock: 2,
-  pendingPickups: 3,
-};
+export default async function DashboardPage() {
+    const session = await getSession();
+    
+    let summaryData = {
+        activeOrders: 0,
+        itemsLowStock: 0,
+        pendingPickups: 0,
+    };
+    
+    if (session?.isAuthenticated && session.email && session.uid) {
+        const LOW_STOCK_THRESHOLD = 10;
+        
+        // Using Promise.all to fetch data in parallel for better performance
+        const [activeOrders, inventory, pendingPickups] = await Promise.all([
+            fetchVendorOrders(session.email),
+            getVendorInventory(session.uid),
+            getReadyForPickupOrders()
+        ]);
 
-export default function DashboardPage() {
+        const lowStockItems = inventory.filter(item => item.stockQuantity < LOW_STOCK_THRESHOLD);
+
+        summaryData = {
+            activeOrders: activeOrders.length,
+            itemsLowStock: lowStockItems.length,
+            pendingPickups: pendingPickups.length,
+        };
+    }
+
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <header className="mb-8">
@@ -22,9 +46,9 @@ export default function DashboardPage() {
       <section>
         <Tabs defaultValue="orders" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="pickups">Pickups</TabsTrigger>
+            <TabsTrigger value="orders">Orders ({summaryData.activeOrders})</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory ({summaryData.itemsLowStock} low)</TabsTrigger>
+            <TabsTrigger value="pickups">Pickups ({summaryData.pendingPickups})</TabsTrigger>
           </TabsList>
           <TabsContent value="orders">
             <Card className="shadow-lg">

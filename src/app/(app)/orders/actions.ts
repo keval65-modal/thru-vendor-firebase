@@ -18,31 +18,31 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
   }
 
   const ordersRef = collection(db, 'orders');
-  // New, more efficient query using 'array-contains' on the vendorIds field.
-  const q = query(ordersRef, where("vendorIds", "array-contains", vendorId));
+  // These are the statuses we consider "active" and want to display on the main dashboard.
+  const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
+  
+  // New, more efficient compound query.
+  const q = query(
+    ordersRef,
+    where("vendorIds", "array-contains", vendorId),
+    where("overallStatus", "in", activeStatuses)
+  );
   
   try {
     const querySnapshot = await getDocs(q);
     const relevantOrders: VendorDisplayOrder[] = [];
-    
-    // These are the statuses we consider "active" and want to display on the main dashboard.
-    const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
 
     querySnapshot.forEach(docSnap => {
       const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-      
-      // Filter for active statuses on the client side after the main query.
-      if (activeStatuses.includes(orderData.overallStatus)) {
-        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
+      const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
-        if (vendorPortion) {
-          // Exclude the full vendorPortions array and add the specific one for the display model.
-          const { vendorPortions, ...rootOrderData } = orderData;
-          relevantOrders.push({
-            ...rootOrderData,
-            vendorPortion: vendorPortion
-          });
-        }
+      if (vendorPortion) {
+        // Exclude the full vendorPortions array and add the specific one for the display model.
+        const { vendorPortions, ...rootOrderData } = orderData;
+        relevantOrders.push({
+          ...rootOrderData,
+          vendorPortion: vendorPortion
+        });
       }
     });
 
@@ -60,7 +60,7 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     console.error(`[fetchVendorOrders] Error fetching orders for vendor ${vendorId}:`, error);
     // Handle potential index errors
     if (error instanceof Error && error.message.includes("requires an index")) {
-      console.error("Firestore index missing. Please create an index on the 'orders' collection for 'vendorIds'.");
+      console.error("Firestore index missing. Please create the required composite index on the 'orders' collection for ('vendorIds' array-contains) and ('overallStatus' in).");
     }
     return [];
   }
