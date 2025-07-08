@@ -52,9 +52,8 @@ export function LoginForm() {
       if (sessionResult?.success) {
         toast({ title: 'Login Successful', description: 'Redirecting...' });
 
-        // Refresh the current page. The middleware will see the new cookie
-        // and redirect the user to the appropriate dashboard.
-        router.refresh();
+        // Navigate to the dashboard. The middleware will allow this transition.
+        router.push('/dashboard');
 
       } else {
         toast({
