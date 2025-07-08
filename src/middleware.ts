@@ -21,14 +21,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (isPublicRoute && token) {
-    // If logged in and trying to access a public page, redirect to orders (home screen)
-    return NextResponse.redirect(new URL('/orders', request.url));
+    // If logged in and trying to access a public page, redirect to the main dashboard
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   // If it's the root path
   if (pathname === '/') {
     if (token) {
-      return NextResponse.redirect(new URL('/orders', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     } else {
       return NextResponse.redirect(new URL('/login', request.url));
     }

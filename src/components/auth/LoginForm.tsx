@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useRouter } from 'next/navigation';
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -23,6 +24,7 @@ const loginFormSchema = z.object({
 
 export function LoginForm() {
   const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -50,12 +52,9 @@ export function LoginForm() {
       if (sessionResult?.success) {
         toast({ title: 'Login Successful', description: 'Redirecting...' });
 
-        // Use a full page reload to ensure the new cookie is picked up by the middleware
-        if (sessionResult.role === 'admin') {
-            window.location.href = '/admin';
-        } else {
-            window.location.href = '/orders';
-        }
+        // Refresh the current page. The middleware will see the new cookie
+        // and redirect the user to the appropriate dashboard.
+        router.refresh();
 
       } else {
         toast({
