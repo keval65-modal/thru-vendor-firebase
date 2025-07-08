@@ -5,9 +5,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { createSession, getSession } from '@/lib/auth';
+import { createSession } from '@/lib/auth';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,7 +23,6 @@ const loginFormSchema = z.object({
 
 export function LoginForm() {
   const { toast } = useToast();
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -46,29 +44,26 @@ export function LoginForm() {
       const user = userCredential.user;
       console.log('[LoginForm] Firebase client-side sign-in successful. UID:', user.uid);
 
-      // Step 2: Create a server-side session (cookie)
+      // Step 2: Create a server-side session (cookie) which now also returns the role
       const sessionResult = await createSession(user.uid);
 
       if (sessionResult?.success) {
-        // NEW: Get session data to check the role
-        const session = await getSession();
-        toast({ title: 'Login Successful', description: 'Welcome back!' });
+        toast({ title: 'Login Successful', description: 'Redirecting...' });
 
-        if (session?.role === 'admin') {
-            console.log('[LoginForm] Admin user detected. Redirecting to /admin');
-            router.push('/admin');
+        // Use a full page reload to ensure the new cookie is picked up by the middleware
+        if (sessionResult.role === 'admin') {
+            window.location.href = '/admin';
         } else {
-            console.log('[LoginForm] Vendor user detected. Redirecting to /orders');
-            router.push('/orders');
+            window.location.href = '/orders';
         }
 
       } else {
-        // This case is unlikely if Firebase Auth succeeds, but handle it just in case
         toast({
           variant: 'destructive',
           title: 'Login Failed',
           description: sessionResult?.error || 'Could not create a server session.',
         });
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error('[LoginForm] Login submission error:', error);
@@ -90,7 +85,6 @@ export function LoginForm() {
         title: 'Login Error',
         description: errorMessage,
       });
-    } finally {
       setIsLoading(false);
     }
   };

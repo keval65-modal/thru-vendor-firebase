@@ -9,19 +9,21 @@ import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
-export async function createSession(uid: string): Promise<{ success: boolean, error?: string }> {
+export async function createSession(uid: string): Promise<{ success: boolean, error?: string, role?: 'vendor' | 'admin' }> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
 
   try {
-    // Verify the user exists in Firestore before creating a session
+    // Verify the user exists in Firestore and get their role
     const userDocRef = doc(db, 'vendors', uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (!userDocSnap.exists()) {
       return { success: false, error: 'User profile not found in database.' };
     }
+    
+    const userData = userDocSnap.data() as Vendor;
 
     cookies().set(AUTH_COOKIE_NAME, uid, {
       httpOnly: true,
@@ -29,7 +31,8 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: '/',
     });
-    return { success: true };
+    
+    return { success: true, role: userData.role || 'vendor' };
   } catch (error) {
     console.error('[Auth CreateSession] Error:', error);
     return { success: false, error: 'An unexpected error occurred during session creation.' };
