@@ -61,7 +61,6 @@ export function LoginForm() {
             console.log('[LoginForm] Vendor user detected. Redirecting to /orders');
             router.push('/orders');
         }
-        router.refresh();
 
       } else {
         // This case is unlikely if Firebase Auth succeeds, but handle it just in case
