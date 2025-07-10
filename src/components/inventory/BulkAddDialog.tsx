@@ -1,19 +1,15 @@
 
 'use client';
 
-import { useActionState, useEffect, useState, useRef } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Sparkles, Save, FileUp, UploadCloud } from 'lucide-react';
-import { handleCsvUpload, type CsvParseFormState, handleBulkSaveItems, type BulkSaveFormState } from '@/app/(app)/inventory/actions';
+import { Loader2, Sparkles, Save, FileUp } from 'lucide-react';
+import { handleCsvUpload, type ParseCsvOutput, handleBulkSaveItems } from '@/app/(app)/inventory/actions';
 import { useToast } from '@/hooks/use-toast';
-
-const initialCsvParseState: CsvParseFormState = {};
-const initialBulkSaveState: BulkSaveFormState = {};
 
 interface BulkAddDialogProps {
   onItemsAdded: () => void;
@@ -21,37 +17,89 @@ interface BulkAddDialogProps {
 }
 
 export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
-    const [csvParseState, csvParseFormAction, isParsing] = useActionState(handleCsvUpload, initialCsvParseState);
-    const [bulkSaveState, bulkSaveFormAction, isSaving] = useActionState(handleBulkSaveItems, initialBulkSaveState);
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (csvParseState.error) {
-            toast({ variant: "destructive", title: "Parsing Error", description: csvParseState.error });
-        }
-        if (csvParseState.message) {
-            toast({ title: "Parsing Complete", description: csvParseState.message });
-        }
-    }, [csvParseState, toast]);
-
-    useEffect(() => {
-        if (bulkSaveState.success) {
-            toast({ title: "Success", description: bulkSaveState.message });
-            onItemsAdded();
-            setIsOpen(false); // Close dialog on success
-        }
-        if (bulkSaveState.error) {
-            toast({ variant: "destructive", title: "Save Error", description: bulkSaveState.error });
-        }
-    }, [bulkSaveState, toast, onItemsAdded]);
+    const [isParsing, setIsParsing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [parsedData, setParsedData] = useState<ParseCsvOutput | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        setSelectedFileName(file ? file.name : null);
+        setSelectedFile(file || null);
+        setParsedData(null); // Reset preview when file changes
     };
+
+    const handleParseSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!selectedFile) {
+            toast({ variant: "destructive", title: "No File", description: "Please select a CSV file to upload." });
+            return;
+        }
+
+        setIsParsing(true);
+        setParsedData(null);
+        const formData = new FormData();
+        formData.append('csvFile', selectedFile);
+
+        try {
+            const result = await handleCsvUpload({ parsedItems: [], error: undefined, message: undefined }, formData);
+            if (result.error) {
+                toast({ variant: "destructive", title: "Parsing Error", description: result.error });
+            }
+            if (result.parsedItems) {
+                setParsedData(result);
+                toast({ title: "Parsing Complete", description: `Successfully parsed ${result.parsedItems.length} items for preview.` });
+            }
+        } catch (error) {
+            toast({ variant: "destructive", title: "Parsing Failed", description: "An unexpected error occurred during file parsing." });
+        } finally {
+            setIsParsing(false);
+        }
+    };
+    
+    const handleSaveSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!parsedData?.parsedItems || parsedData.parsedItems.length === 0) {
+            toast({ variant: "destructive", title: "No Data", description: "There are no items to save." });
+            return;
+        }
+
+        setIsSaving(true);
+        const formData = new FormData();
+        formData.append('itemsJson', JSON.stringify(parsedData.parsedItems));
+        
+        try {
+            const result = await handleBulkSaveItems({ success: false, error: undefined, message: undefined }, formData);
+             if (result.success) {
+                toast({ title: "Success", description: result.message });
+                onItemsAdded();
+                setIsOpen(false); // Close dialog on success
+            }
+            if (result.error) {
+                toast({ variant: "destructive", title: "Save Error", description: result.error });
+            }
+        } catch(error) {
+             toast({ variant: "destructive", title: "Save Failed", description: "An unexpected error occurred while saving." });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    // Reset state when dialog is closed
+    useEffect(() => {
+        if (!isOpen) {
+            setSelectedFile(null);
+            setParsedData(null);
+            setIsParsing(false);
+            setIsSaving(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
+    }, [isOpen]);
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -67,7 +115,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <form action={csvParseFormAction} className="space-y-4">
+                        <form onSubmit={handleParseSubmit} className="space-y-4">
                             <Label htmlFor="csvFile">Upload CSV File</Label>
                             <Input
                                 id="csvFile"
@@ -80,13 +128,13 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                 ref={fileInputRef}
                                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                             />
-                            {selectedFileName && (
-                                <p className="text-xs text-muted-foreground">Selected file: {selectedFileName}</p>
+                            {selectedFile && (
+                                <p className="text-xs text-muted-foreground">Selected file: {selectedFile.name}</p>
                             )}
                              <p className="text-xs text-muted-foreground">
                                 Ensure your CSV has headers like `Name`, `Price`, `Category`, `SubCategory`, and `Quantity`.
                              </p>
-                            <Button type="submit" disabled={isParsing || !selectedFileName} className="w-full">
+                            <Button type="submit" disabled={isParsing || !selectedFile} className="w-full">
                                 {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Parse & Preview Items
                             </Button>
@@ -99,7 +147,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                 <div className="flex items-center justify-center h-full">
                                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                                 </div>
-                            ) : csvParseState.parsedItems && csvParseState.parsedItems.length > 0 ? (
+                            ) : parsedData?.parsedItems && parsedData.parsedItems.length > 0 ? (
                                 <>
                                     <Table>
                                         <TableHeader>
@@ -110,7 +158,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {csvParseState.parsedItems.map((item, index) => (
+                                            {parsedData.parsedItems.map((item, index) => (
                                                 <TableRow key={index}>
                                                     <TableCell className="font-medium">{item.itemName}</TableCell>
                                                     <TableCell>{item.sharedItemType}</TableCell>
@@ -126,12 +174,11 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                 </div>
                             )}
                         </div>
-                        {csvParseState.parsedItems && csvParseState.parsedItems.length > 0 && (
-                            <form action={bulkSaveFormAction} className="mt-4">
-                                <input type="hidden" name="itemsJson" value={JSON.stringify(csvParseState.parsedItems)} />
-                                <Button type="submit" disabled={isSaving} className="w-full bg-green-600 hover:bg-green-700">
+                        {parsedData?.parsedItems && parsedData.parsedItems.length > 0 && (
+                            <form onSubmit={handleSaveSubmit} className="mt-4">
+                                <Button type="submit" disabled={isSaving || isParsing} className="w-full bg-green-600 hover:bg-green-700">
                                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                    Confirm & Save {csvParseState.parsedItems.length} Items
+                                    Confirm & Save {parsedData.parsedItems.length} Items
                                 </Button>
                             </form>
                         )}
