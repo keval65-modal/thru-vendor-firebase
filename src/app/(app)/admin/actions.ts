@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { adminDb } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore'; // Use admin Timestamp
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';

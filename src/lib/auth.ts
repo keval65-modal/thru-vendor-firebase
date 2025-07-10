@@ -3,7 +3,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminDb } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
