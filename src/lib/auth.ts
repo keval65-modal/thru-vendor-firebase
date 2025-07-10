@@ -3,8 +3,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase';
 import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
@@ -15,11 +14,11 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
   }
 
   try {
-    // Verify the user exists in Firestore and get their role
-    const userDocRef = doc(db, 'vendors', uid);
-    const userDocSnap = await getDoc(userDocRef);
+    // Verify the user exists in Firestore and get their role using the admin SDK
+    const userDocRef = adminDb().collection('vendors').doc(uid);
+    const userDocSnap = await userDocRef.get();
 
-    if (!userDocSnap.exists()) {
+    if (!userDocSnap.exists) {
       return { success: false, error: 'User profile not found in database.' };
     }
     
@@ -59,10 +58,10 @@ export async function getSession(): Promise<{
 
   if (userUidFromCookie) {
     try {
-      const userDocRef = doc(db, 'vendors', userUidFromCookie);
-      const userDocSnap = await getDoc(userDocRef);
+      const userDocRef = adminDb().collection('vendors').doc(userUidFromCookie);
+      const userDocSnap = await userDocRef.get();
 
-      if (userDocSnap.exists()) {
+      if (userDocSnap.exists) {
         const userData = userDocSnap.data() as Vendor;
         return {
           isAuthenticated: true,

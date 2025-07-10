@@ -1,9 +1,11 @@
 
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import * as admin from 'firebase-admin';
 
+// --- Client-Side Firebase Initialization ---
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -19,19 +21,40 @@ let auth: Auth;
 let db: Firestore;
 let storage: FirebaseStorage;
 
-function initializeFirebase() {
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApps()[0];
-  }
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
 
-// Call the function to initialize Firebase services.
-// This approach ensures that Firebase is initialized when this module is imported.
-initializeFirebase();
+auth = getAuth(app);
+db = getFirestore(app);
+storage = getStorage(app);
 
-export { app, auth, db, storage };
+// --- Server-Side Firebase Admin Initialization ---
+// This ensures that we are only initializing the admin app once, on the server.
+function getAdminApp() {
+  if (admin.apps.length > 0) {
+    return admin.apps[0] as admin.app.App;
+  }
+
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccount) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set.');
+  }
+
+  try {
+    const serviceAccountJson = JSON.parse(serviceAccount);
+    return admin.initializeApp({
+      credential: admin.credential.cert(serviceAccountJson),
+    });
+  } catch (error: any) {
+    console.error("Error parsing FIREBASE_SERVICE_ACCOUNT:", error);
+    throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
+  }
+}
+
+// Export a server-side DB instance for server actions
+const adminDb = () => getAdminApp().firestore();
+
+export { app, auth, db, storage, adminDb };

@@ -2,17 +2,8 @@
 'use server';
 
 import { z } from 'zod';
-import { db } from '@/lib/firebase';
-import {
-  collection,
-  query,
-  getDocs,
-  doc,
-  updateDoc,
-  Timestamp,
-  writeBatch,
-  getDoc,
-} from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase';
+import { Timestamp } from 'firebase-admin/firestore'; // Use admin Timestamp
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -35,8 +26,8 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   }
 
   try {
-    const vendorsCollection = collection(db, 'vendors');
-    const vendorSnapshot = await getDocs(vendorsCollection);
+    const vendorsCollection = adminDb().collection('vendors');
+    const vendorSnapshot = await vendorsCollection.get();
     const vendorsList = vendorSnapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
@@ -95,8 +86,8 @@ export async function updateVendorByAdmin(
     const updates = validatedFields.data;
 
     try {
-        const vendorRef = doc(db, 'vendors', vendorId);
-        await updateDoc(vendorRef, {
+        const vendorRef = adminDb().collection('vendors').doc(vendorId);
+        await vendorRef.update({
             ...updates,
             type: updates.storeCategory,
             updatedAt: Timestamp.now(),
@@ -136,12 +127,11 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
     console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
 
     try {
-        const batch = writeBatch(db);
+        const batch = adminDb().batch();
 
         // 1. Find and stage deletion for all inventory items for that vendor
-        const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
-        const inventoryQuery = query(inventoryCollectionRef);
-        const inventorySnapshot = await getDocs(inventoryQuery);
+        const inventoryCollectionRef = adminDb().collection('vendors').doc(vendorId).collection('inventory');
+        const inventorySnapshot = await inventoryCollectionRef.get();
         
         let deletedItemsCount = 0;
         if (!inventorySnapshot.empty) {
@@ -155,7 +145,7 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
         }
         
         // 2. Stage deletion for the vendor document itself
-        const vendorRef = doc(db, 'vendors', vendorId);
+        const vendorRef = adminDb().collection('vendors').doc(vendorId);
         batch.delete(vendorRef);
         console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
         
@@ -183,12 +173,12 @@ export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: 
   }
 
   try {
-    const vendorRef = doc(db, 'vendors', vendorId);
-    const vendorSnap = await getDoc(vendorRef);
-    if (!vendorSnap.exists()) {
+    const vendorRef = adminDb().collection('vendors').doc(vendorId);
+    const vendorSnap = await vendorRef.get();
+    if (!vendorSnap.exists) {
       return { error: 'Vendor not found.' };
     }
-    const vendorData = vendorSnap.data();
+    const vendorData = vendorSnap.data() as Vendor;
     return {
       vendor: {
         id: vendorSnap.id,
