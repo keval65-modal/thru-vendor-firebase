@@ -78,12 +78,19 @@ const EditItemFormSchema = z.object({
     (val) => parseFloat(String(val)),
     z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
   ),
+  mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().min(0, "MRP must be a positive number.").optional()
+  ),
   stockQuantity: z.preprocess(
     (val) => parseInt(String(val), 10),
     z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
   ),
   description: z.string().optional(),
   imageUrl: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional(),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 
@@ -181,6 +188,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
       itemName: item?.itemName || '',
       vendorItemCategory: item?.vendorItemCategory || '',
       price: item?.price || 0,
+      mrp: item?.mrp || undefined,
       stockQuantity: item?.stockQuantity || 0,
       description: item?.description || '',
       imageUrl: item?.imageUrl || '',
@@ -193,6 +201,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         itemName: item.itemName || '',
         vendorItemCategory: item.vendorItemCategory || '',
         price: item.price || 0,
+        mrp: item.mrp || undefined,
         stockQuantity: item.stockQuantity || 0,
         description: item.description || '',
         imageUrl: item.imageUrl || '',
@@ -328,17 +337,31 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                         </FormItem>
                     )}
                 />
-                 <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Price (₹)</FormLabel>
-                        <FormControl><Input type="number" step="0.01" {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Price (₹)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" {...field} disabled={isUploadingFile || isSubmitting} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="mrp"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>MRP (₹)</FormLabel>
+                            <FormControl><Input type="number" step="0.01" {...field} disabled={item.isCustomItem === false || isUploadingFile || isSubmitting} placeholder="Optional" value={field.value ?? ''} /></FormControl>
+                             {!item.isCustomItem && <FormDescription className="text-xs">MRP is from global item.</FormDescription>}
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                  <FormField
                     control={form.control}
                     name="stockQuantity"
@@ -432,10 +455,17 @@ const AddGlobalItemFormSchema = z.object({
     (val) => parseInt(String(val), 10),
     z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
   ),
+  mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().optional()
+  ),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item: GlobalItem | null; isOpen: boolean; onOpenChange: (open: boolean) => void; onItemAdded: () => void }) {
-  const [state, formAction] = useActionState(linkGlobalItemToVendorInventory, initialLinkGlobalItemState);
+  const [state, formAction, isPending] = useActionState(linkGlobalItemToVendorInventory, initialLinkGlobalItemState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -453,6 +483,11 @@ function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item
     }
     if (state.error) {
       toast({ variant: "destructive", title: "Failed to Add Item", description: state.error });
+    }
+     if (state.fields) {
+      Object.entries(state.fields).forEach(([key, value]) => {
+        form.setError(key as keyof z.infer<typeof AddGlobalItemFormSchema>, { type: 'manual', message: value[0] });
+      });
     }
   }, [state, toast, onItemAdded, onOpenChange, form]);
   
@@ -473,6 +508,10 @@ function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item
                 })(evt);
             }}>
                 <input type="hidden" name="globalItemId" value={item.id} />
+                <input type="hidden" name="mrp" value={item.mrp || ''} />
+                
+                {item.mrp && <p className="text-sm text-muted-foreground">Maximum Retail Price (MRP): <span className="font-bold text-foreground">₹{item.mrp.toFixed(2)}</span></p>}
+
                 <FormField
                     control={form.control}
                     name="price"
@@ -496,8 +535,11 @@ function AddGlobalItemDialog({ item, isOpen, onOpenChange, onItemAdded }: { item
                     )}
                 />
                 <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit">Add to Inventory</Button>
+                    <DialogClose asChild><Button type="button" variant="outline" disabled={isPending}>Cancel</Button></DialogClose>
+                    <Button type="submit" disabled={isPending}>
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Add to Inventory
+                    </Button>
                 </DialogFooter>
             </form>
         </Form>
@@ -513,12 +555,19 @@ const AddCustomItemFormSchema = z.object({
     (val) => parseFloat(String(val)),
     z.number({invalid_type_error: "Price must be a number."}).min(0, "Price must be a positive number.")
   ),
+   mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().min(0, "MRP must be a positive number.").optional()
+  ),
   stockQuantity: z.preprocess(
     (val) => parseInt(String(val), 10),
     z.number({invalid_type_error: "Stock must be an integer."}).int().min(0, "Stock must be a non-negative integer.")
   ),
   unit: z.string().min(1, "Please specify a unit (e.g., 'piece', 'kg', 'serving')."),
   description: z.string().optional(),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: boolean; onOpenChange: (open: boolean) => void; onItemAdded: () => void }) {
@@ -532,6 +581,7 @@ function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: bo
       itemName: '',
       vendorItemCategory: '',
       price: 0,
+      mrp: undefined,
       stockQuantity: 0,
       unit: '',
       description: '',
@@ -571,13 +621,18 @@ function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: bo
                     <FormField control={form.control} name="price" render={({ field }) => (
                         <FormItem><FormLabel>Price (₹)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
                     )}/>
-                    <FormField control={form.control} name="stockQuantity" render={({ field }) => (
-                        <FormItem><FormLabel>Stock Quantity</FormLabel><FormControl><Input type="number" step="1" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormField control={form.control} name="mrp" render={({ field }) => (
+                        <FormItem><FormLabel>MRP (₹)</FormLabel><FormControl><Input type="number" step="0.01" {...field} placeholder="Optional" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
                     )}/>
                 </div>
-                <FormField control={form.control} name="unit" render={({ field }) => (
-                    <FormItem><FormLabel>Unit</FormLabel><FormControl><Input {...field} placeholder="e.g., 'piece', 'kg', 'serving'" /></FormControl><FormMessage /></FormItem>
-                )}/>
+                <div className="grid grid-cols-2 gap-4">
+                     <FormField control={form.control} name="stockQuantity" render={({ field }) => (
+                        <FormItem><FormLabel>Stock Quantity</FormLabel><FormControl><Input type="number" step="1" {...field} /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                     <FormField control={form.control} name="unit" render={({ field }) => (
+                        <FormItem><FormLabel>Unit</FormLabel><FormControl><Input {...field} placeholder="e.g., 'piece', 'kg'" /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                </div>
                 <FormField control={form.control} name="description" render={({ field }) => (
                     <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
                 )}/>
@@ -619,9 +674,9 @@ function BulkAddDialog({ onItemsAdded }: { onItemsAdded: () => void }) {
         }
     }, [bulkSaveState, toast, onItemsAdded]);
 
-    const exampleCsv = `itemName,sharedItemType,defaultCategory,defaultUnit,brand,defaultImageUrl,description,barcode
-Parle-G Gold,grocery,Biscuits,1kg pack,Parle,https://placehold.co/100x100.png,The original gluco biscuit,89012345
-Crocin Pain Relief,medical,Tablets,15 tablets,GSK,https://placehold.co/100x100.png,For headache and body pain,89054321
+    const exampleCsv = `itemName,sharedItemType,defaultCategory,defaultUnit,brand,mrp,defaultImageUrl,description,barcode
+Parle-G Gold,grocery,Biscuits,1kg pack,Parle,120,https://placehold.co/100x100.png,The original gluco biscuit,89012345
+Crocin Pain Relief,medical,Tablets,15 tablets,GSK,55.50,https://placehold.co/100x100.png,For headache and body pain,89054321
 `;
 
     return (
@@ -650,7 +705,7 @@ Crocin Pain Relief,medical,Tablets,15 tablets,GSK,https://placehold.co/100x100.p
                                 disabled={isParsing}
                             />
                              <p className="text-xs text-muted-foreground">
-                                Required headers: `itemName`, `sharedItemType`, `defaultCategory`, `defaultUnit`. Optional: `brand`, `defaultImageUrl`, `description`, `barcode`.
+                                Headers: `itemName`, `sharedItemType`, `defaultCategory`, `defaultUnit`, `brand`, `mrp`, `defaultImageUrl`, `description`, `barcode`.
                              </p>
                             <Button type="submit" disabled={isParsing} className="w-full">
                                 {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -672,7 +727,7 @@ Crocin Pain Relief,medical,Tablets,15 tablets,GSK,https://placehold.co/100x100.p
                                             <TableRow>
                                                 <TableHead>Name</TableHead>
                                                 <TableHead>Type</TableHead>
-                                                <TableHead>Category</TableHead>
+                                                <TableHead>MRP</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -680,7 +735,7 @@ Crocin Pain Relief,medical,Tablets,15 tablets,GSK,https://placehold.co/100x100.p
                                                 <TableRow key={index}>
                                                     <TableCell className="font-medium">{item.itemName}</TableCell>
                                                     <TableCell>{item.sharedItemType}</TableCell>
-                                                    <TableCell>{item.defaultCategory}</TableCell>
+                                                    <TableCell>₹{item.mrp?.toFixed(2)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -1242,7 +1297,7 @@ export default function InventoryPage() {
                                 <TableHead>Image</TableHead>
                                 <TableHead>Item Name</TableHead>
                                 <TableHead>Brand</TableHead>
-                                <TableHead>Default Category</TableHead>
+                                <TableHead>MRP</TableHead>
                                 <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1254,7 +1309,7 @@ export default function InventoryPage() {
                                     </TableCell>
                                     <TableCell className="font-medium">{item.itemName}</TableCell>
                                     <TableCell>{item.brand || 'N/A'}</TableCell>
-                                    <TableCell>{item.defaultCategory}</TableCell>
+                                    <TableCell>{item.mrp ? `₹${item.mrp.toFixed(2)}` : 'N/A'}</TableCell>
                                     <TableCell className="text-right">
                                         <Button size="sm" onClick={() => openAddGlobalItemDialog(item)}>
                                             <PlusCircle className="mr-2 h-4 w-4" /> Add
@@ -1344,6 +1399,7 @@ export default function InventoryPage() {
                       <TableHead className="w-[60px]">Image</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Category</TableHead>
+                      <TableHead>MRP</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -1373,6 +1429,7 @@ export default function InventoryPage() {
                             {!item.isCustomItem && <Globe className="h-3 w-3 text-muted-foreground" title="Global Item"/>}
                         </TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
+                        <TableCell>{item.mrp ? `₹${item.mrp.toFixed(2)}` : 'N/A'}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
@@ -1406,7 +1463,7 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                           {selectedCategoryFilter === "all"
                             ? "No inventory items yet. Start by adding products."
                             : `No items found in category: "${selectedCategoryFilter}".`}
@@ -1504,6 +1561,7 @@ export default function InventoryPage() {
                       <TableHead className="w-[60px]">Image</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Category</TableHead>
+                      <TableHead>MRP</TableHead>
                       <TableHead className="text-right">Price</TableHead>
                       <TableHead className="text-center">Stock</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -1530,6 +1588,7 @@ export default function InventoryPage() {
                         </TableCell>
                         <TableCell className="font-medium">{item.itemName}</TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
+                        <TableCell>{item.mrp ? `₹${item.mrp.toFixed(2)}` : 'N/A'}</TableCell>
                         <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-center">{item.stockQuantity}</TableCell>
                         <TableCell className="space-x-1 text-right">
@@ -1563,7 +1622,7 @@ export default function InventoryPage() {
                       </TableRow>
                     )) : (
                      <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                          {selectedCategoryFilter === "all"
                             ? "You haven't added any products yet."
                             : `No items found in category: "${selectedCategoryFilter}".`}

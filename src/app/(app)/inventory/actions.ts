@@ -94,12 +94,19 @@ const AddCustomItemSchema = z.object({
     (val) => parseFloat(String(val)),
     z.number().min(0, "Price must be a positive number.")
   ),
+  mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().min(0, "MRP must be a positive number.").optional()
+  ),
   stockQuantity: z.preprocess(
     (val) => parseInt(String(val), 10),
     z.number().int().min(0, "Stock must be a non-negative integer.")
   ),
   unit: z.string().min(1, "Unit (e.g., 'piece', 'kg', 'serving') cannot be empty."),
   description: z.string().optional(),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 export type AddCustomItemFormState = {
@@ -140,6 +147,7 @@ export async function addCustomVendorItem(
     vendorItemCategory: itemData.vendorItemCategory,
     stockQuantity: itemData.stockQuantity,
     price: itemData.price,
+    mrp: itemData.mrp,
     unit: itemData.unit,
     description: itemData.description,
     isAvailableOnThru: true,
@@ -173,12 +181,20 @@ const LinkGlobalItemSchema = z.object({
     (val) => parseInt(String(val), 10),
     z.number().int().min(0, "Stock must be a non-negative integer.")
   ),
+  mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().optional()
+  ),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 export type LinkGlobalItemFormState = {
   success?: boolean;
   error?: string;
   message?: string;
+  fields?: Record<string, string[]>;
 };
 
 /**
@@ -198,7 +214,7 @@ export async function linkGlobalItemToVendorInventory(
 
   if (!validatedFields.success) {
     console.error("[linkGlobalItemToVendorInventory] Validation failed:", validatedFields.error.flatten().fieldErrors);
-    return { error: "Invalid data submitted." };
+    return { error: "Invalid data submitted.", fields: validatedFields.error.flatten().fieldErrors, };
   }
 
   const { globalItemId, price, stockQuantity } = validatedFields.data;
@@ -221,6 +237,7 @@ export async function linkGlobalItemToVendorInventory(
       vendorItemCategory: globalItemData.defaultCategory,
       stockQuantity,
       price,
+      mrp: globalItemData.mrp, // Carry over MRP from global item
       unit: globalItemData.defaultUnit,
       isAvailableOnThru: true,
       imageUrl: globalItemData.defaultImageUrl || `https://placehold.co/50x50.png?text=${globalItemData.itemName.substring(0,10)}`,
@@ -277,12 +294,19 @@ const UpdateVendorItemSchema = z.object({
     (val) => parseFloat(String(val)),
     z.number().min(0, "Price must be a positive number.")
   ),
+  mrp: z.preprocess(
+    (val) => val ? parseFloat(String(val)) : undefined,
+    z.number().min(0, "MRP must be a positive number.").optional()
+  ),
   stockQuantity: z.preprocess(
     (val) => parseInt(String(val), 10),
     z.number().int().min(0, "Stock must be a non-negative integer.")
   ),
   description: z.string().optional(),
   imageUrl: z.string().url({ message: "Please enter a valid URL for the image." }).or(z.literal('')).optional(),
+}).refine(data => !data.mrp || data.price <= data.mrp, {
+    message: "Price cannot be higher than MRP.",
+    path: ["price"],
 });
 
 
@@ -311,7 +335,7 @@ export async function updateVendorItemDetails(
 
   const { itemId, ...updates } = validatedFields.data;
   
-  const dataToUpdate: Partial<VendorInventoryItem> = {
+  const dataToUpdate: Partial<VendorInventoryItem> & { updatedAt: Timestamp } = {
     ...updates,
     updatedAt: Timestamp.now(),
   };
@@ -323,7 +347,7 @@ export async function updateVendorItemDetails(
 
   try {
     const itemRef = doc(db, "vendors", vendorId, "inventory", itemId);
-    await updateDoc(itemRef, dataToUpdate);
+    await updateDoc(itemRef, dataToUpdate as any); // Using 'as any' to bypass strict type check on partial update
     console.log(`[updateVendorItemDetails] Successfully updated item ${itemId} for vendor ${vendorId}`);
     revalidatePath('/inventory');
     return { success: true, message: "Item details updated successfully." };

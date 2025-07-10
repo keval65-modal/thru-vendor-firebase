@@ -18,6 +18,7 @@ const ParsedItemSchema = z.object({
   defaultCategory: z.string().describe("A specific category for the item (e.g., 'Dairy', 'Pain Relief')."),
   defaultUnit: z.string().describe("The unit of measurement or sale (e.g., '1kg', 'bottle', 'packet')."),
   brand: z.string().optional().describe("The brand name of the product."),
+  mrp: z.number().optional().describe("The Maximum Retail Price of the product."),
   defaultImageUrl: z.string().url().optional().describe("A URL for the product's image."),
   description: z.string().optional().describe("A brief description of the product."),
   barcode: z.string().optional().describe("The barcode or UPC of the product."),
@@ -46,10 +47,11 @@ const prompt = ai.definePrompt({
 Your task is to parse this CSV data and convert it into a structured JSON array of objects.
 
 The first row of the CSV is the header row. The expected headers are:
-itemName,sharedItemType,defaultCategory,defaultUnit,brand,defaultImageUrl,description,barcode
+itemName,sharedItemType,defaultCategory,defaultUnit,brand,mrp,defaultImageUrl,description,barcode
 
-- You must handle cases where some optional fields (like brand, defaultImageUrl, description, barcode) might be empty.
+- You must handle cases where some optional fields (like brand, mrp, defaultImageUrl, description, barcode) might be empty.
 - The 'sharedItemType' MUST be one of the following values: 'grocery', 'medical', 'liquor', 'other'. If you encounter a different value, map it to 'other'.
+- The 'mrp' field should be parsed as a number. If it is empty or invalid, omit it from the output for that item.
 - Clean up any leading/trailing whitespace from the values.
 - If a row is malformed or empty, skip it.
 

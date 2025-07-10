@@ -17,6 +17,7 @@ export interface GlobalItem {
   defaultImageUrl?: string;
   barcode?: string;
   searchKeywords?: string[];
+  mrp?: number; // Maximum Retail Price
   createdAt?: Timestamp | string; // Allow string for data from server action before Firestore conversion or for fetched data
   updatedAt?: Timestamp | string;
 }
@@ -38,6 +39,7 @@ export interface VendorInventoryItem {
   
   stockQuantity: number;
   price: number;
+  mrp?: number; // Vendor's price should be <= MRP. Stored for reference and for custom items.
   costPrice?: number;
   unit: string;
 
