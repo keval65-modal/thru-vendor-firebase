@@ -41,11 +41,14 @@ interface EditVendorDialogProps {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
     onVendorUpdate: () => void;
+    // Pass the server action and its state from the parent
+    updateAction: (prevState: UpdateVendorByAdminFormState, formData: FormData) => Promise<UpdateVendorByAdminFormState>;
+    updateState: UpdateVendorByAdminFormState;
+    isUpdating: boolean;
 }
 
-function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate }: EditVendorDialogProps) {
+function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, updateAction, updateState, isUpdating }: EditVendorDialogProps) {
     const { toast } = useToast();
-    const [updateState, formAction, isSubmitting] = useActionState(updateVendorByAdmin, initialUpdateState);
     
     const form = useForm<z.infer<typeof EditVendorSchema>>({
         resolver: zodResolver(EditVendorSchema),
@@ -88,7 +91,7 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate }: Edit
                     <DialogTitle>Edit Vendor: {vendor.shopName}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <form action={formAction} className="space-y-4">
+                    <form action={updateAction} className="space-y-4">
                         <input type="hidden" name="vendorId" value={vendor.id} />
                         <FormField control={form.control} name="shopName" render={({ field }) => (
                             <FormItem><FormLabel>Shop Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -105,19 +108,27 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate }: Edit
                             <FormMessage /></FormItem>
                         )} />
                         <FormField control={form.control} name="isActiveOnThru" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                <div className="space-y-0.5">
-                                    <FormLabel>Active on Thru</FormLabel>
-                                    <FormDescription>Controls if the vendor is visible to customers.</FormDescription>
-                                </div>
-                                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                            </FormItem>
+                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                 <div className="space-y-0.5">
+                                     <FormLabel>Active on Thru</FormLabel>
+                                     <FormDescription>Controls if the vendor is visible to customers.</FormDescription>
+                                 </div>
+                                 <FormControl>
+                                    {/* The hidden input ensures a value is sent even when unchecked */}
+                                    <input type="hidden" name={field.name} value="off" />
+                                    <Switch
+                                        name={field.name}
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                 </FormControl>
+                             </FormItem>
                          )} />
 
                         <DialogFooter>
                             <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Button type="submit" disabled={isUpdating}>
+                                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Save Changes
                             </Button>
                         </DialogFooter>
@@ -137,6 +148,8 @@ export default function AdminPage() {
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     
+    // Centralize all action states in the main component
+    const [updateState, updateFormAction, isUpdating] = useActionState(updateVendorByAdmin, initialUpdateState);
     const [deleteState, deleteFormAction, isDeleting] = useActionState(deleteVendorAndInventory, initialDeleteState);
 
     const fetchVendors = async () => {
@@ -265,6 +278,9 @@ export default function AdminPage() {
                 isOpen={isEditDialogOpen}
                 onOpenChange={setIsEditDialogOpen}
                 onVendorUpdate={fetchVendors}
+                updateAction={updateFormAction}
+                updateState={updateState}
+                isUpdating={isUpdating}
             />
         </div>
     );
