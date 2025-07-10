@@ -60,7 +60,7 @@ const UpdateVendorByAdminSchema = z.object({
   shopName: z.string().min(1, "Shop name is required."),
   ownerName: z.string().min(1, "Owner name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.preprocess((val) => val === 'on' || val === true, z.boolean()),
+  isActiveOnThru: z.preprocess((val) => val === 'on' || val === true, z.boolean()).default(false),
 });
 
 
@@ -83,7 +83,14 @@ export async function updateVendorByAdmin(
     }
 
     const rawData = Object.fromEntries(formData.entries());
-    const validatedFields = UpdateVendorByAdminSchema.safeParse(rawData);
+    
+    // Explicitly check for 'isActiveOnThru' because unchecked boxes are not sent in FormData
+    const isActive = rawData.isActiveOnThru === 'on';
+    
+    const validatedFields = UpdateVendorByAdminSchema.safeParse({
+        ...rawData,
+        isActiveOnThru: isActive, // Use the derived boolean value
+    });
 
     if (!validatedFields.success) {
         return {
