@@ -54,7 +54,7 @@ const MappingOutputSchema = z.object({
     brand: z.string().optional().describe("The exact column name for brand."),
     mrp: z.string().optional().describe("The exact column name for price/mrp."),
     sharedItemType: z.string().optional().describe("The exact column name for the main category (e.g., 'Category')."),
-    defaultCategory: z.string().optional().describe("The exact column name for the sub-category (e.g., 'Sub Category')."),
+    defaultCategory: z.string().optional().describe("The exact column name for the sub-category (e.g., 'SubCategory', 'Sub Category')."),
     defaultUnit: z.string().optional().describe("The exact column name for the unit or quantity (e.g., 'Quantity')."),
     description: z.string().optional().describe("The exact column name for description."),
     defaultImageUrl: z.string().optional().describe("The exact column name for an image URL."),
@@ -71,11 +71,11 @@ const getMapping = ai.definePrompt({
     Our required fields are: "itemName", "brand", "mrp", "sharedItemType", "defaultCategory", "defaultUnit", "description", "defaultImageUrl", "barcode".
 
     Analyze the provided CSV header and return a JSON object where the keys are our required fields and the values are the EXACT corresponding column names from the header.
-    - For 'itemName', look for headers like 'Name', 'Product Name', 'Item Name'. This is a required field.
+    - For 'itemName', look for headers like 'Name', 'Item Name', or 'Product Name'. This is a required field.
     - For 'sharedItemType', look for 'Category'.
-    - For 'defaultCategory', look for 'SubCategory', 'Sub Category'.
-    - For 'mrp', look for 'Price', 'MRP'.
-    - For 'defaultUnit', look for 'Quantity', 'Unit', 'Size'.
+    - For 'defaultCategory', look for 'SubCategory' or 'Sub Category'.
+    - For 'mrp', look for 'Price' or 'MRP'.
+    - For 'defaultUnit', look for 'Quantity' or 'Unit' or 'Size'.
 
     If a mapping for an optional field cannot be found, omit it from the output.
 
