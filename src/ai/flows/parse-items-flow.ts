@@ -4,8 +4,8 @@
  * @fileOverview A Genkit flow to parse raw CSV text into structured GlobalItem data.
  * This flow uses a hybrid approach:
  * 1. An AI model (getMapping) quickly determines the mapping between CSV headers and the target schema.
- * 2. Standard TypeScript code then parses the entire CSV data using this mapping, which is much faster
- *    and more reliable than asking the AI to parse the whole file, thus avoiding timeouts.
+ * 2. The robust `papaparse` library then parses the entire CSV data using this mapping, which is much faster
+ *    and more reliable than asking the AI to parse the whole file, thus avoiding timeouts and parsing errors.
  *
  * - parseCsvData - A function that handles the CSV parsing process.
  * - ParseCsvInput - The input type for the parseCsvData function.
@@ -14,6 +14,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import Papa from 'papaparse';
 
 // This schema should mirror the GlobalItem interface but is used for AI output validation.
 const ParsedItemSchema = z.object({
@@ -92,81 +93,65 @@ const parseItemsFlow = ai.defineFlow(
     outputSchema: ParseCsvOutputSchema,
   },
   async (input) => {
-    console.log(`DEBUG: [parseItemsFlow] ----------------- HYBRID FLOW STARTED -----------------`);
-    const lines = input.csvData.trim().split(/\r?\n/);
-    if (lines.length < 2) {
-      console.error("DEBUG: [parseItemsFlow] CSV has less than 2 lines. No data to parse.");
+    console.log(`[parseItemsFlow] Started: Parsing CSV data.`);
+    const { data: rows, meta } = Papa.parse<Record<string, string>>(input.csvData.trim(), {
+        header: true,
+        skipEmptyLines: true,
+    });
+
+    if (rows.length === 0 || !meta.fields) {
+      console.error("[parseItemsFlow] PapaParse resulted in no data rows or headers.");
       return { parsedItems: [] };
     }
 
-    const header = lines[0];
-    const dataRows = lines.slice(1);
-    console.log(`DEBUG: [parseItemsFlow] CSV Header: "${header}"`);
-    console.log(`DEBUG: [parseItemsFlow] Found ${dataRows.length} data rows.`);
+    const header = meta.fields.join(',');
+    console.log(`[parseItemsFlow] CSV Header detected by PapaParse: "${header}"`);
+    console.log(`[parseItemsFlow] Found ${rows.length} data rows.`);
 
     // Step 1: Use AI to get the header mapping (fast operation)
-    console.log(`DEBUG: [parseItemsFlow] Calling AI to get header mapping...`);
+    console.log(`[parseItemsFlow] Calling AI to get header mapping...`);
     const { output: mapping } = await getMapping({ csvHeader: header });
     
     if (!mapping) {
         throw new Error("AI failed to return a header mapping.");
     }
-    console.log('DEBUG: [parseItemsFlow] AI returned mapping:', JSON.stringify(mapping, null, 2));
+    console.log('[parseItemsFlow] AI returned mapping:', JSON.stringify(mapping, null, 2));
 
-    const headerColumns = header.split(',').map(h => h.trim());
-    const getIndex = (field: keyof typeof mapping) => {
-        const colName = mapping[field];
-        return colName ? headerColumns.indexOf(colName) : -1;
-    };
-
-    const indexMap = {
-        itemName: getIndex('itemName'),
-        brand: getIndex('brand'),
-        mrp: getIndex('mrp'),
-        sharedItemType: getIndex('sharedItemType'),
-        defaultCategory: getIndex('defaultCategory'),
-        defaultUnit: getIndex('defaultUnit'),
-        description: getIndex('description'),
-        defaultImageUrl: getIndex('defaultImageUrl'),
-        barcode: getIndex('barcode'),
-    };
-    console.log('DEBUG: [parseItemsFlow] Calculated column indexes:', JSON.stringify(indexMap, null, 2));
-
-
-    if (indexMap.itemName === -1) {
+    if (!mapping.itemName) {
         throw new Error("Could not determine the column for 'itemName' from the CSV header. This is a required field.");
     }
 
     // Step 2: Parse the data rows using the mapping (fast, non-AI operation)
-    const parsedItems = dataRows.map(row => {
-        const values = row.split(',').map(v => v.trim());
-        
-        const sharedItemTypeRaw = indexMap.sharedItemType > -1 ? values[indexMap.sharedItemType]?.toLowerCase() : 'other';
+    const parsedItems = rows.map(row => {
+        const getVal = (field: keyof typeof mapping) => {
+            const colName = mapping[field];
+            return colName ? row[colName]?.trim() : undefined;
+        };
+
+        const sharedItemTypeRaw = getVal('sharedItemType')?.toLowerCase() || 'other';
         const sharedItemType: 'grocery' | 'medical' | 'liquor' | 'other' = 
             ['grocery', 'medical', 'liquor'].includes(sharedItemTypeRaw) 
             ? sharedItemTypeRaw as 'grocery' | 'medical' | 'liquor' 
             : 'other';
 
-        const mrpRaw = indexMap.mrp > -1 ? values[indexMap.mrp] : undefined;
+        const mrpRaw = getVal('mrp');
         const mrp = mrpRaw ? parseFloat(mrpRaw.replace(/[^0-9.]/g, '')) : undefined;
 
         const item: z.infer<typeof ParsedItemSchema> = {
-            itemName: values[indexMap.itemName],
+            itemName: getVal('itemName') || '',
             sharedItemType,
-            defaultCategory: indexMap.defaultCategory > -1 ? values[indexMap.defaultCategory] : 'Uncategorized',
-            defaultUnit: indexMap.defaultUnit > -1 ? values[indexMap.defaultUnit] : 'unit',
-            brand: indexMap.brand > -1 ? values[indexMap.brand] : undefined,
+            defaultCategory: getVal('defaultCategory') || 'Uncategorized',
+            defaultUnit: getVal('defaultUnit') || 'unit',
+            brand: getVal('brand'),
             mrp: mrp && !isNaN(mrp) ? mrp : undefined,
-            description: indexMap.description > -1 ? values[indexMap.description] : undefined,
-            defaultImageUrl: indexMap.defaultImageUrl > -1 ? values[indexMap.defaultImageUrl] : undefined,
-            barcode: indexMap.barcode > -1 ? values[indexMap.barcode] : undefined,
+            description: getVal('description'),
+            defaultImageUrl: getVal('defaultImageUrl'),
+            barcode: getVal('barcode'),
         };
         return item;
     }).filter(item => item.itemName); // Filter out any empty rows
 
-    console.log(`DEBUG: [parseItemsFlow] Successfully parsed ${parsedItems.length} items using hybrid approach.`);
+    console.log(`[parseItemsFlow] Successfully parsed ${parsedItems.length} items using hybrid approach.`);
     return { parsedItems };
   }
 );
-
-    
