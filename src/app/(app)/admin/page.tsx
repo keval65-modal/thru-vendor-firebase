@@ -26,15 +26,16 @@ const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "E
 
 // Schema for the Edit Vendor form
 const EditVendorSchema = z.object({
+  vendorId: z.string().min(1, "Vendor ID is required."),
   shopName: z.string().min(1, "Shop name is required."),
   ownerName: z.string().min(1, "Owner name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
   isActiveOnThru: z.boolean().default(true),
 });
 
-const initialUpdateState: UpdateVendorByAdminFormState = {};
-const initialDeleteState: DeleteVendorFormState = {};
+type EditVendorSchemaType = z.infer<typeof EditVendorSchema>;
 
+const initialDeleteState: DeleteVendorFormState = {};
 
 // --- Edit Vendor Dialog Component ---
 interface EditVendorDialogProps {
@@ -42,19 +43,16 @@ interface EditVendorDialogProps {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
     onVendorUpdate: () => void;
-    // Pass the server action and its state from the parent
-    updateAction: (prevState: UpdateVendorByAdminFormState, formData: FormData) => Promise<UpdateVendorByAdminFormState>;
-    updateState: UpdateVendorByAdminFormState;
-    isUpdating: boolean;
 }
 
-function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, updateAction, updateState, isUpdating }: EditVendorDialogProps) {
+function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate }: EditVendorDialogProps) {
     const { toast } = useToast();
-    const formRef = useRef<HTMLFormElement>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
     
-    const form = useForm<z.infer<typeof EditVendorSchema>>({
+    const form = useForm<EditVendorSchemaType>({
         resolver: zodResolver(EditVendorSchema),
         defaultValues: {
+            vendorId: '',
             shopName: '',
             ownerName: '',
             storeCategory: '',
@@ -65,6 +63,7 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
     useEffect(() => {
         if (vendor) {
             form.reset({
+                vendorId: vendor.id,
                 shopName: vendor.shopName,
                 ownerName: vendor.ownerName,
                 storeCategory: vendor.storeCategory,
@@ -73,18 +72,20 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
         }
     }, [vendor, form, isOpen]); // Rerun effect when dialog opens
 
-    useEffect(() => {
-        if (!isUpdating) { // Only show toasts when the action is not pending
-            if (updateState.success) {
-                toast({ title: "Success", description: updateState.message });
-                onVendorUpdate();
-                onOpenChange(false);
-            }
-            if (updateState.error) {
-                toast({ variant: "destructive", title: "Error", description: updateState.error });
-            }
+    const handleFormSubmit = async (data: EditVendorSchemaType) => {
+        setIsUpdating(true);
+        const result = await updateVendorByAdmin(data);
+        setIsUpdating(false);
+
+        if (result.success) {
+            toast({ title: "Success", description: result.message });
+            onVendorUpdate();
+            onOpenChange(false);
         }
-    }, [updateState, isUpdating, toast, onVendorUpdate, onOpenChange]);
+        if (result.error) {
+            toast({ variant: "destructive", title: "Error", description: result.error });
+        }
+    };
 
     if (!vendor) return null;
 
@@ -96,23 +97,9 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
                 </DialogHeader>
                 <Form {...form}>
                     <form 
-                        ref={formRef} 
-                        action={updateAction} 
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(formRef.current!);
-                            // React-hook-form doesn't set checked state on the native element for switch,
-                            // so we need to manually set it for FormData if checked
-                            if (form.getValues('isActiveOnThru')) {
-                                formData.set('isActiveOnThru', 'on');
-                            } else {
-                                formData.delete('isActiveOnThru');
-                            }
-                            updateAction(updateState, formData);
-                        }}
+                        onSubmit={form.handleSubmit(handleFormSubmit)}
                         className="space-y-4"
                     >
-                        <input type="hidden" name="vendorId" value={vendor.id} />
                         <FormField control={form.control} name="shopName" render={({ field }) => (
                             <FormItem><FormLabel>Shop Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                         )} />
@@ -135,7 +122,6 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
                                  </div>
                                  <FormControl>
                                     <Switch
-                                        name={field.name}
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
                                     />
@@ -157,7 +143,6 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
     );
 }
 
-
 // --- Main Admin Page Component ---
 export default function AdminPage() {
     const { toast } = useToast();
@@ -167,8 +152,7 @@ export default function AdminPage() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [userRole, setUserRole] = useState<'vendor' | 'admin' | undefined>();
     
-    // Centralize all action states in the main component
-    const [updateState, updateFormAction, isUpdating] = useActionState(updateVendorByAdmin, initialUpdateState);
+    // Action state for delete form
     const [deleteState, deleteFormAction, isDeleting] = useActionState(deleteVendorAndInventory, initialDeleteState);
 
     const fetchVendors = async () => {
@@ -183,7 +167,6 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        // Fetch user role to conditionally render admin-only features
         getSession().then(session => {
             setUserRole(session?.role);
         });
@@ -191,14 +174,14 @@ export default function AdminPage() {
     }, []);
 
     useEffect(() => {
-        if (!isDeleting) {
-            if (deleteState.success) {
+        if (!isDeleting && deleteState?.message) {
+             if (deleteState.success) {
                 toast({ title: "Success", description: deleteState.message });
                 fetchVendors(); // Refresh the list
             }
-            if (deleteState.error) {
-                toast({ variant: "destructive", title: "Error", description: deleteState.error });
-            }
+        }
+        if (!isDeleting && deleteState?.error) {
+            toast({ variant: "destructive", title: "Error", description: deleteState.error });
         }
     }, [deleteState, isDeleting, toast]);
 
@@ -305,9 +288,6 @@ export default function AdminPage() {
                 isOpen={isEditDialogOpen}
                 onOpenChange={setIsEditDialogOpen}
                 onVendorUpdate={fetchVendors}
-                updateAction={updateFormAction}
-                updateState={updateState}
-                isUpdating={isUpdating}
             />
         </div>
     );

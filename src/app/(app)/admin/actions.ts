@@ -11,7 +11,6 @@ import {
   updateDoc,
   Timestamp,
   writeBatch,
-  where,
 } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
@@ -24,7 +23,6 @@ async function isAdmin() {
     // A proper admin check verifies the user's role.
     return session?.role === 'admin';
 }
-
 
 /**
  * Fetches all vendors from the 'vendors' collection.
@@ -60,9 +58,8 @@ const UpdateVendorByAdminSchema = z.object({
   shopName: z.string().min(1, "Shop name is required."),
   ownerName: z.string().min(1, "Owner name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.preprocess((val) => val === 'on' || val === true, z.boolean()).default(false),
+  isActiveOnThru: z.boolean().default(false),
 });
-
 
 export type UpdateVendorByAdminFormState = {
     success?: boolean;
@@ -73,27 +70,17 @@ export type UpdateVendorByAdminFormState = {
 
 /**
  * Updates a vendor's details from the admin panel.
+ * Receives validated data from a client component form.
  */
 export async function updateVendorByAdmin(
-    prevState: UpdateVendorByAdminFormState,
-    formData: FormData
+    data: z.infer<typeof UpdateVendorByAdminSchema>
 ): Promise<UpdateVendorByAdminFormState> {
     if (!await isAdmin()) {
         return { error: "You are not authorized to perform this action." };
     }
-
-    const rawData = Object.fromEntries(formData.entries());
     
-    const validatedFields = UpdateVendorByAdminSchema.safeParse(rawData);
-
-    if (!validatedFields.success) {
-        return {
-            error: "Invalid data submitted.",
-            fields: validatedFields.error.flatten().fieldErrors,
-        };
-    }
-    
-    const { vendorId, ...updates } = validatedFields.data;
+    // Data is already parsed and validated by react-hook-form on the client
+    const { vendorId, ...updates } = data;
 
     try {
         const vendorRef = doc(db, 'vendors', vendorId);
