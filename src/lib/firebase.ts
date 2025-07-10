@@ -2,7 +2,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage'; // Added
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,16 +17,21 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let storage: FirebaseStorage; // Added
+let storage: FirebaseStorage;
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApps()[0];
+function initializeFirebase() {
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
 }
 
-auth = getAuth(app);
-db = getFirestore(app);
-storage = getStorage(app); // Added
+// Call the function to initialize Firebase services.
+// This approach ensures that Firebase is initialized when this module is imported.
+initializeFirebase();
 
-export { app, auth, db, storage }; // Added storage to exports
+export { app, auth, db, storage };
