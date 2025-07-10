@@ -43,6 +43,7 @@ const prompt = ai.definePrompt({
   name: 'parseItemsPrompt',
   input: { schema: ParseCsvInputSchema },
   output: { schema: ParseCsvOutputSchema },
+  model: 'googleai/gemini-1.5-flash-latest', // Use a faster model for this specific task
   prompt: `You are an expert data processing AI. You will be given a string of comma-separated values (CSV).
 Your task is to parse this CSV data and convert it into a structured JSON array of objects.
 
@@ -78,9 +79,8 @@ const parseItemsFlow = ai.defineFlow(
     console.log(`DEBUG: [parseItemsFlow] ----------------- FLOW STARTED -----------------`);
     console.log(`DEBUG: [parseItemsFlow] Starting CSV parsing. Input length: ${input.csvData.length}`);
     try {
-      console.log(`DEBUG: [parseItemsFlow] Calling the AI prompt...`);
-      const response = await prompt.generate(input);
-      const output = response.output();
+      console.log(`DEBUG: [parseItemsFlow] Calling the AI prompt with gemini-1.5-flash-latest...`);
+      const {output} = await prompt(input);
       
       console.log(`DEBUG: [parseItemsFlow] Raw AI output received:`, JSON.stringify(output, null, 2));
 
