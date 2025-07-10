@@ -679,20 +679,30 @@ export async function handleCsvUpload(
   prevState: CsvParseFormState,
   formData: FormData
 ): Promise<CsvParseFormState> {
+  console.log('DEBUG: handleCsvUpload server action started.');
   const csvFile = formData.get('csvFile') as File;
+
   if (!csvFile || csvFile.size === 0) {
+    console.error('DEBUG: handleCsvUpload - No CSV file found or file is empty.');
     return { error: "CSV file is required." };
   }
+  console.log(`DEBUG: handleCsvUpload - Received file: ${csvFile.name}, size: ${csvFile.size}`);
   
   try {
     const csvData = await csvFile.text();
+    console.log(`DEBUG: handleCsvUpload - CSV data read, length: ${csvData.length}. First 100 chars: ${csvData.substring(0, 100)}`);
+    console.log('DEBUG: handleCsvUpload - Calling parseCsvData AI flow...');
     const result = await parseCsvData({ csvData });
+    
     if (!result || !result.parsedItems) {
+      console.error('DEBUG: handleCsvUpload - AI failed to parse items. Result was:', result);
       return { error: "AI failed to parse items from the CSV file. The format might be incorrect." };
     }
+    
+    console.log(`DEBUG: handleCsvUpload - AI parsing successful. Parsed ${result.parsedItems.length} items.`);
     return { parsedItems: result.parsedItems, message: `Successfully parsed ${result.parsedItems.length} items for preview.` };
   } catch(error) {
-    console.error('[handleCsvUpload] Error processing CSV with AI:', error);
+    console.error('DEBUG: handleCsvUpload - CRITICAL ERROR during processing:', error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
     return { error: errorMessage };
   }
@@ -714,31 +724,40 @@ export async function handleBulkSaveItems(
     prevState: BulkSaveFormState,
     formData: FormData
 ): Promise<BulkSaveFormState> {
+    console.log('DEBUG: handleBulkSaveItems server action started.');
     if (!await isAdmin()) {
+        console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
         return { error: "You are not authorized to perform this action." };
     }
+    console.log('DEBUG: handleBulkSaveItems - Admin check passed.');
 
     const itemsJson = formData.get('itemsJson') as string;
     if (!itemsJson) {
+        console.error('DEBUG: handleBulkSaveItems - No itemsJson found in form data.');
         return { error: "No items to save." };
     }
+    console.log(`DEBUG: handleBulkSaveItems - Received itemsJson with length: ${itemsJson.length}`);
 
     let itemsToSave: Omit<GlobalItem, 'id'>[];
     try {
         itemsToSave = JSON.parse(itemsJson);
+        console.log(`DEBUG: handleBulkSaveItems - Successfully parsed ${itemsToSave.length} items from JSON.`);
     } catch(e) {
+        console.error('DEBUG: handleBulkSaveItems - Failed to parse itemsJson.', e);
         return { error: "Invalid items format." };
     }
 
     if (!Array.isArray(itemsToSave) || itemsToSave.length === 0) {
+        console.error('DEBUG: handleBulkSaveItems - itemsToSave is not an array or is empty.');
         return { error: "No items to save." };
     }
 
     try {
         const batch = writeBatch(db);
         const now = Timestamp.now();
+        console.log(`DEBUG: handleBulkSaveItems - Preparing batch write for ${itemsToSave.length} items.`);
 
-        itemsToSave.forEach(item => {
+        itemsToSave.forEach((item, index) => {
             const newItemRef = doc(collection(db, 'global_items'));
             const newItemData: Omit<GlobalItem, 'id'> = {
                 ...item,
@@ -746,13 +765,17 @@ export async function handleBulkSaveItems(
                 updatedAt: now,
             };
             batch.set(newItemRef, newItemData);
+            if (index < 5) { // Log first few items to be saved
+                 console.log(`DEBUG: Staging item ${index + 1}:`, JSON.stringify(newItemData));
+            }
         });
 
         await batch.commit();
+        console.log(`DEBUG: handleBulkSaveItems - Batch commit successful.`);
 
         return { success: true, message: `Successfully added ${itemsToSave.length} items to the global catalog.`, itemsAdded: itemsToSave.length };
     } catch (error) {
-        console.error('[handleBulkSaveItems] Error saving items to Firestore:', error);
+        console.error('DEBUG: handleBulkSaveItems - CRITICAL ERROR saving items to Firestore:', error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return { error: `Failed to save items. ${errorMessage}` };
     }
