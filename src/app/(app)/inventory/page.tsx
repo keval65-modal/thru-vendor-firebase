@@ -674,9 +674,10 @@ function BulkAddDialog({ onItemsAdded }: { onItemsAdded: () => void }) {
         }
     }, [bulkSaveState, toast, onItemsAdded]);
 
-    const exampleCsv = `itemName,sharedItemType,defaultCategory,defaultUnit,brand,mrp,defaultImageUrl,description,barcode
-Parle-G Gold,grocery,Biscuits,1kg pack,Parle,120,https://placehold.co/100x100.png,The original gluco biscuit,89012345
-Crocin Pain Relief,medical,Tablets,15 tablets,GSK,55.50,https://placehold.co/100x100.png,For headache and body pain,89054321
+    const exampleCsv = `Name,Brand,Price,Category,SubCategory,Quantity,Description
+Premia Badam (Almonds),Premia,451,Grocery,Dry Fruits,500 gm,"Premium quality almonds"
+Parle-G Gold,Parle,120,Grocery,Biscuits,1kg pack,"The original gluco biscuit"
+Crocin Pain Relief,GSK,55.50,Medical,Tablets,15 tablets,"For headache and body pain"
 `;
 
     return (
@@ -688,7 +689,7 @@ Crocin Pain Relief,medical,Tablets,15 tablets,GSK,55.50,https://placehold.co/100
                 <DialogHeader>
                     <DialogTitle>Bulk Add Global Items via CSV</DialogTitle>
                     <DialogDescription>
-                        Paste CSV data to add multiple items to the global catalog at once.
+                        Paste CSV data to add multiple items to the global catalog at once. The AI will map columns automatically.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -705,7 +706,7 @@ Crocin Pain Relief,medical,Tablets,15 tablets,GSK,55.50,https://placehold.co/100
                                 disabled={isParsing}
                             />
                              <p className="text-xs text-muted-foreground">
-                                Headers: `itemName`, `sharedItemType`, `defaultCategory`, `defaultUnit`, `brand`, `mrp`, `defaultImageUrl`, `description`, `barcode`.
+                                Required headers: `Name`, `Price`, `Category`, `SubCategory`, `Quantity`. Optional: `Brand`, `Description`.
                              </p>
                             <Button type="submit" disabled={isParsing} className="w-full">
                                 {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}

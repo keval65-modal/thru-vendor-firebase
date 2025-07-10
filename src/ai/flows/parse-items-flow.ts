@@ -15,8 +15,8 @@ import { z } from 'zod';
 const ParsedItemSchema = z.object({
   itemName: z.string().describe("The name of the product."),
   sharedItemType: z.enum(['grocery', 'medical', 'liquor', 'other']).describe("The high-level type of the item (grocery, medical, liquor, other)."),
-  defaultCategory: z.string().describe("A specific category for the item (e.g., 'Dairy', 'Pain Relief')."),
-  defaultUnit: z.string().describe("The unit of measurement or sale (e.g., '1kg', 'bottle', 'packet')."),
+  defaultCategory: z.string().describe("A specific category for the item (e.g., 'Dairy', 'Pain Relief', 'Dry Fruits')."),
+  defaultUnit: z.string().describe("The unit of measurement or sale (e.g., '1kg', 'bottle', 'packet', '500 gm')."),
   brand: z.string().optional().describe("The brand name of the product."),
   mrp: z.number().optional().describe("The Maximum Retail Price of the product."),
   defaultImageUrl: z.string().url().optional().describe("A URL for the product's image."),
@@ -46,12 +46,18 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert data processing AI. You will be given a string of comma-separated values (CSV).
 Your task is to parse this CSV data and convert it into a structured JSON array of objects.
 
-The first row of the CSV is the header row. The expected headers are:
-itemName,sharedItemType,defaultCategory,defaultUnit,brand,mrp,defaultImageUrl,description,barcode
+The first row of the CSV is the header row. The headers might be different from the target schema.
+You must intelligently map the source columns to the target schema fields. Here are the mapping rules:
+- 'Name' or 'itemName' should be mapped to 'itemName'.
+- 'Brand' or 'brand' should be mapped to 'brand'.
+- 'Price' or 'mrp' should be mapped to 'mrp'. Ensure it is a number.
+- 'Category' (the main one) should be mapped to 'sharedItemType'. It MUST be one of 'grocery', 'medical', 'liquor', 'other'. If you see something else like 'Electronics', map it to 'other'.
+- 'SubCategory' or 'defaultCategory' should be mapped to 'defaultCategory'. If it contains slashes or arrows (e.g., 'Grocery/Dry Fruits'), use the last part ('Dry Fruits').
+- 'Quantity' or 'defaultUnit' should be mapped to 'defaultUnit'. Extract the unit part (e.g., from '500 gm', use '500 gm').
+- 'Description' or 'description' should be mapped to 'description'.
+- 'defaultImageUrl' and 'barcode' should be mapped if present.
 
-- You must handle cases where some optional fields (like brand, mrp, defaultImageUrl, description, barcode) might be empty.
-- The 'sharedItemType' MUST be one of the following values: 'grocery', 'medical', 'liquor', 'other'. If you encounter a different value, map it to 'other'.
-- The 'mrp' field should be parsed as a number. If it is empty or invalid, omit it from the output for that item.
+- You must handle cases where some optional fields (like brand, defaultImageUrl, description, barcode) might be empty.
 - Clean up any leading/trailing whitespace from the values.
 - If a row is malformed or empty, skip it.
 
