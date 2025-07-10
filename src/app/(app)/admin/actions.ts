@@ -126,31 +126,33 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
     try {
         const batch = writeBatch(db);
 
-        // 1. Delete the vendor document
-        const vendorRef = doc(db, 'vendors', vendorId);
-        batch.delete(vendorRef);
-        console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
-
-        // 2. Find and delete all inventory items for that vendor from the subcollection
+        // 1. Find and stage deletion for all inventory items for that vendor
         const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
         const inventoryQuery = query(inventoryCollectionRef);
         const inventorySnapshot = await getDocs(inventoryQuery);
         
+        let deletedItemsCount = 0;
         if (!inventorySnapshot.empty) {
             inventorySnapshot.forEach(docSnap => {
                 batch.delete(docSnap.ref);
+                deletedItemsCount++;
             });
-            console.log(`[AdminActions] Staged deletion of ${inventorySnapshot.size} inventory items for vendor: ${vendorId}`);
+            console.log(`[AdminActions] Staged deletion of ${deletedItemsCount} inventory items for vendor: ${vendorId}`);
         } else {
             console.log(`[AdminActions] No inventory items found for vendor: ${vendorId}`);
         }
         
-        // 3. Commit all deletes in a single batch
+        // 2. Stage deletion for the vendor document itself
+        const vendorRef = doc(db, 'vendors', vendorId);
+        batch.delete(vendorRef);
+        console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
+        
+        // 3. Commit all deletes in a single atomic operation
         await batch.commit();
 
         console.log(`[AdminActions] Successfully deleted vendor ${vendorId} and their inventory.`);
         revalidatePath('/admin');
-        return { success: true, message: `Vendor and their ${inventorySnapshot.size} inventory items have been deleted.` };
+        return { success: true, message: `Vendor and their ${deletedItemsCount} inventory items have been deleted.` };
 
     } catch (error) {
         console.error(`[AdminActions] Error during deletion of vendor ${vendorId}:`, error);
@@ -158,4 +160,3 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
         return { success: false, error: `Failed to delete vendor: ${errorMessage}` };
     }
 }
-

@@ -30,7 +30,7 @@ const EditVendorSchema = z.object({
   shopName: z.string().min(1, "Shop name is required."),
   ownerName: z.string().min(1, "Owner name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.boolean().default(true),
+  isActiveOnThru: z.boolean().default(false),
 });
 
 type EditVendorSchemaType = z.infer<typeof EditVendorSchema>;
