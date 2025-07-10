@@ -704,10 +704,19 @@ export type BulkSaveFormState = {
     itemsAdded?: number;
 };
 
+async function isAdmin() {
+    const session = await getSession();
+    return session?.role === 'admin';
+}
+
 export async function handleBulkSaveItems(
     prevState: BulkSaveFormState,
     formData: FormData
 ): Promise<BulkSaveFormState> {
+    if (!await isAdmin()) {
+        return { error: "You are not authorized to perform this action." };
+    }
+
     const itemsJson = formData.get('itemsJson') as string;
     if (!itemsJson) {
         return { error: "No items to save." };

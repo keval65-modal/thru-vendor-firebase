@@ -14,11 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { Shield, Loader2, Edit, Trash2, UserX } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, UserX, FileUp } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getAllVendors, updateVendorByAdmin, deleteVendorAndInventory, type UpdateVendorByAdminFormState, type DeleteVendorFormState } from './actions';
+import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
 
@@ -171,9 +172,18 @@ export default function AdminPage() {
     return (
         <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center"><Shield className="mr-2 h-6 w-6 text-primary" /> Admin Panel - Vendor Management</CardTitle>
-                    <CardDescription>View, edit, or remove vendors from the platform.</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center"><Shield className="mr-2 h-6 w-6 text-primary" /> Admin Panel - Vendor Management</CardTitle>
+                        <CardDescription>View, edit, or remove vendors from the platform.</CardDescription>
+                    </div>
+                    <div>
+                        <BulkAddDialog onItemsAdded={() => {
+                            toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
+                        }}>
+                             <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Global Items</Button>
+                        </BulkAddDialog>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
