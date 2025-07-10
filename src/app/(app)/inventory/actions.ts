@@ -691,6 +691,7 @@ export async function handleCsvUpload(
   try {
     const csvData = await csvFile.text();
     console.log(`DEBUG: handleCsvUpload - CSV data read, length: ${csvData.length}. First 100 chars: ${csvData.substring(0, 100)}`);
+    
     console.log('DEBUG: handleCsvUpload - Calling parseCsvData AI flow...');
     const result = await parseCsvData({ csvData });
     
