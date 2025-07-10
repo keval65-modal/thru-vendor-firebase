@@ -679,15 +679,16 @@ export async function handleCsvUpload(
   prevState: CsvParseFormState,
   formData: FormData
 ): Promise<CsvParseFormState> {
-  const csvData = formData.get('csvData') as string;
-  if (!csvData || csvData.trim().length === 0) {
-    return { error: "CSV data cannot be empty." };
+  const csvFile = formData.get('csvFile') as File;
+  if (!csvFile || csvFile.size === 0) {
+    return { error: "CSV file is required." };
   }
   
   try {
+    const csvData = await csvFile.text();
     const result = await parseCsvData({ csvData });
     if (!result || !result.parsedItems) {
-      return { error: "AI failed to parse items. The format might be incorrect." };
+      return { error: "AI failed to parse items from the CSV file. The format might be incorrect." };
     }
     return { parsedItems: result.parsedItems, message: `Successfully parsed ${result.parsedItems.length} items for preview.` };
   } catch(error) {

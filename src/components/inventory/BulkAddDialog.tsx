@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Sparkles, Save, FileUp } from 'lucide-react';
+import { Loader2, Sparkles, Save, FileUp, UploadCloud } from 'lucide-react';
 import { handleCsvUpload, type CsvParseFormState, handleBulkSaveItems, type BulkSaveFormState } from '@/app/(app)/inventory/actions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,10 +25,15 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
     const [bulkSaveState, bulkSaveFormAction, isSaving] = useActionState(handleBulkSaveItems, initialBulkSaveState);
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
+    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (csvParseState.error) {
             toast({ variant: "destructive", title: "Parsing Error", description: csvParseState.error });
+        }
+        if (csvParseState.message) {
+            toast({ title: "Parsing Complete", description: csvParseState.message });
         }
     }, [csvParseState, toast]);
 
@@ -43,12 +48,10 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
         }
     }, [bulkSaveState, toast, onItemsAdded]);
 
-    // Example CSV content tailored for the Kaggle dataset structure
-    const exampleCsv = `Name,Brand,Price,Category,SubCategory,Quantity,Description
-Premia Badam (Almonds),Premia,451,Grocery,Dry Fruits,500 gm,"Premium quality almonds"
-Parle-G Gold,Parle,120,Grocery,Biscuits,1kg pack,"The original gluco biscuit"
-Crocin Pain Relief,GSK,55.50,Medical,Tablets,15 tablets,"For headache and body pain"
-`;
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        setSelectedFileName(file ? file.name : null);
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -57,28 +60,33 @@ Crocin Pain Relief,GSK,55.50,Medical,Tablets,15 tablets,"For headache and body p
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle>Bulk Add Global Items via CSV</DialogTitle>
+                    <DialogTitle>Bulk Add Global Items via CSV File</DialogTitle>
                     <DialogDescription>
-                        Paste CSV data to add multiple items to the global catalog at once. The AI will map columns automatically.
+                        Upload a CSV file to add multiple items to the global catalog at once. The AI will map columns automatically.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <form action={csvParseFormAction} className="space-y-4">
-                            <Label htmlFor="csvData">Paste CSV Data</Label>
-                            <Textarea
-                                id="csvData"
-                                name="csvData"
-                                rows={10}
-                                placeholder="Paste your comma-separated data here..."
-                                className="font-mono text-sm"
-                                defaultValue={exampleCsv}
+                            <Label htmlFor="csvFile">Upload CSV File</Label>
+                            <Input
+                                id="csvFile"
+                                name="csvFile"
+                                type="file"
+                                accept=".csv"
+                                required
                                 disabled={isParsing}
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                             />
+                            {selectedFileName && (
+                                <p className="text-xs text-muted-foreground">Selected file: {selectedFileName}</p>
+                            )}
                              <p className="text-xs text-muted-foreground">
-                                Headers like `Name`, `Price`, `Category`, `SubCategory`, and `Quantity` will be automatically mapped by the AI.
+                                Ensure your CSV has headers like `Name`, `Price`, `Category`, `SubCategory`, and `Quantity`.
                              </p>
-                            <Button type="submit" disabled={isParsing} className="w-full">
+                            <Button type="submit" disabled={isParsing || !selectedFileName} className="w-full">
                                 {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                 Parse & Preview Items
                             </Button>
@@ -114,7 +122,7 @@ Crocin Pain Relief,GSK,55.50,Medical,Tablets,15 tablets,"For headache and body p
                                 </>
                             ) : (
                                 <div className="flex items-center justify-center h-full">
-                                    <p className="text-sm text-muted-foreground">Waiting for data to preview...</p>
+                                    <p className="text-sm text-muted-foreground">Waiting for file to preview...</p>
                                 </div>
                             )}
                         </div>
