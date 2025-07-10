@@ -679,33 +679,34 @@ export async function handleCsvUpload(
   prevState: CsvParseFormState,
   formData: FormData
 ): Promise<CsvParseFormState> {
-  console.log('DEBUG: handleCsvUpload server action started.');
+  console.log('DEBUG: [handleCsvUpload] ----------------- ACTION STARTED -----------------');
   const csvFile = formData.get('csvFile') as File;
 
   if (!csvFile || csvFile.size === 0) {
-    console.error('DEBUG: handleCsvUpload - No CSV file found or file is empty.');
+    console.error('DEBUG: [handleCsvUpload] No CSV file found or file is empty.');
     return { error: "CSV file is required." };
   }
-  console.log(`DEBUG: handleCsvUpload - Received file: ${csvFile.name}, size: ${csvFile.size}`);
+  console.log(`DEBUG: [handleCsvUpload] Received file: ${csvFile.name}, size: ${csvFile.size}`);
   
   try {
     const csvData = await csvFile.text();
-    console.log(`DEBUG: handleCsvUpload - CSV data read, length: ${csvData.length}. First 100 chars: ${csvData.substring(0, 100)}`);
+    console.log(`DEBUG: [handleCsvUpload] CSV data read successfully. Length: ${csvData.length}.`);
+    console.log(`DEBUG: [handleCsvUpload] ----- First 200 chars of CSV data -----\n${csvData.substring(0, 200)}\n------------------------------------------`);
     
-    console.log('DEBUG: handleCsvUpload - Calling parseCsvData AI flow...');
+    console.log('DEBUG: [handleCsvUpload] Calling parseCsvData AI flow...');
     const result = await parseCsvData({ csvData });
     
     if (!result || !result.parsedItems) {
-      console.error('DEBUG: handleCsvUpload - AI failed to parse items. Result was:', result);
+      console.error('DEBUG: [handleCsvUpload] AI failed to parse items. Result was:', result);
       return { error: "AI failed to parse items from the CSV file. The format might be incorrect." };
     }
     
-    console.log(`DEBUG: handleCsvUpload - AI parsing successful. Parsed ${result.parsedItems.length} items.`);
+    console.log(`DEBUG: [handleCsvUpload] AI parsing successful. Parsed ${result.parsedItems.length} items.`);
     return { parsedItems: result.parsedItems, message: `Successfully parsed ${result.parsedItems.length} items for preview.` };
   } catch(error) {
-    console.error('DEBUG: handleCsvUpload - CRITICAL ERROR during processing:', error);
+    console.error('DEBUG: [handleCsvUpload] CRITICAL ERROR during processing:', error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
-    return { error: errorMessage };
+    throw new Error(errorMessage);
   }
 }
 

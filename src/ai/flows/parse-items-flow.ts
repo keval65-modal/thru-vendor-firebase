@@ -75,15 +75,29 @@ const parseItemsFlow = ai.defineFlow(
     outputSchema: ParseCsvOutputSchema,
   },
   async (input) => {
+    console.log(`DEBUG: [parseItemsFlow] ----------------- FLOW STARTED -----------------`);
     console.log(`DEBUG: [parseItemsFlow] Starting CSV parsing. Input length: ${input.csvData.length}`);
     try {
-      const { output } = await prompt(input);
+      console.log(`DEBUG: [parseItemsFlow] Calling the AI prompt...`);
+      const response = await prompt.generate(input);
+      const output = response.output();
+      
+      console.log(`DEBUG: [parseItemsFlow] Raw AI output received:`, JSON.stringify(output, null, 2));
+
       if (!output) {
         console.error("DEBUG: [parseItemsFlow] The AI model did not return any output.");
         throw new Error("AI model returned no output for CSV parsing.");
       }
+      if (!output.parsedItems) {
+        console.warn("DEBUG: [parseItemsFlow] AI output is missing 'parsedItems'.");
+         // Return a valid empty structure if items are missing
+        return { parsedItems: [] };
+      }
+      
       console.log(`DEBUG: [parseItemsFlow] Successfully parsed ${output.parsedItems.length} items from CSV.`);
+      console.log(`DEBUG: [parseItemsFlow] ----------------- FLOW FINISHED -----------------`);
       return output;
+
     } catch (error) {
       console.error(`DEBUG: [parseItemsFlow] CRITICAL ERROR during Genkit prompt execution:`, error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
