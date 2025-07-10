@@ -19,6 +19,7 @@ import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getAllVendors, updateVendorByAdmin, deleteVendorAndInventory, type UpdateVendorByAdminFormState, type DeleteVendorFormState } from './actions';
+import { getSession } from '@/lib/auth';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
@@ -164,6 +165,7 @@ export default function AdminPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [userRole, setUserRole] = useState<'vendor' | 'admin' | undefined>();
     
     // Centralize all action states in the main component
     const [updateState, updateFormAction, isUpdating] = useActionState(updateVendorByAdmin, initialUpdateState);
@@ -181,6 +183,10 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
+        // Fetch user role to conditionally render admin-only features
+        getSession().then(session => {
+            setUserRole(session?.role);
+        });
         fetchVendors();
     }, []);
 
@@ -209,13 +215,15 @@ export default function AdminPage() {
                         <CardTitle className="flex items-center"><Shield className="mr-2 h-6 w-6 text-primary" /> Admin Panel - Vendor Management</CardTitle>
                         <CardDescription>View, edit, or remove vendors from the platform.</CardDescription>
                     </div>
-                    <div>
-                        <BulkAddDialog onItemsAdded={() => {
-                            toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
-                        }}>
-                             <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Global Items</Button>
-                        </BulkAddDialog>
-                    </div>
+                    {userRole === 'admin' && (
+                        <div>
+                            <BulkAddDialog onItemsAdded={() => {
+                                toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
+                            }}>
+                                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Global Items</Button>
+                            </BulkAddDialog>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <Table>
