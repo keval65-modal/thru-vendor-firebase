@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useActionState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,11 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { Shield, Loader2, Edit, Trash2, UserX, FileUp } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, FileUp } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getAllVendors, updateVendorByAdmin, deleteVendorAndInventory, type UpdateVendorByAdminFormState, type DeleteVendorFormState } from './actions';
+import { getAllVendors, updateVendorByAdmin, deleteVendorAndInventory } from './actions';
 import { getSession } from '@/lib/auth';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 
@@ -34,8 +34,6 @@ const EditVendorSchema = z.object({
 });
 
 type EditVendorSchemaType = z.infer<typeof EditVendorSchema>;
-
-const initialDeleteState: DeleteVendorFormState = {};
 
 // --- Edit Vendor Dialog Component ---
 interface EditVendorDialogProps {
@@ -151,9 +149,7 @@ export default function AdminPage() {
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [userRole, setUserRole] = useState<'vendor' | 'admin' | undefined>();
-    
-    // Action state for delete form
-    const [deleteState, deleteFormAction, isDeleting] = useActionState(deleteVendorAndInventory, initialDeleteState);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchVendors = async () => {
         setIsLoading(true);
@@ -173,21 +169,21 @@ export default function AdminPage() {
         fetchVendors();
     }, []);
 
-    useEffect(() => {
-        if (!isDeleting && deleteState?.message) {
-             if (deleteState.success) {
-                toast({ title: "Success", description: deleteState.message });
-                fetchVendors(); // Refresh the list
-            }
-        }
-        if (!isDeleting && deleteState?.error) {
-            toast({ variant: "destructive", title: "Error", description: deleteState.error });
-        }
-    }, [deleteState, isDeleting, toast]);
-
     const handleEditClick = (vendor: Vendor) => {
         setEditingVendor(vendor);
         setIsEditDialogOpen(true);
+    };
+    
+    const handleDeleteVendor = async (vendorId: string) => {
+        setIsDeleting(true);
+        const result = await deleteVendorAndInventory(vendorId);
+        if (result.success) {
+            toast({ title: "Success", description: result.message });
+            fetchVendors(); // Refresh list
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.error });
+        }
+        setIsDeleting(false);
     };
 
     return (
@@ -250,24 +246,21 @@ export default function AdminPage() {
                                                     </Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <form action={deleteFormAction}>
-                                                        <input type="hidden" name="vendorId" value={vendor.id} />
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the vendor
-                                                                <strong className="mx-1">{vendor.shopName}</strong>
-                                                                and all associated inventory items. The user will need to be deleted from Firebase Authentication manually.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction type="submit" disabled={isDeleting}>
-                                                                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                Delete Vendor
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </form>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the vendor
+                                                            <strong className="mx-1">{vendor.shopName}</strong>
+                                                            and all associated inventory items. The user will need to be deleted from Firebase Authentication manually.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteVendor(vendor.id)} disabled={isDeleting}>
+                                                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                            Delete Vendor
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
                                         </TableCell>

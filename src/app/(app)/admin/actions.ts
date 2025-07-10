@@ -11,6 +11,7 @@ import {
   updateDoc,
   Timestamp,
   writeBatch,
+  deleteDoc,
 } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
@@ -101,8 +102,8 @@ export async function updateVendorByAdmin(
 }
 
 
-export type DeleteVendorFormState = {
-    success?: boolean;
+export type DeleteVendorResult = {
+    success: boolean;
     error?: string;
     message?: string;
 };
@@ -111,17 +112,13 @@ export type DeleteVendorFormState = {
  * Deletes a vendor and all their inventory items.
  * WARNING: This does NOT delete the user from Firebase Auth. That must be done manually.
  */
-export async function deleteVendorAndInventory(
-    prevState: DeleteVendorFormState,
-    formData: FormData
-): Promise<DeleteVendorFormState> {
+export async function deleteVendorAndInventory(vendorId: string): Promise<DeleteVendorResult> {
     if (!await isAdmin()) {
-        return { error: "You are not authorized to perform this action." };
+        return { success: false, error: "You are not authorized to perform this action." };
     }
 
-    const vendorId = formData.get('vendorId') as string;
     if (!vendorId) {
-        return { error: 'Vendor ID is missing.' };
+        return { success: false, error: 'Vendor ID is missing.' };
     }
     
     console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
@@ -158,6 +155,7 @@ export async function deleteVendorAndInventory(
     } catch (error) {
         console.error(`[AdminActions] Error during deletion of vendor ${vendorId}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        return { error: `Failed to delete vendor: ${errorMessage}` };
+        return { success: false, error: `Failed to delete vendor: ${errorMessage}` };
     }
 }
+
