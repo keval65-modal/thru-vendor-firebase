@@ -11,11 +11,12 @@ import {
   updateDoc,
   Timestamp,
   writeBatch,
-  deleteDoc,
+  getDoc,
 } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 // NOTE: A proper admin system would have role-based access control.
 // This function now enforces that the user has the 'admin' role.
@@ -55,11 +56,10 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
 }
 
 const UpdateVendorByAdminSchema = z.object({
-  vendorId: z.string().min(1, "Vendor ID is required."),
   shopName: z.string().min(1, "Shop name is required."),
   ownerName: z.string().min(1, "Owner name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.boolean().default(false),
+  isActiveOnThru: z.preprocess((val) => val === 'on' || val === true, z.boolean()),
 });
 
 export type UpdateVendorByAdminFormState = {
@@ -70,28 +70,40 @@ export type UpdateVendorByAdminFormState = {
 };
 
 /**
- * Updates a vendor's details from the admin panel.
- * Receives validated data from a client component form.
+ * Updates a vendor's details from the dedicated admin edit page.
  */
 export async function updateVendorByAdmin(
-    data: z.infer<typeof UpdateVendorByAdminSchema>
+    vendorId: string,
+    prevState: UpdateVendorByAdminFormState,
+    formData: FormData
 ): Promise<UpdateVendorByAdminFormState> {
     if (!await isAdmin()) {
         return { error: "You are not authorized to perform this action." };
     }
     
-    // Data is already parsed and validated by react-hook-form on the client
-    const { vendorId, ...updates } = data;
+    const validatedFields = UpdateVendorByAdminSchema.safeParse(
+        Object.fromEntries(formData.entries())
+    );
+    
+    if (!validatedFields.success) {
+        return {
+            error: "Invalid data submitted.",
+            fields: validatedFields.error.flatten().fieldErrors,
+        };
+    }
+    
+    const updates = validatedFields.data;
 
     try {
         const vendorRef = doc(db, 'vendors', vendorId);
         await updateDoc(vendorRef, {
             ...updates,
-            type: updates.storeCategory, // Ensure `type` mirrors `storeCategory`
+            type: updates.storeCategory,
             updatedAt: Timestamp.now(),
         });
         
         revalidatePath('/admin');
+        revalidatePath(`/admin/${vendorId}/edit`);
         return { success: true, message: "Vendor updated successfully." };
 
     } catch (error) {
@@ -159,4 +171,35 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return { success: false, error: `Failed to delete vendor: ${errorMessage}` };
     }
+}
+
+
+/**
+ * Fetches a single vendor's details for the edit page.
+ */
+export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor, error?: string }> {
+  if (!await isAdmin()) {
+    redirect('/dashboard');
+  }
+
+  try {
+    const vendorRef = doc(db, 'vendors', vendorId);
+    const vendorSnap = await getDoc(vendorRef);
+    if (!vendorSnap.exists()) {
+      return { error: 'Vendor not found.' };
+    }
+    const vendorData = vendorSnap.data();
+    return {
+      vendor: {
+        id: vendorSnap.id,
+        ...vendorData,
+        createdAt: vendorData.createdAt instanceof Timestamp ? vendorData.createdAt.toDate().toISOString() : vendorData.createdAt,
+        updatedAt: vendorData.updatedAt instanceof Timestamp ? vendorData.updatedAt.toDate().toISOString() : vendorData.updatedAt,
+      } as Vendor
+    };
+  } catch (error) {
+    console.error(`[AdminActions] Error fetching vendor ${vendorId} for editing:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return { error: `Failed to fetch vendor: ${errorMessage}` };
+  }
 }

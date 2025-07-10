@@ -1,155 +1,31 @@
 
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Switch } from "@/components/ui/switch";
 import { Shield, Loader2, Edit, Trash2, FileUp } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getAllVendors, updateVendorByAdmin, deleteVendorAndInventory } from './actions';
+import { getAllVendors, deleteVendorAndInventory } from './actions';
 import { getSession } from '@/lib/auth';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
-
-// Schema for the Edit Vendor form
-const EditVendorSchema = z.object({
-  vendorId: z.string().min(1, "Vendor ID is required."),
-  shopName: z.string().min(1, "Shop name is required."),
-  ownerName: z.string().min(1, "Owner name is required."),
-  storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.boolean().default(false),
-});
-
-type EditVendorSchemaType = z.infer<typeof EditVendorSchema>;
-
-// --- Edit Vendor Dialog Component ---
-interface EditVendorDialogProps {
-    vendor: Vendor | null;
-    isOpen: boolean;
-    onOpenChange: (isOpen: boolean) => void;
-    onVendorUpdate: () => void;
-}
-
-function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate }: EditVendorDialogProps) {
-    const { toast } = useToast();
-    const [isUpdating, setIsUpdating] = useState(false);
-    
-    const form = useForm<EditVendorSchemaType>({
-        resolver: zodResolver(EditVendorSchema),
-        defaultValues: {
-            vendorId: '',
-            shopName: '',
-            ownerName: '',
-            storeCategory: '',
-            isActiveOnThru: true,
-        },
-    });
-
-    useEffect(() => {
-        if (vendor) {
-            form.reset({
-                vendorId: vendor.id,
-                shopName: vendor.shopName,
-                ownerName: vendor.ownerName,
-                storeCategory: vendor.storeCategory,
-                isActiveOnThru: vendor.isActiveOnThru ?? true,
-            });
-        }
-    }, [vendor, form, isOpen]); // Rerun effect when dialog opens
-
-    const handleFormSubmit = async (data: EditVendorSchemaType) => {
-        setIsUpdating(true);
-        const result = await updateVendorByAdmin(data);
-        setIsUpdating(false);
-
-        if (result.success) {
-            toast({ title: "Success", description: result.message });
-            onVendorUpdate();
-            onOpenChange(false);
-        }
-        if (result.error) {
-            toast({ variant: "destructive", title: "Error", description: result.error });
-        }
-    };
-
-    if (!vendor) return null;
-
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Edit Vendor: {vendor.shopName}</DialogTitle>
-                </DialogHeader>
-                <Form {...form}>
-                    <form 
-                        onSubmit={form.handleSubmit(handleFormSubmit)}
-                        className="space-y-4"
-                    >
-                        <FormField control={form.control} name="shopName" render={({ field }) => (
-                            <FormItem><FormLabel>Shop Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="ownerName" render={({ field }) => (
-                            <FormItem><FormLabel>Owner Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="storeCategory" render={({ field }) => (
-                            <FormItem><FormLabel>Store Category</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                    <SelectContent>{storeCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                                </Select>
-                            <FormMessage /></FormItem>
-                        )} />
-                        <FormField control={form.control} name="isActiveOnThru" render={({ field }) => (
-                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                 <div className="space-y-0.5">
-                                     <FormLabel>Active on Thru</FormLabel>
-                                     <FormDescription>Controls if the vendor is visible to customers.</FormDescription>
-                                 </div>
-                                 <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                 </FormControl>
-                             </FormItem>
-                         )} />
-
-                        <DialogFooter>
-                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                            <Button type="submit" disabled={isUpdating}>
-                                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Save Changes
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 // --- Main Admin Page Component ---
 export default function AdminPage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [userRole, setUserRole] = useState<'vendor' | 'admin' | undefined>();
     const [isDeleting, setIsDeleting] = useState(false);
+    const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
 
     const fetchVendors = async () => {
         setIsLoading(true);
@@ -169,16 +45,16 @@ export default function AdminPage() {
         fetchVendors();
     }, []);
 
-    const handleEditClick = (vendor: Vendor) => {
-        setEditingVendor(vendor);
-        setIsEditDialogOpen(true);
-    };
-    
-    const handleDeleteVendor = async (vendorId: string) => {
+    const handleDeleteVendor = async (vendorId: string | undefined) => {
+        if (!vendorId) {
+            toast({ variant: "destructive", title: "Error", description: "Vendor ID is missing." });
+            return;
+        }
         setIsDeleting(true);
         const result = await deleteVendorAndInventory(vendorId);
         if (result.success) {
             toast({ title: "Success", description: result.message });
+            setVendorToDelete(null); // Close dialog
             fetchVendors(); // Refresh list
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
@@ -236,12 +112,14 @@ export default function AdminPage() {
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-right space-x-2">
-                                            <Button variant="outline" size="icon" onClick={() => handleEditClick(vendor)}>
-                                                <Edit className="h-4 w-4" />
+                                            <Button variant="outline" size="icon" asChild>
+                                                <Link href={`/admin/${vendor.id}/edit`}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Link>
                                             </Button>
-                                            <AlertDialog>
+                                            <AlertDialog open={vendorToDelete?.id === vendor.id} onOpenChange={(isOpen) => !isOpen && setVendorToDelete(null)}>
                                                 <AlertDialogTrigger asChild>
-                                                    <Button variant="destructive" size="icon">
+                                                    <Button variant="destructive" size="icon" onClick={() => setVendorToDelete(vendor)}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </AlertDialogTrigger>
@@ -251,11 +129,11 @@ export default function AdminPage() {
                                                         <AlertDialogDescription>
                                                             This action cannot be undone. This will permanently delete the vendor
                                                             <strong className="mx-1">{vendor.shopName}</strong>
-                                                            and all associated inventory items. The user will need to be deleted from Firebase Authentication manually.
+                                                            and all associated inventory items. The user account must be deleted separately.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => handleDeleteVendor(vendor.id)} disabled={isDeleting}>
                                                             {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                             Delete Vendor
@@ -275,13 +153,6 @@ export default function AdminPage() {
                     </Table>
                 </CardContent>
             </Card>
-
-            <EditVendorDialog
-                vendor={editingVendor}
-                isOpen={isEditDialogOpen}
-                onOpenChange={setIsEditDialogOpen}
-                onVendorUpdate={fetchVendors}
-            />
         </div>
     );
 }
