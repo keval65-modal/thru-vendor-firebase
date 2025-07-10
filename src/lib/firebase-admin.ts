@@ -7,19 +7,29 @@ function getAdminApp() {
     return admin.apps[0] as admin.app.App;
   }
 
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!serviceAccount) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set or accessible on the server. This is required for server-side actions.');
-  }
-
   try {
-    const serviceAccountJson = JSON.parse(serviceAccount);
+    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!serviceAccountString || serviceAccountString.trim() === '') {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set or is empty.');
+    }
+
+    const serviceAccountJson = JSON.parse(serviceAccountString);
+    
     return admin.initializeApp({
       credential: admin.credential.cert(serviceAccountJson),
     });
+
   } catch (error: any) {
-    console.error("[Firebase Admin] Error parsing FIREBASE_SERVICE_ACCOUNT. Ensure it's a valid, non-empty JSON string.", error);
-    throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
+    let errorMessage = `Failed to initialize Firebase Admin SDK.`;
+    if (error.message.includes('JSON.parse')) {
+        errorMessage += ' The FIREBASE_SERVICE_ACCOUNT environment variable is likely not valid JSON.';
+    } else {
+        errorMessage += ` Details: ${error.message}`;
+    }
+    console.error("[CRITICAL] FIREBASE ADMIN INIT FAILED:", errorMessage);
+    // Instead of crashing, we throw to prevent further execution that depends on adminDb
+    // The detailed console log is the key part for debugging.
+    throw new Error(errorMessage);
   }
 }
 
