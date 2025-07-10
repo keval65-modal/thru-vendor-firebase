@@ -9,7 +9,7 @@ function getAdminApp() {
 
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccount) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set.');
+    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set or accessible on the server.');
   }
 
   try {
@@ -18,7 +18,7 @@ function getAdminApp() {
       credential: admin.credential.cert(serviceAccountJson),
     });
   } catch (error: any) {
-    console.error("Error parsing FIREBASE_SERVICE_ACCOUNT:", error);
+    console.error("Error parsing FIREBASE_SERVICE_ACCOUNT. Ensure it's a valid JSON string.", error);
     throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`);
   }
 }

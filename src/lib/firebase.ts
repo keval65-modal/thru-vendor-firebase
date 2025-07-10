@@ -4,8 +4,6 @@ import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
-// This file is now ONLY for CLIENT-SIDE Firebase initialization.
-
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -21,14 +19,21 @@ let auth: Auth;
 let db: Firestore;
 let storage: FirebaseStorage;
 
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
+// This function ensures Firebase is initialized only once, and only on the client-side.
+function initializeClientApp() {
+    if (getApps().length === 0) {
+        return initializeApp(firebaseConfig);
+    } else {
+        return getApp();
+    }
 }
 
-auth = getAuth(app);
-db = getFirestore(app);
-storage = getStorage(app);
+if (typeof window !== 'undefined') {
+    app = initializeClientApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+}
 
+// Export the initialized services for client-side use
 export { app, auth, db, storage };
