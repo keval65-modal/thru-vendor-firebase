@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Shield, Loader2, Edit, Trash2, UserX, FileUp } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
@@ -49,6 +49,7 @@ interface EditVendorDialogProps {
 
 function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, updateAction, updateState, isUpdating }: EditVendorDialogProps) {
     const { toast } = useToast();
+    const formRef = useRef<HTMLFormElement>(null);
     
     const form = useForm<z.infer<typeof EditVendorSchema>>({
         resolver: zodResolver(EditVendorSchema),
@@ -69,18 +70,20 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
                 isActiveOnThru: vendor.isActiveOnThru ?? true,
             });
         }
-    }, [vendor, form]);
+    }, [vendor, form, isOpen]); // Rerun effect when dialog opens
 
     useEffect(() => {
-        if (updateState.success) {
-            toast({ title: "Success", description: updateState.message });
-            onVendorUpdate();
-            onOpenChange(false);
+        if (!isUpdating) { // Only show toasts when the action is not pending
+            if (updateState.success) {
+                toast({ title: "Success", description: updateState.message });
+                onVendorUpdate();
+                onOpenChange(false);
+            }
+            if (updateState.error) {
+                toast({ variant: "destructive", title: "Error", description: updateState.error });
+            }
         }
-        if (updateState.error) {
-            toast({ variant: "destructive", title: "Error", description: updateState.error });
-        }
-    }, [updateState, toast, onVendorUpdate, onOpenChange]);
+    }, [updateState, isUpdating, toast, onVendorUpdate, onOpenChange]);
 
     if (!vendor) return null;
 
@@ -91,7 +94,23 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
                     <DialogTitle>Edit Vendor: {vendor.shopName}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <form action={updateAction} className="space-y-4">
+                    <form 
+                        ref={formRef} 
+                        action={updateAction} 
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(formRef.current!);
+                            // React-hook-form doesn't set checked state on the native element for switch,
+                            // so we need to manually set it for FormData if checked
+                            if (form.getValues('isActiveOnThru')) {
+                                formData.set('isActiveOnThru', 'on');
+                            } else {
+                                formData.delete('isActiveOnThru');
+                            }
+                            updateAction(updateState, formData);
+                        }}
+                        className="space-y-4"
+                    >
                         <input type="hidden" name="vendorId" value={vendor.id} />
                         <FormField control={form.control} name="shopName" render={({ field }) => (
                             <FormItem><FormLabel>Shop Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -114,8 +133,6 @@ function EditVendorDialog({ vendor, isOpen, onOpenChange, onVendorUpdate, update
                                      <FormDescription>Controls if the vendor is visible to customers.</FormDescription>
                                  </div>
                                  <FormControl>
-                                    {/* The hidden input ensures a value is sent even when unchecked */}
-                                    <input type="hidden" name={field.name} value="off" />
                                     <Switch
                                         name={field.name}
                                         checked={field.value}
@@ -168,14 +185,16 @@ export default function AdminPage() {
     }, []);
 
     useEffect(() => {
-        if (deleteState.success) {
-            toast({ title: "Success", description: deleteState.message });
-            fetchVendors(); // Refresh the list
+        if (!isDeleting) {
+            if (deleteState.success) {
+                toast({ title: "Success", description: deleteState.message });
+                fetchVendors(); // Refresh the list
+            }
+            if (deleteState.error) {
+                toast({ variant: "destructive", title: "Error", description: deleteState.error });
+            }
         }
-        if (deleteState.error) {
-            toast({ variant: "destructive", title: "Error", description: deleteState.error });
-        }
-    }, [deleteState, toast]);
+    }, [deleteState, isDeleting, toast]);
 
     const handleEditClick = (vendor: Vendor) => {
         setEditingVendor(vendor);

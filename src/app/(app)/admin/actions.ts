@@ -84,13 +84,7 @@ export async function updateVendorByAdmin(
 
     const rawData = Object.fromEntries(formData.entries());
     
-    // Explicitly check for 'isActiveOnThru' because unchecked boxes are not sent in FormData
-    const isActive = rawData.isActiveOnThru === 'on';
-    
-    const validatedFields = UpdateVendorByAdminSchema.safeParse({
-        ...rawData,
-        isActiveOnThru: isActive, // Use the derived boolean value
-    });
+    const validatedFields = UpdateVendorByAdminSchema.safeParse(rawData);
 
     if (!validatedFields.success) {
         return {
