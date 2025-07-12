@@ -17,19 +17,12 @@ const dbCheck = () => {
     return db;
 }
 
-// NOTE: A proper admin system would have role-based access control.
-// This function now enforces that the user has the 'admin' role.
-async function isAdmin() {
-    const session = await getSession();
-    // A proper admin check verifies the user's role.
-    return session?.role === 'admin';
-}
-
 /**
  * Fetches all vendors from the 'vendors' collection.
  */
 export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
-  if (!await isAdmin()) {
+  const session = await getSession();
+  if (session?.role !== 'admin') {
     return { error: "You are not authorized to perform this action." };
   }
 
@@ -77,7 +70,8 @@ export async function updateVendorByAdmin(
     prevState: UpdateVendorByAdminFormState,
     formData: FormData
 ): Promise<UpdateVendorByAdminFormState> {
-    if (!await isAdmin()) {
+    const session = await getSession();
+    if (session?.role !== 'admin') {
         return { error: "You are not authorized to perform this action." };
     }
     
@@ -126,7 +120,8 @@ export type DeleteVendorResult = {
  * WARNING: This does NOT delete the user from Firebase Auth. That must be done manually.
  */
 export async function deleteVendorAndInventory(vendorId: string): Promise<DeleteVendorResult> {
-    if (!await isAdmin()) {
+    const session = await getSession();
+    if (session?.role !== 'admin') {
         return { success: false, error: "You are not authorized to perform this action." };
     }
 
@@ -179,7 +174,8 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
  * Fetches a single vendor's details for the edit page.
  */
 export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor, error?: string }> {
-  if (!await isAdmin()) {
+  const session = await getSession();
+  if (session?.role !== 'admin') {
     redirect('/dashboard');
   }
 

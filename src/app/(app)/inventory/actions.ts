@@ -717,17 +717,13 @@ export type BulkSaveFormState = {
     itemsAdded?: number;
 };
 
-async function isAdmin() {
-    const session = await getSession();
-    return session?.role === 'admin';
-}
-
 export async function handleBulkSaveItems(
     prevState: BulkSaveFormState,
     formData: FormData
 ): Promise<BulkSaveFormState> {
     console.log('DEBUG: handleBulkSaveItems server action started.');
-    if (!await isAdmin()) {
+    const session = await getSession();
+    if (session?.role !== 'admin') {
         console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
         return { error: "You are not authorized to perform this action." };
     }
@@ -782,5 +778,3 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
-
-    
