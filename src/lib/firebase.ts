@@ -16,17 +16,21 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase for client-side
-let app: FirebaseApp;
-if (getApps().length === 0) {
-    if (!firebaseConfig.apiKey) {
-        throw new Error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set.");
+
+// Use a function to get the app, initializing it only if it doesn't exist.
+// This is the recommended pattern for Next.js App Router.
+function getFirebaseApp(): FirebaseApp {
+    if (getApps().length === 0) {
+        if (!firebaseConfig.apiKey) {
+            throw new Error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set and loaded correctly.");
+        }
+        return initializeApp(firebaseConfig);
+    } else {
+        return getApp();
     }
-    app = initializeApp(firebaseConfig);
-} else {
-    app = getApp();
 }
 
+const app: FirebaseApp = getFirebaseApp();
 const auth: Auth = getAuth(app);
 const db: Firestore = getFirestore(app);
 const storage: FirebaseStorage = getStorage(app);
