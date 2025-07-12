@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,11 +36,6 @@ export function UserNav() {
     }
     fetchSession();
   }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    // Router push to login is handled by middleware and logout server action
-  };
   
   if (isLoading) {
     return (
@@ -82,10 +78,14 @@ export function UserNav() {
         <DropdownMenuGroup>
           {/* Add other items like Profile, Settings here if needed */}
         </DropdownMenuGroup>
-        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive">
-          <LogOut className="mr-2 h-4 w-4" />
-          Log out
-        </DropdownMenuItem>
+        <form action={logout}>
+            <button type="submit" className="w-full">
+                <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+            </button>
+        </form>
       </DropdownMenuContent>
     </DropdownMenu>
   );
