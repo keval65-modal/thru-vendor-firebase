@@ -1,7 +1,6 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
@@ -9,6 +8,7 @@ import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/a
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { db } from '@/lib/firebase-admin-client';
 
 // Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
 // Ensure globalItemId is the Firestore document ID from 'global_items'
@@ -782,3 +782,5 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
+
+    
