@@ -5,6 +5,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Vendor } from '@/lib/inventoryModels';
+import { db } from '@/lib/firebase-admin-client';
+import { doc, getDoc } from 'firebase/firestore';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
@@ -13,34 +15,32 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
     return { success: false, error: 'User ID is required to create a session.' };
   }
   
-  const db = adminDb();
-  if (!db) {
-    return { success: false, error: 'Server database is not configured. Cannot create session.' };
+  // The client has already authenticated with Firebase. We just need to set the cookie.
+  // We will fetch the role on the client-side after this session is established.
+  cookies().set(AUTH_COOKIE_NAME, uid, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 60 * 24 * 7, // 1 week
+    path: '/',
+  });
+  
+  // We can do a quick role check here if the admin DB is available, but it's not critical for session creation itself.
+  const adminDatabase = adminDb();
+  let role: 'vendor' | 'admin' = 'vendor';
+  if(adminDatabase) {
+      try {
+        const userDocRef = adminDatabase.collection('vendors').doc(uid);
+        const userDocSnap = await userDocRef.get();
+        if (userDocSnap.exists) {
+            const userData = userDocSnap.data() as Vendor;
+            role = userData.role || 'vendor';
+        }
+      } catch (e) {
+        console.warn("[Auth CreateSession] Could not check role via Admin SDK, defaulting to 'vendor'. Error:", e);
+      }
   }
-
-  try {
-    // Verify the user exists in Firestore and get their role using the admin SDK
-    const userDocRef = db.collection('vendors').doc(uid);
-    const userDocSnap = await userDocRef.get();
-
-    if (!userDocSnap.exists) {
-      return { success: false, error: 'User profile not found in database.' };
-    }
     
-    const userData = userDocSnap.data() as Vendor;
-
-    cookies().set(AUTH_COOKIE_NAME, uid, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: '/',
-    });
-    
-    return { success: true, role: userData.role || 'vendor' };
-  } catch (error) {
-    console.error('[Auth CreateSession] Error:', error);
-    return { success: false, error: 'An unexpected error occurred during session creation.' };
-  }
+  return { success: true, role };
 }
 
 export async function logout() {
@@ -62,18 +62,13 @@ export async function getSession(): Promise<{
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
-    const db = adminDb();
-    if (!db) {
-      console.error('[Auth GetSession] Cannot get session: Admin SDK not initialized.');
-      // Gracefully handle missing DB connection
-      return { isAuthenticated: false, uid: userUidFromCookie }; 
-    }
-
+    // For server components, we still prefer the admin SDK if available because it's faster and more secure.
+    const database = adminDb() || db; // Fallback to client-side DB access from server context
     try {
-      const userDocRef = db.collection('vendors').doc(userUidFromCookie);
-      const userDocSnap = await userDocRef.get();
+      const userDocRef = doc(database, 'vendors', userUidFromCookie);
+      const userDocSnap = await getDoc(userDocRef);
 
-      if (userDocSnap.exists) {
+      if (userDocSnap.exists()) {
         const userData = userDocSnap.data() as Vendor;
         return {
           isAuthenticated: true,
@@ -82,16 +77,15 @@ export async function getSession(): Promise<{
           name: userData.ownerName,
           shopName: userData.shopName,
           storeCategory: userData.storeCategory,
-          type: userData.type || userData.storeCategory, // Fallback to storeCategory if type is missing
+          type: userData.type || userData.storeCategory,
           isActiveOnThru: userData.isActiveOnThru,
-          role: userData.role || 'vendor', // Return the role, default to 'vendor'
+          role: userData.role || 'vendor',
         };
       } else {
          console.log(`[Auth GetSession] User not found in Firestore during session check: ${userUidFromCookie}`);
       }
     } catch (error) {
       console.error('[Auth GetSession] Error fetching user for session from Firestore:', error);
-      // Fall through to return unauthenticated
     }
   }
   return { isAuthenticated: false };

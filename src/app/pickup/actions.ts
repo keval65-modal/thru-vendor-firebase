@@ -1,10 +1,10 @@
 
 'use server';
 
+import { db } from '@/lib/firebase-admin-client';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
-import { adminDb } from '@/lib/firebase-admin';
 
 export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
   const session = await getSession();
@@ -14,12 +14,7 @@ export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
     console.error("[getReadyForPickupOrders] Vendor email is required.");
     return [];
   }
-  
-  const db = adminDb();
-  if (!db) {
-    console.error("[getReadyForPickupOrders] Server database is not configured. Cannot fetch orders.");
-    return [];
-  }
+
   const ordersRef = collection(db, 'orders');
   const q = query(ordersRef, where("vendorIds", "array-contains", vendorEmail));
   

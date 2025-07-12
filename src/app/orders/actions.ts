@@ -5,15 +5,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, W
 import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
-import { adminDb } from '@/lib/firebase-admin';
-
-const dbCheck = () => {
-    const db = adminDb();
-    if (!db) {
-        throw new Error("Server database is not configured. Order actions are disabled.");
-    }
-    return db;
-}
+import { db } from '@/lib/firebase-admin-client';
 
 /**
  * Fetches all relevant orders for a given vendor using an efficient 'array-contains' query.
@@ -25,17 +17,18 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     return [];
   }
   
+  const ordersRef = collection(db, 'orders');
+  // These are the statuses we consider "active" and want to display on the main dashboard.
+  const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
+  
+  // New, more efficient compound query.
+  const q = query(
+    ordersRef,
+    where("vendorIds", "array-contains", vendorId),
+    where("overallStatus", "in", activeStatuses)
+  );
+  
   try {
-    const db = dbCheck();
-    const ordersRef = collection(db, 'orders');
-    const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
-    
-    const q = query(
-      ordersRef,
-      where("vendorIds", "array-contains", vendorId),
-      where("overallStatus", "in", activeStatuses)
-    );
-    
     const querySnapshot = await getDocs(q);
     const relevantOrders: VendorDisplayOrder[] = [];
 
@@ -44,6 +37,7 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
       const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
       if (vendorPortion) {
+        // Exclude the full vendorPortions array and add the specific one for the display model.
         const { vendorPortions, ...rootOrderData } = orderData;
         relevantOrders.push({
           ...rootOrderData,
@@ -52,6 +46,7 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
       }
     });
 
+    // Sort by creation date, newest first
     relevantOrders.sort((a, b) => {
         const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as string).getTime();
         const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as string).getTime();
@@ -63,6 +58,7 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     
   } catch (error) {
     console.error(`[fetchVendorOrders] Error fetching orders for vendor ${vendorId}:`, error);
+    // Handle potential index errors
     if (error instanceof Error && error.message.includes("requires an index")) {
       console.error("Firestore index missing. Please create the required composite index on the 'orders' collection for ('vendorIds' array-contains) and ('overallStatus' in).");
     }
@@ -88,10 +84,9 @@ export async function updateVendorOrderStatus(
     return { success: false, error: "Order ID is required." };
   }
 
-  try {
-    const db = dbCheck();
-    const orderRef = doc(db, 'orders', orderId);
+  const orderRef = doc(db, 'orders', orderId);
 
+  try {
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) {
       return { success: false, error: "Order not found." };
@@ -113,6 +108,7 @@ export async function updateVendorOrderStatus(
         vendorPortions: updatedPortions
     };
 
+    // If all vendor portions are ready, update the overall order status.
     if(newStatus === 'Ready for Pickup' && allPortionsReady) {
         updatePayload.overallStatus = 'Ready for Pickup';
     }
@@ -147,10 +143,9 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         console.error("[fetchOrderDetails] Not authenticated.");
         return null;
     }
-    
+
+    const orderRef = doc(db, 'orders', orderId);
     try {
-        const db = dbCheck();
-        const orderRef = doc(db, 'orders', orderId);
         const docSnap = await getDoc(orderRef);
         if (!docSnap.exists()) {
             console.warn(`[fetchOrderDetails] Order ${orderId} not found.`);
@@ -170,6 +165,7 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
             ...rootOrderData,
             vendorPortion: vendorPortion
         };
+
     } catch (error) {
         console.error(`[fetchOrderDetails] Error fetching order ${orderId}:`, error);
         return null;
