@@ -1,13 +1,12 @@
-
 'use server';
 
 import { z } from 'zod';
-import { cookies } from 'next/headers';
-import { adminDb } from '@/lib/firebase-admin';
+import { db, storage } from '@/lib/firebase-admin-client';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 
 const generateTimeOptions = () => {
     const options = [];
@@ -42,7 +41,7 @@ const UpdateProfileSchema = z.object({
   shopFullAddress: z.string().min(1, "Full address is required."),
   latitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
-  shopImageUrl: z.string().url().optional(), // Now we expect a URL string from client
+  shopImage: z.any().optional(), // File object if new image is uploaded
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
@@ -61,7 +60,6 @@ export async function getVendorDetails(): Promise<{ vendor?: Vendor; error?: str
   }
 
   try {
-    const db = adminDb();
     const vendorRef = doc(db, 'vendors', session.uid);
     const vendorSnap = await getDoc(vendorRef);
 
@@ -69,6 +67,7 @@ export async function getVendorDetails(): Promise<{ vendor?: Vendor; error?: str
       return { error: "Vendor details not found." };
     }
     const vendorData = vendorSnap.data() as Vendor;
+    // Convert Timestamps to ISO strings if they exist for form compatibility
     if (vendorData.createdAt && vendorData.createdAt instanceof Timestamp) {
         vendorData.createdAt = vendorData.createdAt.toDate().toISOString();
     }
@@ -86,53 +85,71 @@ export type UpdateProfileFormState = {
   success?: boolean;
   message?: string;
   error?: string;
-  fields?: Record<string, string[]>;
+  fields?: Record<string, string[]>; // For field-specific errors
 };
 
 export async function updateVendorProfile(
-  prevState: UpdateProfileFormState,
   formData: FormData
 ): Promise<UpdateProfileFormState> {
   const session = await getSession();
   if (!session?.isAuthenticated || !session.uid) {
-    return { error: "User not authenticated." };
+    return { error: "User not authenticated. Cannot update profile." };
   }
   const vendorId = session.uid;
+
   const rawData = Object.fromEntries(formData.entries());
-  
-  const validatedFields = UpdateProfileSchema.safeParse(rawData);
+  const shopImageFile = formData.get('shopImage') as File | null;
+
+  const dataToValidate = { ...rawData };
+   if (shopImageFile && shopImageFile.size > 0) {
+    dataToValidate.shopImage = shopImageFile;
+  } else {
+    delete dataToValidate.shopImage;
+  }
+
+
+  const validatedFields = UpdateProfileSchema.safeParse(dataToValidate);
 
   if (!validatedFields.success) {
     console.error("Profile update validation errors:", validatedFields.error.flatten().fieldErrors);
     return {
-      error: "Invalid form data.",
+      error: "Invalid form data. Please check your inputs.",
       fields: validatedFields.error.flatten().fieldErrors,
     };
   }
 
-  const { ...vendorData } = validatedFields.data;
+  const { shopImage, ...vendorData } = validatedFields.data;
   
-  const dataToUpdate: Partial<Vendor> & { updatedAt: Timestamp } = {
+  const dataToUpdate: Partial<Vendor> = {
     ...vendorData,
     fullPhoneNumber: `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`,
     updatedAt: Timestamp.now(),
-    type: vendorData.storeCategory,
+    type: vendorData.storeCategory, // Ensure 'type' is updated if 'storeCategory' changes
   };
 
-  if (!dataToUpdate.shopImageUrl) {
-    delete dataToUpdate.shopImageUrl;
-  }
-
   try {
-    const db = adminDb();
     const vendorRef = doc(db, 'vendors', vendorId);
+
+    if (shopImage && shopImage.size > 0) {
+      // It's a File object from the client (already cropped)
+      const imageFile = shopImage as File;
+      const imagePath = `vendor_shop_images/${vendorId}/shop_image.jpg`;
+      const imageStorageRef = storageRef(storage, imagePath);
+
+      await uploadBytes(imageStorageRef, imageFile);
+      dataToUpdate.shopImageUrl = await getDownloadURL(imageStorageRef);
+      console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
+    }
+
+
     await updateDoc(vendorRef, dataToUpdate as any);
     console.log(`Vendor profile updated successfully for ${vendorId}`);
+    revalidatePath('/profile');
     return { success: true, message: "Profile updated successfully!" };
 
   } catch (error) {
     console.error(`Error updating vendor profile for ${vendorId}:`, error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-    return { error: `Failed to update profile. ${errorMessage}` };
+    return { success: false, error: `Failed to update profile. ${errorMessage}` };
   }
 }

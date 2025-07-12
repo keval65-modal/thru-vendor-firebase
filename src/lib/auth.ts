@@ -12,10 +12,15 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
+  
+  const db = adminDb();
+  if (!db) {
+    return { success: false, error: 'Server database is not configured. Cannot create session.' };
+  }
 
   try {
     // Verify the user exists in Firestore and get their role using the admin SDK
-    const userDocRef = adminDb().collection('vendors').doc(uid);
+    const userDocRef = db.collection('vendors').doc(uid);
     const userDocSnap = await userDocRef.get();
 
     if (!userDocSnap.exists) {
@@ -57,8 +62,15 @@ export async function getSession(): Promise<{
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
+    const db = adminDb();
+    if (!db) {
+      console.error('[Auth GetSession] Cannot get session: Admin SDK not initialized.');
+      // Gracefully handle missing DB connection
+      return { isAuthenticated: false, uid: userUidFromCookie }; 
+    }
+
     try {
-      const userDocRef = adminDb().collection('vendors').doc(userUidFromCookie);
+      const userDocRef = db.collection('vendors').doc(userUidFromCookie);
       const userDocSnap = await userDocRef.get();
 
       if (userDocSnap.exists) {

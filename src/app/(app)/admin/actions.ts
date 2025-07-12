@@ -9,6 +9,14 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+const dbCheck = () => {
+    const db = adminDb();
+    if (!db) {
+        throw new Error("Server database is not configured. Admin actions are disabled.");
+    }
+    return db;
+}
+
 // NOTE: A proper admin system would have role-based access control.
 // This function now enforces that the user has the 'admin' role.
 async function isAdmin() {
@@ -26,7 +34,8 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   }
 
   try {
-    const vendorsCollection = adminDb().collection('vendors');
+    const db = dbCheck();
+    const vendorsCollection = db.collection('vendors');
     const vendorSnapshot = await vendorsCollection.get();
     const vendorsList = vendorSnapshot.docs.map(docSnap => {
         const data = docSnap.data();
@@ -86,7 +95,8 @@ export async function updateVendorByAdmin(
     const updates = validatedFields.data;
 
     try {
-        const vendorRef = adminDb().collection('vendors').doc(vendorId);
+        const db = dbCheck();
+        const vendorRef = db.collection('vendors').doc(vendorId);
         await vendorRef.update({
             ...updates,
             type: updates.storeCategory,
@@ -127,10 +137,11 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
     console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
 
     try {
-        const batch = adminDb().batch();
+        const db = dbCheck();
+        const batch = db.batch();
 
         // 1. Find and stage deletion for all inventory items for that vendor
-        const inventoryCollectionRef = adminDb().collection('vendors').doc(vendorId).collection('inventory');
+        const inventoryCollectionRef = db.collection('vendors').doc(vendorId).collection('inventory');
         const inventorySnapshot = await inventoryCollectionRef.get();
         
         let deletedItemsCount = 0;
@@ -145,7 +156,7 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
         }
         
         // 2. Stage deletion for the vendor document itself
-        const vendorRef = adminDb().collection('vendors').doc(vendorId);
+        const vendorRef = db.collection('vendors').doc(vendorId);
         batch.delete(vendorRef);
         console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
         
@@ -173,7 +184,8 @@ export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: 
   }
 
   try {
-    const vendorRef = adminDb().collection('vendors').doc(vendorId);
+    const db = dbCheck();
+    const vendorRef = db.collection('vendors').doc(vendorId);
     const vendorSnap = await vendorRef.get();
     if (!vendorSnap.exists) {
       return { error: 'Vendor not found.' };

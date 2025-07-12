@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,7 +35,7 @@ import ReactCrop, {
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-import { getVendorDetails, updateVendorProfile, type UpdateProfileFormState } from './actions';
+import { getVendorDetails, updateVendorProfile } from './actions';
 import type { Vendor } from '@/lib/inventoryModels';
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
@@ -102,9 +101,7 @@ async function getCroppedImgBlob(
   image: HTMLImageElement,
   crop: PixelCrop,
   fileName: string,
-  targetWidth: number,
-  targetHeight: number
-): Promise<Blob | null> {
+): Promise<File | null> {
   const canvas = document.createElement('canvas');
   const scaleX = image.naturalWidth / image.width;
   const scaleY = image.naturalHeight / image.height;
@@ -126,14 +123,13 @@ async function getCroppedImgBlob(
     crop.height * scaleY
   );
   
-  // Resize to target dimensions
   const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = targetWidth;
-  finalCanvas.height = targetHeight;
+  finalCanvas.width = TARGET_IMAGE_WIDTH;
+  finalCanvas.height = TARGET_IMAGE_HEIGHT;
   const finalCtx = finalCanvas.getContext('2d');
   if (!finalCtx) return null;
 
-  finalCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+  finalCtx.drawImage(canvas, 0, 0, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
 
   return new Promise((resolve, reject) => {
     finalCanvas.toBlob((blob) => {
@@ -141,7 +137,7 @@ async function getCroppedImgBlob(
         reject(new Error('Canvas is empty'));
         return;
       }
-      resolve(blob);
+      resolve(new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() }));
     }, 'image/jpeg', 0.95);
   });
 }
@@ -153,8 +149,7 @@ export default function ProfilePage() {
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
-  const [updateState, setUpdateState] = useState<UpdateProfileFormState>({});
-
+  
   const [imgSrc, setImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
   const [crop, setCrop] = useState<Crop>();
@@ -234,64 +229,45 @@ export default function ProfilePage() {
   };
 
   async function onSubmit(values: z.infer<typeof profileFormSchema>) {
-    if (!auth?.currentUser || !storage) {
-        toast({ variant: "destructive", title: "Error", description: "User or storage service not available." });
-        return;
-    }
     setIsSubmittingForm(true);
+    setUploadProgress(null);
 
-    let finalImageUrl = values.shopImageUrl;
+    const formData = new FormData();
+    // Append all text-based form fields
+    Object.entries(values).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            formData.append(key, String(value));
+        }
+    });
 
-    // If a new file was selected and cropped
+    // Handle image separately. If there's a new image, crop it and append it.
     if (completedCrop && originalFile && imgRef.current) {
         try {
-            const blob = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
-            if (blob) {
-                const filePath = `vendor_shop_images/${auth.currentUser.uid}/shop_image.jpg`;
-                const fileStorageRef = storageRef(storage, filePath);
-                const uploadTask = uploadBytesResumable(fileStorageRef, blob);
-
-                finalImageUrl = await new Promise((resolve, reject) => {
-                    uploadTask.on('state_changed',
-                        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-                        (error) => {
-                            console.error("Upload failed:", error);
-                            reject(error);
-                        },
-                        async () => {
-                            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                            resolve(downloadURL);
-                        }
-                    );
-                });
+            const croppedBlob = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name);
+            if(croppedBlob) {
+                // The key 'shopImage' must match what the server action expects.
+                formData.append('shopImage', croppedBlob, originalFile.name);
             }
         } catch (e) {
-            console.error(e);
-            toast({ variant: "destructive", title: "Image Upload Failed", description: "Could not process or upload the new image." });
+            console.error("Image cropping failed:", e);
+            toast({ variant: "destructive", title: "Image Error", description: "Could not process the selected image."});
             setIsSubmittingForm(false);
-            setUploadProgress(null);
             return;
         }
     }
-    
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => {
-      if (key !== 'shopImageUrl' && value !== undefined) {
-        formData.append(key, String(value));
-      }
-    });
-    if (finalImageUrl) {
-        formData.append('shopImageUrl', finalImageUrl);
-    }
-    
-    const result = await updateVendorProfile(updateState, formData);
+
+    const result = await updateVendorProfile(formData);
     
     if(result.success) {
       toast({ title: "Profile Updated", description: result.message });
       const updatedVendorDetails = await getVendorDetails();
       if(updatedVendorDetails.vendor) {
           setVendorData(updatedVendorDetails.vendor);
-          form.setValue('shopImageUrl', updatedVendorDetails.vendor.shopImageUrl || '');
+          form.reset({
+              ...updatedVendorDetails.vendor,
+              latitude: updatedVendorDetails.vendor.latitude ?? undefined,
+              longitude: updatedVendorDetails.vendor.longitude ?? undefined,
+          });
           setImgSrc('');
           setOriginalFile(null);
       }
@@ -299,7 +275,6 @@ export default function ProfilePage() {
       toast({ variant: "destructive", title: "Update Failed", description: result.error });
     }
     setIsSubmittingForm(false);
-    setUploadProgress(null);
   }
 
   if (isLoadingData) {

@@ -7,6 +7,14 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { adminDb } from '@/lib/firebase-admin';
 
+const dbCheck = () => {
+    const db = adminDb();
+    if (!db) {
+        throw new Error("Server database is not configured. Order actions are disabled.");
+    }
+    return db;
+}
+
 /**
  * Fetches all relevant orders for a given vendor using an efficient 'array-contains' query.
  * An order is relevant if its vendorIds array contains the vendor's ID and its status is active.
@@ -16,18 +24,18 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     console.error("[fetchVendorOrders] vendorId is required.");
     return [];
   }
-
-  const db = adminDb();
-  const ordersRef = collection(db, 'orders');
-  const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
-  
-  const q = query(
-    ordersRef,
-    where("vendorIds", "array-contains", vendorId),
-    where("overallStatus", "in", activeStatuses)
-  );
   
   try {
+    const db = dbCheck();
+    const ordersRef = collection(db, 'orders');
+    const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
+    
+    const q = query(
+      ordersRef,
+      where("vendorIds", "array-contains", vendorId),
+      where("overallStatus", "in", activeStatuses)
+    );
+    
     const querySnapshot = await getDocs(q);
     const relevantOrders: VendorDisplayOrder[] = [];
 
@@ -80,10 +88,10 @@ export async function updateVendorOrderStatus(
     return { success: false, error: "Order ID is required." };
   }
 
-  const db = adminDb();
-  const orderRef = doc(db, 'orders', orderId);
-
   try {
+    const db = dbCheck();
+    const orderRef = doc(db, 'orders', orderId);
+
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) {
       return { success: false, error: "Order not found." };
@@ -114,7 +122,7 @@ export async function updateVendorOrderStatus(
       return { success: false, error: "This order does not concern you." };
     }
 
-    await updateDoc(orderRef, updatePayload);
+    await updateDoc(orderRef, updatePayload as any);
 
     console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorEmail} in order ${orderId}`);
     revalidatePath('/orders');
@@ -139,10 +147,10 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         console.error("[fetchOrderDetails] Not authenticated.");
         return null;
     }
-
-    const db = adminDb();
-    const orderRef = doc(db, 'orders', orderId);
+    
     try {
+        const db = dbCheck();
+        const orderRef = doc(db, 'orders', orderId);
         const docSnap = await getDoc(orderRef);
         if (!docSnap.exists()) {
             console.warn(`[fetchOrderDetails] Order ${orderId} not found.`);
@@ -162,7 +170,6 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
             ...rootOrderData,
             vendorPortion: vendorPortion
         };
-
     } catch (error) {
         console.error(`[fetchOrderDetails] Error fetching order ${orderId}:`, error);
         return null;

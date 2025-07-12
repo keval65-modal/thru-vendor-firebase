@@ -16,6 +16,10 @@ export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
   }
   
   const db = adminDb();
+  if (!db) {
+    console.error("[getReadyForPickupOrders] Server database is not configured. Cannot fetch orders.");
+    return [];
+  }
   const ordersRef = collection(db, 'orders');
   const q = query(ordersRef, where("vendorIds", "array-contains", vendorEmail));
   

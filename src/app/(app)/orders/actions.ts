@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-admin-client';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, WriteBatch, writeBatch } from 'firebase/firestore';
 import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
@@ -118,7 +118,7 @@ export async function updateVendorOrderStatus(
       return { success: false, error: "This order does not concern you." };
     }
 
-    await updateDoc(orderRef, updatePayload);
+    await updateDoc(orderRef, updatePayload as any);
 
     console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorEmail} in order ${orderId}`);
     revalidatePath('/orders');
@@ -170,4 +170,3 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         console.error(`[fetchOrderDetails] Error fetching order ${orderId}:`, error);
         return null;
     }
-}
