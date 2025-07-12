@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase-admin-client';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -28,7 +28,6 @@ const generateTimeOptions = () => {
 const timeOptions = generateTimeOptions();
 
 // Schema for validating profile updates
-// Similar to registerVendorSchema, but password fields are removed, email is not updatable here.
 const UpdateProfileSchema = z.object({
   shopName: z.string().min(1, "Shop name is required."),
   storeCategory: z.string().min(1, "Store category is required."),
