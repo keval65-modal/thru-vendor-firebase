@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard, AlertCircle } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -22,51 +22,33 @@ export default function AdminPage() {
     const { session, isLoading: isLoadingSession } = useSession();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [isLoadingVendors, setIsLoadingVendors] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
 
-    const fetchVendors = async () => {
+    const fetchVendors = useCallback(async () => {
         setIsLoadingVendors(true);
+        setAuthError(null);
         const result = await getAllVendors();
         if (result.vendors) {
             setVendors(result.vendors);
         } else if (result.error) {
-            toast({ variant: 'destructive', title: 'Error fetching vendors', description: result.error });
+            // Check if it's an authorization error
+            if (result.error.includes("not authorized")) {
+                setAuthError(result.error);
+            } else {
+                toast({ variant: 'destructive', title: 'Error fetching vendors', description: result.error });
+            }
         }
         setIsLoadingVendors(false);
-    };
+    }, [toast]);
 
     useEffect(() => {
-        if (!isLoadingSession && session?.role === 'admin') {
-            fetchVendors();
-        }
-    }, [isLoadingSession, session]);
+        // We fetch vendors as soon as the component loads.
+        // The server action `getAllVendors` will handle the auth check.
+        fetchVendors();
+    }, [fetchVendors]);
 
-    if (isLoadingSession) {
-        return (
-             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
-                <Skeleton className="h-48 w-full" />
-             </div>
-        );
-    }
-
-    if (session?.role !== 'admin') {
-        return (
-            <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
-                <Card className="max-w-md mx-auto">
-                    <CardHeader>
-                        <CardTitle>Access Denied</CardTitle>
-                        <CardDescription>You do not have permission to view this page.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Button asChild>
-                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Dashboard</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
 
     const handleDeleteVendor = async (vendorId: string | undefined) => {
         if (!vendorId) {
@@ -84,6 +66,46 @@ export default function AdminPage() {
         }
         setIsDeleting(false);
     };
+    
+    // Show a loading state while fetching initial data
+    if (isLoadingVendors) {
+       return (
+             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                 <Card>
+                    <CardHeader>
+                        <Skeleton className="h-8 w-1/2" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-48 w-full" />
+                    </CardContent>
+                 </Card>
+             </div>
+        );
+    }
+    
+    // If the server returned an authorization error, show the access denied message.
+    if (authError) {
+        return (
+            <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+                <Card className="max-w-md mx-auto border-destructive">
+                    <CardHeader>
+                        <CardTitle className="flex items-center justify-center text-destructive">
+                           <AlertCircle className="mr-2 h-6 w-6"/> Access Denied
+                        </CardTitle>
+                        <CardDescription>{authError}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm mb-4">You do not have permission to view this page. If you believe this is an error, please contact support.</p>
+                        <Button asChild>
+                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Dashboard</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
 
     return (
         <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -117,13 +139,7 @@ export default function AdminPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoadingVendors ? (
-                                [...Array(5)].map((_, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
-                                    </TableRow>
-                                ))
-                            ) : vendors.length > 0 ? (
+                           {vendors.length > 0 ? (
                                 vendors.map(vendor => (
                                     <TableRow key={vendor.id}>
                                         <TableCell className="font-medium">{vendor.shopName}</TableCell>

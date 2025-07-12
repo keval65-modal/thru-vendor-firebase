@@ -19,6 +19,7 @@ const dbCheck = () => {
 
 /**
  * Fetches all vendors from the 'vendors' collection.
+ * Enforces admin-only access.
  */
 export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
   const session = await getSession();
