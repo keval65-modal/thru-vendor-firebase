@@ -58,6 +58,7 @@ export async function getSession(): Promise<{
     isAuthenticated: boolean;
     uid?: string;
     email?: string;
+    shopImageUrl?: string;
     name?: string; // ownerName
     shopName?: string;
     storeCategory?: Vendor['storeCategory'];
@@ -82,6 +83,7 @@ export async function getSession(): Promise<{
           email: userData.email,
           name: userData.ownerName,
           shopName: userData.shopName,
+          shopImageUrl: userData.shopImageUrl,
           storeCategory: userData.storeCategory,
           type: userData.type || userData.storeCategory,
           isActiveOnThru: userData.isActiveOnThru,

@@ -15,39 +15,39 @@ export function middleware(request: NextRequest) {
   const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
   const isAdminProtectedRoute = ADMIN_PROTECTED_ROUTES.some(route => pathname.startsWith(route) && !pathname.startsWith(ADMIN_LOGIN_ROUTE));
   const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+  const isAdminLoginRoute = pathname.startsWith(ADMIN_LOGIN_ROUTE);
 
-  // If NOT logged in, and trying to access a protected route, redirect to the correct login page.
+  // If there's no token...
   if (!token) {
+    // and they try to access a protected route, redirect to the normal login page.
     if (isProtectedRoute) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirectedFrom', pathname);
-      return NextResponse.redirect(loginUrl);
+      return NextResponse.redirect(new URL('/login', request.url));
     }
+    // and they try to access a protected admin route, redirect to the admin login page.
     if (isAdminProtectedRoute) {
-      const loginUrl = new URL(ADMIN_LOGIN_ROUTE, request.url);
-      loginUrl.searchParams.set('redirectedFrom', pathname);
-      return NextResponse.redirect(loginUrl);
+      return NextResponse.redirect(new URL(ADMIN_LOGIN_ROUTE, request.url));
     }
+    // and it's the root, send them to login.
+    if (pathname === '/') {
+        return NextResponse.redirect(new URL('/login', request.url));
+    }
+    // Otherwise, allow access to public routes (like /login, /signup, /admin/login)
+    return NextResponse.next();
   }
 
-  // If LOGGED IN, handle redirects away from public/login pages.
-  if (token) {
-    // If logged in and trying to access a standard public page (like /login), redirect to dashboard.
-    // We explicitly exclude /admin/login from this rule.
-    if (isPublicRoute) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    // If it's the root path, decide where to go based on token.
-    if (pathname === '/') {
-       return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
+  // If there IS a token...
+  // and they are on a public route (EXCEPT admin login), redirect them to their dashboard.
+  // This prevents logged-in users from seeing the signup/login pages again.
+  if (isPublicRoute && !isAdminLoginRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // If it's the root path and there's no token, go to login.
+  // and they are on the root path, send them to the dashboard.
   if (pathname === '/') {
-      return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-
+  
+  // In all other cases (e.g., logged-in user accessing a protected route), allow the request.
   return NextResponse.next();
 }
 
