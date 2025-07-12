@@ -15,8 +15,29 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
     return { success: false, error: 'User ID is required to create a session.' };
   }
   
-  // The client has already authenticated with Firebase. We just need to set the cookie.
-  // We will fetch the role on the client-side after this session is established.
+  // The client has already authenticated with Firebase.
+  // We MUST check their role from the database before setting the cookie to return it.
+  const database = adminDb() || db;
+  let role: 'vendor' | 'admin' = 'vendor'; // Default to 'vendor'
+  
+  try {
+    const userDocRef = doc(database, 'vendors', uid);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+        const userData = userDocSnap.data() as Vendor;
+        role = userData.role || 'vendor';
+    } else {
+        // This case should be rare, but indicates a user authenticated with Firebase Auth
+        // but has no corresponding 'vendors' document.
+        return { success: false, error: 'User profile not found in database.' };
+    }
+  } catch (e) {
+     const errorMessage = e instanceof Error ? e.message : 'An unknown database error occurred.';
+     console.error(`[Auth CreateSession] Could not fetch role for UID ${uid}. Error: ${errorMessage}`);
+     return { success: false, error: `Could not verify user role: ${errorMessage}` };
+  }
+    
+  // If role check was successful, set the session cookie.
   cookies().set(AUTH_COOKIE_NAME, uid, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -24,22 +45,7 @@ export async function createSession(uid: string): Promise<{ success: boolean, er
     path: '/',
   });
   
-  // We can do a quick role check here if the admin DB is available, but it's not critical for session creation itself.
-  const adminDatabase = adminDb();
-  let role: 'vendor' | 'admin' = 'vendor';
-  if(adminDatabase) {
-      try {
-        const userDocRef = adminDatabase.collection('vendors').doc(uid);
-        const userDocSnap = await userDocRef.get();
-        if (userDocSnap.exists) {
-            const userData = userDocSnap.data() as Vendor;
-            role = userData.role || 'vendor';
-        }
-      } catch (e) {
-        console.warn("[Auth CreateSession] Could not check role via Admin SDK, defaulting to 'vendor'. Error:", e);
-      }
-  }
-    
+  // Return success and the determined role for the client to use for redirection.
   return { success: true, role };
 }
 

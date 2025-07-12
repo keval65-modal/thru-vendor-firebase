@@ -62,7 +62,12 @@ export function LoginForm() {
 
       if (sessionResult?.success) {
         toast({ title: 'Login Successful', description: 'Redirecting...' });
-        router.push('/dashboard');
+        // Step 3: Redirect based on the role returned from the server
+        if (sessionResult.role === 'admin') {
+            router.push('/admin');
+        } else {
+            router.push('/dashboard');
+        }
       } else {
         toast({
           variant: 'destructive',
