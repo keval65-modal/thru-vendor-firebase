@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collection, query, where, onSnapshot, Timestamp, doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import type { Vendor } from '@/lib/inventoryModels';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,9 +37,11 @@ export default function OrdersPage() {
 
   // 1. Get the logged-in vendor's auth state and profile data
   useEffect(() => {
+    const auth = getFirebaseAuth();
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         // User is logged in, now fetch their vendor profile from Firestore
+        const db = getFirebaseDb();
         const vendorDocRef = doc(db, 'vendors', user.uid);
         const vendorDocSnap = await getDoc(vendorDocRef);
         if (vendorDocSnap.exists()) {
@@ -76,7 +78,8 @@ export default function OrdersPage() {
 
     setIsLoading(true);
     console.log(`Setting up real-time order listener for vendor email: ${session.email}`);
-
+    
+    const db = getFirebaseDb();
     const ordersRef = collection(db, "orders");
     const activeStatuses = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup", "New"];
 

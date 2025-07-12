@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useRouter } from 'next/navigation';
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 
 
 const loginFormSchema = z.object({
@@ -42,6 +42,7 @@ export function LoginForm() {
     
     try {
       // Step 1: Authenticate with Firebase Auth on the client
+      const auth = getFirebaseAuth();
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('[LoginForm] Firebase client-side sign-in successful. UID:', user.uid);
@@ -71,7 +72,8 @@ export function LoginForm() {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
           case 'auth/invalid-credential':
-            errorMessage = 'Invalid email or password.';
+          case 'auth/invalid-api-key':
+            errorMessage = 'Invalid email, password, or API configuration.';
             break;
           default:
             errorMessage = error.message;

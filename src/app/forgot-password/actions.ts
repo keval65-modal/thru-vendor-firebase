@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 
 const ForgotPasswordSchema = z.object({
@@ -33,6 +33,7 @@ export async function handlePasswordResetRequest(
   const { email } = validatedFields.data;
 
   try {
+    const auth = getFirebaseAuth();
     // This is a client SDK action, but it's fine to call from a server action.
     // It does not use the admin SDK.
     await sendPasswordResetEmail(auth, email);

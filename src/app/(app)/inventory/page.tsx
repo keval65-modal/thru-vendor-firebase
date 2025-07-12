@@ -18,7 +18,7 @@ import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
-import { db, storage } from '@/lib/firebase';
+import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase';
 import { collection, writeBatch, doc, Timestamp } from 'firebase/firestore';
 
 import {
@@ -248,6 +248,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         setIsUploadingFile(true);
         setUploadProgress(0);
         const filePath = `vendor_inventory_images/${vendorId}/${item.id}/${Date.now()}-${selectedFile.name}`;
+        const storage = getFirebaseStorage();
         const fileStorageRef = storageRef(storage, filePath);
         const uploadTask = uploadBytesResumable(fileStorageRef, selectedFile);
 
@@ -883,6 +884,7 @@ export default function InventoryPage() {
     }
 
     try {
+      const db = getFirebaseDb();
       const batch = writeBatch(db);
       const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
       const now = Timestamp.now();

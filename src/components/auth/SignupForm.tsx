@@ -26,7 +26,7 @@ import { createSession } from '@/lib/auth';
 
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
-import { auth, db, storage } from '@/lib/firebase';
+import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
@@ -257,6 +257,7 @@ export function SignupForm() {
     
     try {
       // Step 1: Create user in Firebase Auth
+      const auth = getFirebaseAuth();
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
@@ -276,6 +277,7 @@ export function SignupForm() {
         const croppedFile = await generateCroppedImage(originalFile, finalCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
 
         if (croppedFile) {
+          const storage = getFirebaseStorage();
           const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;
           const imageStorageRef = storageRef(storage, imagePath);
           await uploadBytes(imageStorageRef, croppedFile);
@@ -285,6 +287,7 @@ export function SignupForm() {
       }
 
       // Step 3: Prepare data and create vendor document in Firestore directly from the client
+      const db = getFirebaseDb();
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       

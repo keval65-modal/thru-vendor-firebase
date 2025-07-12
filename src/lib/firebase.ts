@@ -16,9 +16,11 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let storage: FirebaseStorage;
 
-// Use a function to get the app, initializing it only if it doesn't exist.
-// This is the recommended pattern for Next.js App Router.
 function getFirebaseApp(): FirebaseApp {
     if (getApps().length === 0) {
         if (!firebaseConfig.apiKey) {
@@ -30,9 +32,29 @@ function getFirebaseApp(): FirebaseApp {
     }
 }
 
-const app: FirebaseApp = getFirebaseApp();
-const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app);
-const storage: FirebaseStorage = getStorage(app);
+function getFirebaseAuth(): Auth {
+    if (!auth) {
+        app = getFirebaseApp();
+        auth = getAuth(app);
+    }
+    return auth;
+}
 
-export { app, auth, db, storage };
+function getFirebaseDb(): Firestore {
+    if (!db) {
+        app = getFirebaseApp();
+        db = getFirestore(app);
+    }
+    return db;
+}
+
+function getFirebaseStorage(): FirebaseStorage {
+    if (!storage) {
+        app = getFirebaseApp();
+        storage = getStorage(app);
+    }
+    return storage;
+}
+
+
+export { getFirebaseApp, getFirebaseAuth, getFirebaseDb, getFirebaseStorage };
