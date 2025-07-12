@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Sparkles, Save, FileUp } from 'lucide-react';
-import { handleCsvUpload, type ParseCsvOutput, handleBulkSaveItems } from '@/app/(app)/inventory/actions';
+import { handleCsvUpload, type ProcessCsvOutput, handleBulkSaveItems } from '@/app/(app)/inventory/actions';
 import { useToast } from '@/hooks/use-toast';
 
 interface BulkAddDialogProps {
@@ -24,7 +24,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
 
     const [isParsing, setIsParsing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [parsedData, setParsedData] = useState<ParseCsvOutput | null>(null);
+    const [parsedData, setParsedData] = useState<ProcessCsvOutput | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -54,7 +54,8 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                 toast({ title: "Parsing Complete", description: `Successfully parsed ${result.parsedItems.length} items for preview.` });
             }
         } catch (error) {
-            toast({ variant: "destructive", title: "Parsing Failed", description: "An unexpected error occurred during file parsing." });
+            const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during file parsing.";
+            toast({ variant: "destructive", title: "Parsing Failed", description: errorMessage });
         } finally {
             setIsParsing(false);
         }
@@ -110,7 +111,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                 <DialogHeader>
                     <DialogTitle>Bulk Add Global Items via CSV File</DialogTitle>
                     <DialogDescription>
-                        Upload a CSV file to add multiple items to the global catalog at once. The AI will map columns automatically.
+                        Upload a CSV file to add multiple items to the global catalog at once. The AI will analyze the content to extract items.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -121,7 +122,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                 id="csvFile"
                                 name="csvFile"
                                 type="file"
-                                accept=".csv"
+                                accept=".csv,text/csv"
                                 required
                                 disabled={isParsing}
                                 onChange={handleFileChange}
@@ -132,7 +133,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                 <p className="text-xs text-muted-foreground">Selected file: {selectedFile.name}</p>
                             )}
                              <p className="text-xs text-muted-foreground">
-                                Ensure your CSV has headers like `Name`, `Price`, `Category`, `SubCategory`, and `Quantity`.
+                                The CSV should contain headers. The AI will attempt to map columns like 'Name', 'Price', 'Category', etc., automatically.
                              </p>
                             <Button type="submit" disabled={isParsing || !selectedFile} className="w-full">
                                 {isParsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -162,7 +163,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
                                                 <TableRow key={index}>
                                                     <TableCell className="font-medium">{item.itemName}</TableCell>
                                                     <TableCell>{item.sharedItemType}</TableCell>
-                                                    <TableCell>₹{item.mrp?.toFixed(2)}</TableCell>
+                                                    <TableCell>₹{item.mrp?.toFixed(2) || 'N/A'}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>

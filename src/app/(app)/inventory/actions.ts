@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
-import { parseCsvData, type ParseCsvInput, type ParseCsvOutput } from '@/ai/flows/parse-items-flow';
+import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/ai/flows/process-csv-flow';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -670,7 +670,7 @@ export async function handleDeleteSelectedItems(
 // --- AI Bulk Add Global Items ---
 
 export type CsvParseFormState = {
-  parsedItems?: ParseCsvOutput['parsedItems'];
+  parsedItems?: ProcessCsvOutput['parsedItems'];
   error?: string;
   message?: string;
 };
@@ -693,8 +693,8 @@ export async function handleCsvUpload(
     console.log(`DEBUG: [handleCsvUpload] CSV data read successfully. Length: ${csvData.length}.`);
     console.log(`DEBUG: [handleCsvUpload] ----- First 200 chars of CSV data -----\n${csvData.substring(0, 200)}\n------------------------------------------`);
     
-    console.log('DEBUG: [handleCsvUpload] Calling parseCsvData AI flow...');
-    const result = await parseCsvData({ csvData });
+    console.log('DEBUG: [handleCsvUpload] Calling processCsvData AI flow...');
+    const result = await processCsvData({ csvData });
     
     if (!result || !result.parsedItems) {
       console.error('DEBUG: [handleCsvUpload] AI failed to parse items. Result was:', result);
@@ -706,7 +706,7 @@ export async function handleCsvUpload(
   } catch(error) {
     console.error('DEBUG: [handleCsvUpload] CRITICAL ERROR during processing:', error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
-    throw new Error(errorMessage);
+    return { error: errorMessage };
   }
 }
 
