@@ -68,7 +68,7 @@ export default function AdminPage() {
     };
     
     // Show a loading state while fetching initial data
-    if (isLoadingVendors) {
+    if (isLoadingVendors || isLoadingSession) {
        return (
              <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
                  <Card>
@@ -85,7 +85,7 @@ export default function AdminPage() {
     }
     
     // If the server returned an authorization error, show the access denied message.
-    if (authError) {
+    if (authError || (session && session.role !== 'admin')) {
         return (
             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
                 <Card className="max-w-md mx-auto border-destructive">
@@ -93,13 +93,24 @@ export default function AdminPage() {
                         <CardTitle className="flex items-center justify-center text-destructive">
                            <AlertCircle className="mr-2 h-6 w-6"/> Access Denied
                         </CardTitle>
-                        <CardDescription>{authError}</CardDescription>
+                        <CardDescription>{authError || 'You do not have permission to view this page.'}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm mb-4">You do not have permission to view this page. If you believe this is an error, please contact support.</p>
-                        <Button asChild>
-                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Dashboard</Link>
-                        </Button>
+                        <p className="text-sm mb-4">
+                            {session?.role === 'vendor' 
+                                ? 'This panel is for administrators only.' 
+                                : 'If you believe this is an error, please contact support.'
+                            }
+                        </p>
+                        {session?.role === 'vendor' ? (
+                            <Button asChild>
+                                <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Your Dashboard</Link>
+                            </Button>
+                        ) : (
+                             <Button asChild variant="secondary">
+                                <Link href="/admin/login">Go to Admin Login</Link>
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>
