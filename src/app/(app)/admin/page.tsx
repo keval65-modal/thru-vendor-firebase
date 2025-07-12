@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -21,27 +20,24 @@ export default function AdminPage() {
     const { toast } = useToast();
     const { session, isLoading: isLoadingSession } = useSession();
     const [vendors, setVendors] = useState<Vendor[]>([]);
-    const [isLoadingVendors, setIsLoadingVendors] = useState(true);
-    const [authError, setAuthError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     const [isDeleting, setIsDeleting] = useState(false);
     const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
 
     const fetchVendors = useCallback(async () => {
-        setIsLoadingVendors(true);
-        setAuthError(null);
+        setIsLoading(true);
         const result = await getAllVendors();
         if (result.vendors) {
             setVendors(result.vendors);
-        } else if (result.error) {
-            // Check if it's an authorization error
-            if (result.error.includes("not authorized")) {
-                setAuthError(result.error);
-            } else {
-                toast({ variant: 'destructive', title: 'Error fetching vendors', description: result.error });
-            }
+            setError(null);
+        } else {
+            setVendors([]);
+            setError(result.error || "Failed to load vendors.");
         }
-        setIsLoadingVendors(false);
-    }, [toast]);
+        setIsLoading(false);
+    }, []);
 
     useEffect(() => {
         // We fetch vendors as soon as the component loads.
@@ -68,7 +64,7 @@ export default function AdminPage() {
     };
     
     // Show a loading state while fetching initial data
-    if (isLoadingVendors || isLoadingSession) {
+    if (isLoading) {
        return (
              <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
                  <Card>
@@ -84,25 +80,28 @@ export default function AdminPage() {
         );
     }
     
-    // If the server returned an authorization error, show the access denied message.
-    if (authError || (session && session.role !== 'admin')) {
+    // If the server returned an error, decide what to show.
+    if (error) {
+        // Specifically check for authorization error text from the server action.
+        const isAuthError = error.includes("not authorized");
+        
         return (
             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
-                <Card className="max-w-md mx-auto border-destructive">
+                <Card className={`max-w-md mx-auto ${isAuthError ? 'border-destructive' : ''}`}>
                     <CardHeader>
-                        <CardTitle className="flex items-center justify-center text-destructive">
-                           <AlertCircle className="mr-2 h-6 w-6"/> Access Denied
+                        <CardTitle className={`flex items-center justify-center ${isAuthError ? 'text-destructive' : ''}`}>
+                           <AlertCircle className="mr-2 h-6 w-6"/> {isAuthError ? "Access Denied" : "Error"}
                         </CardTitle>
-                        <CardDescription>{authError || 'You do not have permission to view this page.'}</CardDescription>
+                        <CardDescription>{error}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm mb-4">
-                            {session?.role === 'vendor' 
-                                ? 'This panel is for administrators only.' 
-                                : 'If you believe this is an error, please contact support.'
+                            {isAuthError
+                                ? 'This panel is for administrators only. If you believe this is an error, please contact support.'
+                                : 'An unexpected error occurred while fetching data.'
                             }
                         </p>
-                        {session?.role === 'vendor' ? (
+                         {session?.role === 'vendor' ? (
                             <Button asChild>
                                 <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Your Dashboard</Link>
                             </Button>
