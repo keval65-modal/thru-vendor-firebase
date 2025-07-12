@@ -2,12 +2,12 @@
 'use server';
 
 import { z } from 'zod';
-import { cookies } from 'next/headers';
-import { db, storage } from '@/lib/firebase'; // Import storage
+import { db, storage } from '@/lib/firebase-admin-client';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 
 const generateTimeOptions = () => {
     const options = [];
@@ -135,42 +135,20 @@ export async function updateVendorProfile(
     if (shopImage && shopImage.size > 0) {
       // It's a File object from the client (already cropped)
       const imageFile = shopImage as File;
-      // Define a consistent file name, e.g., shop_image.png or based on mime type
-      const fileExtension = imageFile.name.split('.').pop() || 'png';
-      const imageFileName = `shop_image.${fileExtension}`;
-      const imagePath = `vendor_shop_images/${vendorId}/${imageFileName}`;
+      const imagePath = `vendor_shop_images/${vendorId}/shop_image.jpg`;
       const imageStorageRef = storageRef(storage, imagePath);
 
-      // If there's an existing shopImageUrl, try to delete the old image.
-      // This is optional and depends on whether you want to clean up old images.
-      const currentVendorData = (await getDoc(vendorRef)).data() as Vendor | undefined;
-      if (currentVendorData?.shopImageUrl) {
-          try {
-            const oldImageRef = storageRef(storage, currentVendorData.shopImageUrl);
-            // Check if old image ref is not the same as new one to avoid deleting then uploading same path.
-            // This check is tricky if the URL doesn't directly map to the path.
-            // A simpler approach is to always use a unique name for new uploads or just overwrite.
-            // For overwriting with a consistent name:
-             console.log(`Attempting to delete old shop image at: ${currentVendorData.shopImageUrl}`);
-             // await deleteObject(oldImageRef); // This needs careful handling if URL is not direct path
-          } catch (deleteError: any) {
-              if (deleteError.code === 'storage/object-not-found') {
-                  console.warn("Old shop image not found, skipping deletion:", deleteError);
-              } else {
-                  console.warn("Could not delete old shop image, proceeding with upload:", deleteError);
-              }
-          }
-      }
-      
-      console.log(`Uploading new shop image to: ${imagePath}`);
       await uploadBytes(imageStorageRef, imageFile);
       dataToUpdate.shopImageUrl = await getDownloadURL(imageStorageRef);
       console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
     }
 
 
-    await updateDoc(vendorRef, dataToUpdate);
+    await updateDoc(vendorRef, dataToUpdate as any);
     console.log(`Vendor profile updated successfully for ${vendorId}`);
+    
+    revalidatePath('/profile'); // Revalidate path to show updated info
+    
     return { success: true, message: "Profile updated successfully!" };
 
   } catch (error) {
