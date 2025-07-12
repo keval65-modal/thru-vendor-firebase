@@ -11,7 +11,6 @@ export interface NavItem {
   label?: string;
   variant?: "default" | "ghost";
   children?: NavItem[];
-  adminOnly?: boolean;
 }
 
 export const mainNavItems: NavItem[] = [
@@ -49,10 +48,6 @@ export const bottomNavItems: NavItem[] = [
       href: '/profile',
       icon: UserCircle, // Using UserCircle for profile/settings
     },
-    {
-      title: 'Admin',
-      href: '/admin',
-      icon: Shield,
-      adminOnly: true,
-    },
+    // The Admin nav item has been removed from the main sidebar.
+    // It is now accessed by directly navigating to /admin.
 ];

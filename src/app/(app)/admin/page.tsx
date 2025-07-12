@@ -6,44 +6,67 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Shield, Loader2, Edit, Trash2, FileUp } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getAllVendors, deleteVendorAndInventory } from './actions';
-import { getSession } from '@/lib/auth';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useSession } from '@/hooks/use-session';
 
 
 // --- Main Admin Page Component ---
 export default function AdminPage() {
     const { toast } = useToast();
-    const router = useRouter();
+    const { session, isLoading: isLoadingSession } = useSession();
     const [vendors, setVendors] = useState<Vendor[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [userRole, setUserRole] = useState<'vendor' | 'admin' | undefined>();
+    const [isLoadingVendors, setIsLoadingVendors] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
     const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
 
     const fetchVendors = async () => {
-        setIsLoading(true);
+        setIsLoadingVendors(true);
         const result = await getAllVendors();
         if (result.vendors) {
             setVendors(result.vendors);
         } else if (result.error) {
             toast({ variant: 'destructive', title: 'Error fetching vendors', description: result.error });
         }
-        setIsLoading(false);
+        setIsLoadingVendors(false);
     };
 
     useEffect(() => {
-        getSession().then(session => {
-            setUserRole(session?.role);
-        });
-        fetchVendors();
-    }, []);
+        if (!isLoadingSession && session?.role === 'admin') {
+            fetchVendors();
+        }
+    }, [isLoadingSession, session]);
+
+    if (isLoadingSession) {
+        return (
+             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                <Skeleton className="h-48 w-full" />
+             </div>
+        );
+    }
+
+    if (session?.role !== 'admin') {
+        return (
+            <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+                <Card className="max-w-md mx-auto">
+                    <CardHeader>
+                        <CardTitle>Access Denied</CardTitle>
+                        <CardDescription>You do not have permission to view this page.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Dashboard</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     const handleDeleteVendor = async (vendorId: string | undefined) => {
         if (!vendorId) {
@@ -65,20 +88,21 @@ export default function AdminPage() {
     return (
         <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <CardTitle className="flex items-center"><Shield className="mr-2 h-6 w-6 text-primary" /> Admin Panel - Vendor Management</CardTitle>
                         <CardDescription>View, edit, or remove vendors from the platform.</CardDescription>
                     </div>
-                    {userRole === 'admin' && (
-                        <div>
-                            <BulkAddDialog onItemsAdded={() => {
-                                toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
-                            }}>
-                                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Global Items</Button>
-                            </BulkAddDialog>
-                        </div>
-                    )}
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
+                         <Button variant="outline" size="sm" asChild>
+                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Vendor Dashboard</Link>
+                        </Button>
+                        <BulkAddDialog onItemsAdded={() => {
+                            toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
+                        }}>
+                            <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Bulk Add Global Items</Button>
+                        </BulkAddDialog>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -93,7 +117,7 @@ export default function AdminPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
+                            {isLoadingVendors ? (
                                 [...Array(5)].map((_, i) => (
                                     <TableRow key={i}>
                                         <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
@@ -107,7 +131,7 @@ export default function AdminPage() {
                                         <TableCell>{vendor.email}</TableCell>
                                         <TableCell>{vendor.storeCategory}</TableCell>
                                         <TableCell>
-                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${vendor.isActiveOnThru ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${vendor.isActiveOnThru ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
                                                 {vendor.isActiveOnThru ? 'Active' : 'Inactive'}
                                             </span>
                                         </TableCell>

@@ -5,7 +5,6 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flame } from 'lucide-react';
-import { useSession } from '@/hooks/use-session';
 
 import { cn } from '@/lib/utils';
 import { mainNavItems, bottomNavItems, type NavItem } from '@/config/nav';
@@ -65,11 +64,11 @@ function NavLinks({ items, currentPath }: { items: NavItem[]; currentPath: strin
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
-  const { session } = useSession();
 
-  const visibleBottomNavItems = bottomNavItems.filter(item => {
-    return !item.adminOnly || (item.adminOnly && session?.role === 'admin');
-  });
+  // Admin route is now handled by its own layout, so no special logic is needed here.
+  if (pathname.startsWith('/admin')) {
+    return <>{children}</>;
+  }
 
   return (
     <SidebarProvider defaultOpen>
@@ -84,10 +83,10 @@ export function AppShell({ children }: AppShellProps) {
             </SidebarMenu>
           </SidebarContent>
         </ScrollArea>
-        {visibleBottomNavItems.length > 0 && (
+        {bottomNavItems.length > 0 && (
           <SidebarFooter className="border-t">
             <SidebarMenu>
-              <NavLinks items={visibleBottomNavItems} currentPath={pathname} />
+              <NavLinks items={bottomNavItems} currentPath={pathname} />
             </SidebarMenu>
           </SidebarFooter>
         )}
