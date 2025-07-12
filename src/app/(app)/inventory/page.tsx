@@ -18,7 +18,7 @@ import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase';
+import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 import { collection, writeBatch, doc, Timestamp } from 'firebase/firestore';
 
 import {
@@ -167,6 +167,7 @@ interface EditItemDialogProps {
 }
 
 function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: EditItemDialogProps) {
+  const { storage } = useFirebaseAuth();
   const [updateState, setUpdateState] = useState<UpdateItemFormState>({});
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -237,6 +238,10 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         toast({ variant: "destructive", title: "Error", description: "Item ID or Vendor ID is missing."});
         return;
     }
+    if (!storage) {
+        toast({ variant: "destructive", title: "Error", description: "Storage service is not available."});
+        return;
+    }
     setIsSubmitting(true);
 
     const formData = new FormData();
@@ -248,7 +253,6 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         setIsUploadingFile(true);
         setUploadProgress(0);
         const filePath = `vendor_inventory_images/${vendorId}/${item.id}/${Date.now()}-${selectedFile.name}`;
-        const storage = getFirebaseStorage();
         const fileStorageRef = storageRef(storage, filePath);
         const uploadTask = uploadBytesResumable(fileStorageRef, selectedFile);
 
@@ -651,6 +655,7 @@ function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: bo
 
 
 export default function InventoryPage() {
+  const { db } = useFirebaseAuth();
   const [session, setSession] = useState<VendorSession | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [menuPdfFile, setMenuPdfFile] = useState<File | null>(null);
@@ -867,8 +872,8 @@ export default function InventoryPage() {
   };
   
   const handleConfirmSaveMenu = async () => {
-    if (!session?.uid || !menuUploadState?.extractedMenu?.extractedItems) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Cannot save menu. User session or extracted items are missing.' });
+    if (!session?.uid || !menuUploadState?.extractedMenu?.extractedItems || !db) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Cannot save menu. User session, extracted items, or DB service are missing.' });
       return;
     }
 
@@ -884,7 +889,6 @@ export default function InventoryPage() {
     }
 
     try {
-      const db = getFirebaseDb();
       const batch = writeBatch(db);
       const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
       const now = Timestamp.now();

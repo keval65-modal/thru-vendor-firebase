@@ -13,8 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collection, query, where, onSnapshot, Timestamp, doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from 'firebase/auth';
-import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase';
+import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import type { Vendor } from '@/lib/inventoryModels';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,6 +27,7 @@ interface VendorSession {
 }
 
 export default function OrdersPage() {
+  const { auth, db } = useFirebaseAuth();
   const [session, setSession] = useState<VendorSession | null>(null);
   const [isShopOpen, setIsShopOpen] = useState(true);
   const [orders, setOrders] = useState<VendorDisplayOrder[]>([]);
@@ -37,11 +37,11 @@ export default function OrdersPage() {
 
   // 1. Get the logged-in vendor's auth state and profile data
   useEffect(() => {
-    const auth = getFirebaseAuth();
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    if (!auth || !db) return;
+
+    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
       if (user && user.email) {
         // User is logged in, now fetch their vendor profile from Firestore
-        const db = getFirebaseDb();
         const vendorDocRef = doc(db, 'vendors', user.uid);
         const vendorDocSnap = await getDoc(vendorDocRef);
         if (vendorDocSnap.exists()) {
@@ -53,43 +53,37 @@ export default function OrdersPage() {
             storeCategory: vendorData.storeCategory,
           });
         } else {
-           // Auth record exists but no vendor profile, treat as error/logged out
            console.error("User authenticated but no vendor profile found in Firestore.");
            setSession(null);
            router.push('/login');
         }
       } else {
-        // User is logged out
         setSession(null);
         router.push('/login');
       }
     });
     return () => unsubscribeAuth(); // Cleanup listener on unmount
-  }, [router]);
+  }, [auth, db, router]);
 
   // 2. Set up the real-time listener when the email is available
   useEffect(() => {
-    if (!session?.email) {
-      // If there's no logged-in user email, clear orders and stop loading.
+    if (!session?.email || !db) {
       setOrders([]);
-      setIsLoading(false); // Set to false since we are not fetching
+      setIsLoading(false); 
       return;
     }
 
     setIsLoading(true);
     console.log(`Setting up real-time order listener for vendor email: ${session.email}`);
     
-    const db = getFirebaseDb();
     const ordersRef = collection(db, "orders");
     const activeStatuses = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup", "New"];
 
-    // 3. The specific, real-time query
     const q = query(ordersRef,
         where("vendorIds", "array-contains", session.email),
         where("overallStatus", "in", activeStatuses)
     );
 
-    // 4. onSnapshot listens for real-time updates
     const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
       const fetchedOrders: VendorDisplayOrder[] = [];
       querySnapshot.forEach((docSnap) => {
@@ -105,7 +99,6 @@ export default function OrdersPage() {
         }
       });
 
-      // Sort by creation date, newest first
       fetchedOrders.sort((a, b) => {
           const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as string).getTime();
           const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as string).getTime();
@@ -125,13 +118,12 @@ export default function OrdersPage() {
       setIsLoading(false);
     });
 
-    // 5. Cleanup function to stop listening when the component unmounts
     return () => {
         console.log("Cleaning up order listener.");
         unsubscribeSnapshot();
     };
 
-  }, [session, toast]);
+  }, [session, db, toast]);
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     return {

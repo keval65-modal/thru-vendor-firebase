@@ -1,7 +1,6 @@
 
 'use server';
 
-import { getFirebaseDb } from '@/lib/firebase';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
@@ -9,21 +8,18 @@ import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/a
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
-import { getFirebaseStorage } from '@/lib/firebase'; // Added for storage access
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-
-// Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
-// Ensure globalItemId is the Firestore document ID from 'global_items'
+import { adminDb } from '@/lib/firebase-admin'; // Using admin for server actions
 
 /**
  * Fetches global items based on their shared type (e.g., "grocery", "medical").
+ * This is a server action.
  */
 export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType']): Promise<GlobalItem[]> {
   console.log(`[getGlobalItemsByType] Fetching global items for type: ${itemType}`);
   if (!itemType) return [];
 
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const q = query(
       collection(db, "global_items"),
       where("sharedItemType", "==", itemType),
@@ -54,6 +50,7 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
 
 /**
  * Fetches a specific vendor's inventory items from their subcollection.
+ * This is a server action.
  */
 export async function getVendorInventory(vendorId: string): Promise<VendorInventoryItem[]> {
   if (!vendorId || typeof vendorId !== 'string' || vendorId.trim() === '') {
@@ -64,7 +61,7 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
   console.log(`[getVendorInventory] Constructing query for vendorId: '${vendorId}'`);
 
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const inventoryCollectionRef = collection(db, "vendors", vendorId, "inventory");
     const q = query(
       inventoryCollectionRef,
@@ -85,7 +82,6 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
     return inventoryItems;
   } catch (error) {
     console.error(`[getVendorInventory] Firestore error fetching inventory for vendor ${vendorId}:`, error);
-    // Simple order by on a subcollection does not require a composite index, so the specific error check is removed.
     throw new Error(`Failed to fetch vendor inventory. Database error: ${(error as Error).message}`);
   }
 }
@@ -144,7 +140,7 @@ export async function addCustomVendorItem(
 
   const { ...itemData } = validatedFields.data;
   
-  const newItemData: Omit<VendorInventoryItem, 'id'> = {
+  const newItemData: Omit<VendorInventoryItem, 'id' | 'createdAt' | 'updatedAt' | 'lastStockUpdate'> & {createdAt: Timestamp, updatedAt: Timestamp, lastStockUpdate: Timestamp} = {
     vendorId,
     isCustomItem: true,
     itemName: itemData.itemName,
@@ -162,7 +158,7 @@ export async function addCustomVendorItem(
   };
   
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
     await addDoc(inventoryCollectionRef, newItemData);
     
@@ -226,7 +222,7 @@ export async function linkGlobalItemToVendorInventory(
   console.log(`[linkGlobalItemToVendorInventory] Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
 
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const globalItemRef = doc(db, 'global_items', globalItemId);
     const globalItemSnap = await getDoc(globalItemRef);
 
@@ -235,7 +231,7 @@ export async function linkGlobalItemToVendorInventory(
     }
     const globalItemData = globalItemSnap.data() as GlobalItem;
 
-    const newItemData: Omit<VendorInventoryItem, 'id'> = {
+    const newItemData: any = {
       vendorId, // Keep for denormalization and easier client-side access
       globalItemRef,
       isCustomItem: false,
@@ -265,33 +261,6 @@ export async function linkGlobalItemToVendorInventory(
 }
 
 
-/**
- * Updates the stock quantity of a specific item in vendor's inventory.
- * NOTE: This is a placeholder.
- */
-export async function updateVendorItemStock(vendorInventoryItemId: string, newStock: number): Promise<{ success: boolean; error?: string }> {
-  console.log(`Placeholder: Updating stock for item ${vendorInventoryItemId} to ${newStock}`);
-  return { success: true };
-}
-
-/**
- * Updates the price of a specific item in vendor's inventory.
- * NOTE: This is a placeholder.
- */
-export async function updateVendorItemPrice(vendorInventoryItemId: string, newPrice: number): Promise<{ success: boolean; error?: string }> {
-  console.log(`Placeholder: Updating price for item ${vendorInventoryItemId} to ${newPrice}`);
-  return { success: true };
-}
-
-
-export type UpdateItemFormState = {
-  success?: boolean;
-  error?: string;
-  message?: string;
-  fields?: Record<string, string[]>; // For field-specific errors
-};
-
-// Schema for updating item details
 const UpdateVendorItemSchema = z.object({
   itemId: z.string().min(1, "Item ID is required."),
   itemName: z.string().min(1, "Item name cannot be empty."),
@@ -315,6 +284,13 @@ const UpdateVendorItemSchema = z.object({
     path: ["price"],
 });
 
+
+export type UpdateItemFormState = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  fields?: Record<string, string[]>; // For field-specific errors
+};
 
 export async function updateVendorItemDetails(
   prevState: UpdateItemFormState,
@@ -346,15 +322,13 @@ export async function updateVendorItemDetails(
     updatedAt: Timestamp.now(),
   };
 
-  // Ensure optional fields are not set to undefined if they are empty strings
   if (dataToUpdate.description === '') dataToUpdate.description = undefined;
-  if (dataToUpdate.imageUrl === '') dataToUpdate.imageUrl = 'https://placehold.co/50x50.png'; // Default back to placeholder if cleared
-
+  if (dataToUpdate.imageUrl === '') dataToUpdate.imageUrl = 'https://placehold.co/50x50.png';
 
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const itemRef = doc(db, "vendors", vendorId, "inventory", itemId);
-    await updateDoc(itemRef, dataToUpdate as any); // Using 'as any' to bypass strict type check on partial update
+    await updateDoc(itemRef, dataToUpdate as any);
     console.log(`[updateVendorItemDetails] Successfully updated item ${itemId} for vendor ${vendorId}`);
     revalidatePath('/inventory');
     return { success: true, message: "Item details updated successfully." };
@@ -371,9 +345,7 @@ export type DeleteItemFormState = {
   error?: string;
   message?: string;
 };
-/**
- * Deletes an item from a vendor's inventory subcollection.
- */
+
 export async function deleteVendorItem(prevState: DeleteItemFormState, formData: FormData): Promise<DeleteItemFormState> {
     const session = await getSession();
     if (!session?.uid) {
@@ -382,13 +354,11 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
     const vendorId = session.uid;
 
     const vendorInventoryItemId = formData.get('itemId') as string;
-    console.log(`[deleteVendorItem] Attempting to delete item ${vendorInventoryItemId} for vendor ${vendorId}`);
     if (!vendorInventoryItemId) {
-        console.error("[deleteVendorItem] Item ID is missing for deletion.");
         return { success: false, error: "Item ID is missing for deletion." };
     }
     try {
-        const db = getFirebaseDb();
+        const db = adminDb();
         const itemRef = doc(db, "vendors", vendorId, "inventory", vendorInventoryItemId);
         await deleteDoc(itemRef);
         console.log(`[deleteVendorItem] Successfully deleted item ${vendorInventoryItemId}`);
@@ -401,25 +371,6 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
     }
 }
 
-// --- Admin Actions for Global Items (Placeholders for Admin UI) ---
-
-export async function addGlobalItem(itemData: Omit<GlobalItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; itemId?: string; error?: string }> {
-  console.log("Placeholder for Admin UI: Adding global item:", itemData);
-  return { success: true, itemId: "mock_global_item_id" };
-}
-
-export async function updateGlobalItem(itemId: string, updates: Partial<GlobalItem>): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder for Admin UI: Updating global item:", itemId, updates);
-  return { success: true };
-}
-
-export async function deleteGlobalItem(itemId: string): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder for Admin UI: Deleting global item:", itemId);
-  return { success: true };
-}
-
-
-// --- AI Menu Extraction ---
 const MenuPdfUploadSchema = z.object({
   menuDataUri: z.string().startsWith('data:application/pdf;base64,', { message: "Invalid PDF data URI." }),
   vendorId: z.string().min(1, { message: "Vendor ID is required." }),
@@ -435,7 +386,6 @@ export async function handleMenuPdfUpload(
   prevState: MenuUploadFormState,
   formData: FormData
 ): Promise<MenuUploadFormState> {
-  console.log("[handleMenuPdfUpload] Server action started.");
   const session = await getSession();
   const vendorId = session?.uid;
 
@@ -444,14 +394,10 @@ export async function handleMenuPdfUpload(
   }
 
   const menuFile = formData.get('menuPdf') as File;
-  console.log("[handleMenuPdfUpload] Received menuFile:", menuFile?.name, "vendorId:", vendorId);
-
   if (!menuFile || menuFile.size === 0) {
-    console.warn("[handleMenuPdfUpload] No PDF file uploaded or file is empty.");
     return { error: 'No PDF file uploaded or file is empty.' };
   }
   if (menuFile.type !== 'application/pdf') {
-    console.warn("[handleMenuPdfUpload] Uploaded file is not a PDF. Type:", menuFile.type);
     return { error: 'Uploaded file is not a PDF.' };
   }
 
@@ -460,60 +406,28 @@ export async function handleMenuPdfUpload(
     const arrayBuffer = await menuFile.arrayBuffer();
     const base64String = Buffer.from(arrayBuffer).toString('base64');
     menuDataUri = `data:application/pdf;base64,${base64String}`;
-    console.log("[handleMenuPdfUpload] PDF converted to data URI (first 100 chars):", menuDataUri.substring(0,100));
   } catch (conversionError) {
-    console.error("[handleMenuPdfUpload] Error converting PDF to data URI:", conversionError);
     return { error: 'Failed to process PDF file content.' };
   }
 
   const validatedFields = MenuPdfUploadSchema.safeParse({ menuDataUri, vendorId });
-  console.log("[handleMenuPdfUpload] Zod validation result:", validatedFields);
-
   if (!validatedFields.success) {
-    console.error("[handleMenuPdfUpload] Validation error for menu PDF upload:", validatedFields.error.flatten().fieldErrors);
-    return {
-      error: 'Invalid data for menu PDF processing. ' + (validatedFields.error.flatten().fieldErrors.menuDataUri?.[0] || validatedFields.error.flatten().fieldErrors.vendorId?.[0] || 'Unknown validation error.'),
-    };
+    return { error: 'Invalid data for menu PDF processing.' };
   }
 
   const inputData: ExtractMenuInput = validatedFields.data;
-  console.log("[handleMenuPdfUpload] Input data for Genkit flow:", { vendorId: inputData.vendorId, menuDataUriLength: inputData.menuDataUri.length });
-
   try {
-    console.log("[handleMenuPdfUpload] Calling Genkit extractMenuData flow...");
     const result = await extractMenuData(inputData);
-    console.log("[handleMenuPdfUpload] Genkit flow successful, result (first 500 chars of rawText if present):",
-        result ? {
-            extractedItemsCount: result.extractedItems?.length,
-            rawTextSample: result.rawText?.substring(0,500)
-        } : "No result from Genkit flow."
-    );
-
     if (!result || !result.extractedItems) {
-        console.warn("[handleMenuPdfUpload] Genkit flow returned no or malformed result. Full result:", JSON.stringify(result, null, 2));
-        const rawTextInfo = result?.rawText ? `Raw text was extracted: ${result.rawText.substring(0, 200)}...` : "No raw text extracted.";
-        return {
-            error: 'AI menu extraction returned an unexpected result. No structured items found. ' + rawTextInfo,
-            extractedMenu: result ? { extractedItems: [], rawText: result.rawText } : { extractedItems: [] }
-        };
+        return { error: 'AI menu extraction returned an unexpected result.' };
     }
-
     return { extractedMenu: result, message: `Menu processed. ${result.extractedItems.length} items found.` };
   } catch (error) {
-    console.error('[handleMenuPdfUpload] Error in handleMenuPdfUpload processing with AI:', error);
-    let errorMessage = 'Failed to process menu PDF with AI. Please try again.';
-    if (error instanceof Error) {
-        errorMessage = `AI processing error: ${error.message}`;
-    }
-
-    if (errorMessage.includes('deadline') || errorMessage.includes('timeout') || errorMessage.includes('504')) {
-        errorMessage = 'The AI processing took too long and timed out. Try a smaller or simpler PDF, or check the AI service status.';
-    }
+    const errorMessage = error instanceof Error ? `AI processing error: ${error.message}` : 'Failed to process menu PDF with AI.';
     return { error: errorMessage };
   }
 }
 
-// --- Remove Duplicate Items ---
 export type RemoveDuplicatesFormState = {
     success?: boolean;
     error?: string;
@@ -527,35 +441,25 @@ export async function handleRemoveDuplicateItems(
 ): Promise<RemoveDuplicatesFormState> {
     const session = await getSession();
     const vendorId = session?.uid;
-    console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
-
     if (!vendorId) {
-        console.error("[handleRemoveDuplicateItems] Vendor ID is missing.");
         return { error: "Vendor ID is missing." };
     }
 
     try {
         const inventoryItems = await getVendorInventory(vendorId);
         if (inventoryItems.length === 0) {
-            return { success: true, message: "Inventory is empty. No duplicates to remove.", duplicatesRemoved: 0 };
+            return { success: true, message: "Inventory is empty.", duplicatesRemoved: 0 };
         }
 
-        const seenItems = new Map<string, string>(); // Key: "itemNameLowerCase-categoryLowerCase", Value: itemIdToKeep
+        const seenItems = new Map<string, string>();
         const duplicateIdsToDelete: string[] = [];
 
         for (const item of inventoryItems) {
-            if (!item.id || !item.itemName || !item.vendorItemCategory) { // Ensure necessary fields exist
-                console.warn(`[handleRemoveDuplicateItems] Skipping item due to missing id, itemName, or category: ${JSON.stringify(item)}`);
-                continue;
-            }
             const itemKey = `${item.itemName.toLowerCase().trim()}-${item.vendorItemCategory.toLowerCase().trim()}`;
-
             if (seenItems.has(itemKey)) {
-                // This is a duplicate
-                duplicateIdsToDelete.push(item.id);
+                duplicateIdsToDelete.push(item.id!);
             } else {
-                // First time seeing this item, mark it to be kept
-                seenItems.set(itemKey, item.id);
+                seenItems.set(itemKey, item.id!);
             }
         }
 
@@ -563,28 +467,25 @@ export async function handleRemoveDuplicateItems(
             return { success: true, message: "No duplicate items found.", duplicatesRemoved: 0 };
         }
 
-        console.log(`[handleRemoveDuplicateItems] Found ${duplicateIdsToDelete.length} duplicates to delete for vendor ${vendorId}. IDs:`, duplicateIdsToDelete);
-        
-        const db = getFirebaseDb();
-        const deletePromises = duplicateIdsToDelete.map(id => deleteDoc(doc(db, "vendors", vendorId, "inventory", id)));
-        await Promise.all(deletePromises);
+        const db = adminDb();
+        const batch = writeBatch(db);
+        duplicateIdsToDelete.forEach(id => {
+            batch.delete(doc(db, "vendors", vendorId, "inventory", id));
+        });
+        await batch.commit();
 
-        console.log(`[handleRemoveDuplicateItems] Successfully deleted ${duplicateIdsToDelete.length} duplicate items for vendor ${vendorId}.`);
         revalidatePath('/inventory');
         return {
             success: true,
             message: `Successfully removed ${duplicateIdsToDelete.length} duplicate items.`,
             duplicatesRemoved: duplicateIdsToDelete.length
         };
-
     } catch (error) {
-        console.error(`[handleRemoveDuplicateItems] Error removing duplicates for vendor ${vendorId}:`, error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return { error: `Failed to remove duplicate items. ${errorMessage}` };
     }
 }
 
-// --- Delete Selected Items ---
 const DeleteSelectedItemsSchema = z.object({
   selectedItemIdsJson: z.string().refine(
     (val) => {
@@ -610,74 +511,45 @@ export async function handleDeleteSelectedItems(
   prevState: DeleteSelectedItemsFormState,
   formData: FormData
 ): Promise<DeleteSelectedItemsFormState> {
-  console.log('[handleDeleteSelectedItems] Server action started.');
   const session = await getSession();
   if (!session?.uid) {
     return { error: 'Authentication required.' };
   }
   const vendorId = session.uid;
 
-  const rawFormData = {
-    selectedItemIdsJson: formData.get('selectedItemIdsJson') as string,
-  };
-  console.log('[handleDeleteSelectedItems] Raw form data:', rawFormData);
-
-  const validatedFields = DeleteSelectedItemsSchema.safeParse(rawFormData);
+  const validatedFields = DeleteSelectedItemsSchema.safeParse({
+    selectedItemIdsJson: formData.get('selectedItemIdsJson'),
+  });
 
   if (!validatedFields.success) {
-    console.error("[handleDeleteSelectedItems] Validation error:", validatedFields.error.flatten().fieldErrors);
-    return {
-      error: 'Invalid data for deleting items. ' + (validatedFields.error.flatten().fieldErrors.selectedItemIdsJson?.[0] || 'Unknown validation error.'),
-    };
+    return { error: 'Invalid data for deleting items.' };
   }
 
   const { selectedItemIdsJson } = validatedFields.data;
-  let itemIdsToDelete: string[];
-  try {
-    itemIdsToDelete = JSON.parse(selectedItemIdsJson);
-    console.log(`[handleDeleteSelectedItems] Parsed ${itemIdsToDelete.length} item IDs to delete.`);
-  } catch (e) {
-    console.error("[handleDeleteSelectedItems] Error parsing selectedItemIds JSON:", e);
-    return { error: 'Failed to parse selected item IDs.' };
-  }
+  const itemIdsToDelete: string[] = JSON.parse(selectedItemIdsJson);
 
-  if (!Array.isArray(itemIdsToDelete) || itemIdsToDelete.length === 0) {
-    return { error: 'No item IDs provided for deletion or format is incorrect.', itemsDeleted: 0 };
+  if (!itemIdsToDelete.length) {
+    return { error: 'No items selected for deletion.' };
   }
 
   try {
-    const db = getFirebaseDb();
+    const db = adminDb();
     const batch = writeBatch(db);
     itemIdsToDelete.forEach(itemId => {
-      if (itemId && typeof itemId === 'string') {
-        const itemRef = doc(db, 'vendors', vendorId, 'inventory', itemId);
-        batch.delete(itemRef);
-      } else {
-         console.warn(`[handleDeleteSelectedItems] Invalid item ID found in batch: ${itemId}`);
-      }
+      batch.delete(doc(db, 'vendors', vendorId, 'inventory', itemId));
     });
-
     await batch.commit();
-    console.log(`[handleDeleteSelectedItems] Successfully deleted ${itemIdsToDelete.length} items from Firestore.`);
     revalidatePath('/inventory');
     return {
         success: true,
         message: `${itemIdsToDelete.length} item(s) deleted successfully.`,
         itemsDeleted: itemIdsToDelete.length
     };
-
   } catch (error) {
-    console.error('[handleDeleteSelectedItems] Error deleting items from Firestore:', error);
-    let errorMessage = 'Failed to delete selected items from the database.';
-    if (error instanceof Error && error.message) {
-      errorMessage = `Firestore error: ${error.message}`;
-    }
+    const errorMessage = error instanceof Error ? `Firestore error: ${error.message}` : 'Failed to delete items.';
     return { error: errorMessage };
   }
 }
-
-
-// --- AI Bulk Add Global Items ---
 
 export type CsvParseFormState = {
   parsedItems?: ProcessCsvOutput['parsedItems'];
@@ -689,33 +561,22 @@ export async function handleCsvUpload(
   prevState: CsvParseFormState,
   formData: FormData
 ): Promise<CsvParseFormState> {
-  console.log('DEBUG: [handleCsvUpload] ----------------- ACTION STARTED -----------------');
   const csvFile = formData.get('csvFile') as File;
-
   if (!csvFile || csvFile.size === 0) {
-    console.error('DEBUG: [handleCsvUpload] No CSV file found or file is empty.');
     return { error: "CSV file is required." };
   }
-  console.log(`DEBUG: [handleCsvUpload] Received file: ${csvFile.name}, size: ${csvFile.size}`);
   
   try {
     const csvData = await csvFile.text();
-    console.log(`DEBUG: [handleCsvUpload] CSV data read successfully. Length: ${csvData.length}.`);
-    console.log(`DEBUG: [handleCsvUpload] ----- First 200 chars of CSV data -----\n${csvData.substring(0, 200)}\n------------------------------------------`);
-    
-    console.log('DEBUG: [handleCsvUpload] Calling processCsvData AI flow...');
     const result = await processCsvData({ csvData });
     
     if (!result || !result.parsedItems) {
-      console.error('DEBUG: [handleCsvUpload] AI failed to parse items. Result was:', result);
-      return { error: "AI failed to parse items from the CSV file. The format might be incorrect." };
+      return { error: "AI failed to parse items from the CSV file." };
     }
     
-    console.log(`DEBUG: [handleCsvUpload] AI parsing successful. Parsed ${result.parsedItems.length} items.`);
-    return { parsedItems: result.parsedItems, message: `Successfully parsed ${result.parsedItems.length} items for preview.` };
+    return { parsedItems: result.parsedItems, message: `Parsed ${result.parsedItems.length} items for preview.` };
   } catch(error) {
-    console.error('DEBUG: [handleCsvUpload] CRITICAL ERROR during processing:', error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
+    const errorMessage = error instanceof Error ? error.message : "An unknown error during AI processing.";
     return { error: errorMessage };
   }
 }
@@ -736,41 +597,26 @@ export async function handleBulkSaveItems(
     prevState: BulkSaveFormState,
     formData: FormData
 ): Promise<BulkSaveFormState> {
-    console.log('DEBUG: handleBulkSaveItems server action started.');
     if (!await isAdmin()) {
-        console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
         return { error: "You are not authorized to perform this action." };
     }
-    console.log('DEBUG: handleBulkSaveItems - Admin check passed.');
 
     const itemsJson = formData.get('itemsJson') as string;
     if (!itemsJson) {
-        console.error('DEBUG: handleBulkSaveItems - No itemsJson found in form data.');
         return { error: "No items to save." };
     }
-    console.log(`DEBUG: handleBulkSaveItems - Received itemsJson with length: ${itemsJson.length}`);
+    const itemsToSave: Omit<GlobalItem, 'id'>[] = JSON.parse(itemsJson);
 
-    let itemsToSave: Omit<GlobalItem, 'id'>[];
-    try {
-        itemsToSave = JSON.parse(itemsJson);
-        console.log(`DEBUG: handleBulkSaveItems - Successfully parsed ${itemsToSave.length} items from JSON.`);
-    } catch(e) {
-        console.error('DEBUG: handleBulkSaveItems - Failed to parse itemsJson.', e);
-        return { error: "Invalid items format." };
-    }
-
-    if (!Array.isArray(itemsToSave) || itemsToSave.length === 0) {
-        console.error('DEBUG: handleBulkSaveItems - itemsToSave is not an array or is empty.');
+    if (!itemsToSave.length) {
         return { error: "No items to save." };
     }
 
     try {
-        const db = getFirebaseDb();
+        const db = adminDb();
         const batch = writeBatch(db);
         const now = Timestamp.now();
-        console.log(`DEBUG: handleBulkSaveItems - Preparing batch write for ${itemsToSave.length} items.`);
 
-        itemsToSave.forEach((item, index) => {
+        itemsToSave.forEach((item) => {
             const newItemRef = doc(collection(db, 'global_items'));
             const newItemData: Omit<GlobalItem, 'id'> = {
                 ...item,
@@ -778,17 +624,12 @@ export async function handleBulkSaveItems(
                 updatedAt: now,
             };
             batch.set(newItemRef, newItemData);
-            if (index < 5) { // Log first few items to be saved
-                 console.log(`DEBUG: Staging item ${index + 1}:`, JSON.stringify(newItemData));
-            }
         });
 
         await batch.commit();
-        console.log(`DEBUG: handleBulkSaveItems - Batch commit successful.`);
 
-        return { success: true, message: `Successfully added ${itemsToSave.length} items to the global catalog.`, itemsAdded: itemsToSave.length };
+        return { success: true, message: `Added ${itemsToSave.length} items to the global catalog.`, itemsAdded: itemsToSave.length };
     } catch (error) {
-        console.error('DEBUG: handleBulkSaveItems - CRITICAL ERROR saving items to Firestore:', error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return { error: `Failed to save items. ${errorMessage}` };
     }

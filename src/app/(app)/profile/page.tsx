@@ -20,11 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef } from 'react';
-import { useFormStatus } from 'react-dom';
 import { Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserCog, UploadCloud, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
+import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Progress } from '@/components/ui/progress';
 
 import ReactCrop, {
   centerCrop,
@@ -40,7 +42,7 @@ import type { Vendor } from '@/lib/inventoryModels';
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
 const genders = ["Male", "Female", "Other", "Prefer not to say"];
 const weeklyCloseDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Never Closed"];
-const countryCodes = ["+91", "+1", "+44", "+61", "+81"]; // Example country codes
+const countryCodes = ["+91", "+1", "+44", "+61", "+81"];
 const TARGET_IMAGE_WIDTH = 150;
 const TARGET_IMAGE_HEIGHT = 100;
 const TARGET_ASPECT_RATIO = TARGET_IMAGE_WIDTH / TARGET_IMAGE_HEIGHT;
@@ -64,15 +66,12 @@ const generateTimeOptions = () => {
 };
 const timeOptions = generateTimeOptions();
 
-// Schema for validating profile updates on the client
-// Email is handled separately (read-only). Password is not updated here.
 const profileFormSchema = z.object({
   shopName: z.string().min(2, { message: "Shop name must be at least 2 characters." }),
   storeCategory: z.string().min(1, { message: "Please select a store category." }),
   ownerName: z.string().min(2, { message: "Owner name must be at least 2 characters." }),
   phoneCountryCode: z.string().min(1, { message: "Please select a country code."}),
   phoneNumber: z.string().regex(/^\d{7,15}$/, { message: "Please enter a valid phone number (7-15 digits)." }),
-  // email is read-only
   gender: z.string().optional(),
   city: z.string().min(2, { message: "City must be at least 2 characters." }),
   weeklyCloseOn: z.string().min(1, { message: "Please select a closing day." }),
@@ -87,12 +86,11 @@ const profileFormSchema = z.object({
     (val) => val === "" ? undefined : parseFloat(String(val)),
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180).max(180)
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
-  shopImage: z.any().optional(), // Will be a File object if a new image is selected
+  shopImageUrl: z.string().url().optional(),
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
-        // Allow same open/close if it's midnight, implying 24 hours (or handle "Never Closed" for weeklyCloseOn)
         if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
         return closeTimeIndex > openTimeIndex;
     }
@@ -100,38 +98,35 @@ const profileFormSchema = z.object({
 }, { message: "Closing time must be after opening time.", path: ["closingTime"]});
 
 
-async function generateCroppedImage(
-  imageFile: File,
+async function getCroppedImgBlob(
+  image: HTMLImageElement,
   crop: PixelCrop,
+  fileName: string,
   targetWidth: number,
   targetHeight: number
-): Promise<File | null> {
-  const image = new window.Image(); // Use window.Image for client-side
-  image.src = URL.createObjectURL(imageFile);
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
-  });
-
+): Promise<Blob | null> {
   const canvas = document.createElement('canvas');
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  canvas.width = crop.width * scaleX;
+  canvas.height = crop.height * scaleY;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
 
-  canvas.width = crop.width;
-  canvas.height = crop.height;
+  if (!ctx) return null;
 
   ctx.drawImage(
     image,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
     0,
     0,
-    crop.width,
-    crop.height
+    crop.width * scaleX,
+    crop.height * scaleY
   );
-
+  
+  // Resize to target dimensions
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = targetWidth;
   finalCanvas.height = targetHeight;
@@ -140,41 +135,33 @@ async function generateCroppedImage(
 
   finalCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     finalCanvas.toBlob((blob) => {
       if (!blob) {
-        resolve(null);
+        reject(new Error('Canvas is empty'));
         return;
       }
-      resolve(new File([blob], imageFile.name, { type: imageFile.type || 'image/png' }));
-    }, imageFile.type || 'image/png', 0.9);
+      resolve(blob);
+    }, 'image/jpeg', 0.95);
   });
 }
 
-function SubmitButton() {
-    const { pending } = useFormStatus();
-    return (
-        <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Changes
-        </Button>
-    )
-}
 
 export default function ProfilePage() {
+  const { auth, storage } = useFirebaseAuth();
   const { toast } = useToast();
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [updateState, setUpdateState] = useState<UpdateProfileFormState>({});
 
-  // Image Cropping State
-  const [imgSrc, setImgSrc] = useState(''); // For displaying the image to be cropped
+  const [imgSrc, setImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
-  const [originalFile, setOriginalFile] = useState<File | null>(null); // The original file selected by user
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const form = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
@@ -182,7 +169,7 @@ export default function ProfilePage() {
       shopName: '', storeCategory: '', ownerName: '', phoneCountryCode: '+91',
       phoneNumber: '', gender: '', city: '', weeklyCloseOn: '',
       openingTime: '', closingTime: '', shopFullAddress: '',
-      latitude: undefined, longitude: undefined, shopImage: undefined,
+      latitude: undefined, longitude: undefined, shopImageUrl: undefined,
     },
   });
 
@@ -194,14 +181,11 @@ export default function ProfilePage() {
         setVendorData(result.vendor);
         form.reset({
           ...result.vendor,
-          latitude: result.vendor.latitude ?? undefined, // Ensure undefined if null/missing
+          latitude: result.vendor.latitude ?? undefined,
           longitude: result.vendor.longitude ?? undefined,
-          gender: result.vendor.gender ?? '', // Ensure empty string if undefined
-          shopImage: undefined, // Do not prefill file input
+          gender: result.vendor.gender ?? '',
+          shopImageUrl: result.vendor.shopImageUrl ?? '',
         });
-        if (result.vendor.shopImageUrl) {
-          setImgSrc(result.vendor.shopImageUrl); // Set current shop image for display (not for crop initially)
-        }
       } else {
         toast({ variant: "destructive", title: "Error", description: result.error || "Could not fetch vendor details." });
       }
@@ -218,21 +202,14 @@ export default function ProfilePage() {
       setCompletedCrop(undefined);
       const reader = new FileReader();
       reader.addEventListener('load', () => {
-        setImgSrc(reader.result?.toString() || ''); // This will be the source for ReactCrop
+        setImgSrc(reader.result?.toString() || '');
       });
       reader.readAsDataURL(file);
       setOriginalFile(file);
-      form.setValue('shopImage', file); // Store original file; it will be replaced by cropped if crop occurs
-    } else {
-      // If no file selected, revert imgSrc to current shopImageUrl if it exists
-      setImgSrc(vendorData?.shopImageUrl || '');
-      setOriginalFile(null);
-      form.setValue('shopImage', undefined);
     }
   };
   
   function onImageLoadForCrop(e: React.SyntheticEvent<HTMLImageElement>) {
-    if (!imgSrc.startsWith('data:')) return; // Only auto-crop for newly uploaded local files
     const { width, height } = e.currentTarget;
     const crop = centerCrop(
       makeAspectCrop({ unit: '%', width: 90 }, TARGET_ASPECT_RATIO, width, height),
@@ -243,7 +220,6 @@ export default function ProfilePage() {
 
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
-      // Briefly set loading state for form fields if needed
       navigator.geolocation.getCurrentPosition(
         (position) => {
           form.setValue('latitude', parseFloat(position.coords.latitude.toFixed(6)));
@@ -258,240 +234,152 @@ export default function ProfilePage() {
   };
 
   async function onSubmit(values: z.infer<typeof profileFormSchema>) {
-    if (!vendorData?.id) {
-        toast({ variant: "destructive", title: "Error", description: "Vendor ID is missing." });
+    if (!auth?.currentUser || !storage) {
+        toast({ variant: "destructive", title: "Error", description: "User or storage service not available." });
         return;
     }
     setIsSubmittingForm(true);
-    const formDataToSubmit = new FormData();
-    let finalShopImageFile: File | undefined | null = originalFile;
 
-    if (completedCrop && originalFile && imgRef.current && imgSrc.startsWith('data:')) { // Check if imgSrc is a data URL (newly uploaded)
-      try {
-        const croppedFile = await generateCroppedImage(
-          originalFile, completedCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT
-        );
-        finalShopImageFile = croppedFile;
-      } catch (cropError) {
-        console.error("Error during image cropping:", cropError);
-        toast({ variant: "destructive", title: "Cropping Error", description: "Could not crop image." });
-        setIsSubmittingForm(false);
-        return;
-      }
+    let finalImageUrl = values.shopImageUrl;
+
+    // If a new file was selected and cropped
+    if (completedCrop && originalFile && imgRef.current) {
+        try {
+            const blob = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
+            if (blob) {
+                const filePath = `vendor_shop_images/${auth.currentUser.uid}/shop_image.jpg`;
+                const fileStorageRef = storageRef(storage, filePath);
+                const uploadTask = uploadBytesResumable(fileStorageRef, blob);
+
+                finalImageUrl = await new Promise((resolve, reject) => {
+                    uploadTask.on('state_changed',
+                        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+                        (error) => {
+                            console.error("Upload failed:", error);
+                            reject(error);
+                        },
+                        async () => {
+                            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                            resolve(downloadURL);
+                        }
+                    );
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            toast({ variant: "destructive", title: "Image Upload Failed", description: "Could not process or upload the new image." });
+            setIsSubmittingForm(false);
+            setUploadProgress(null);
+            return;
+        }
     }
     
-    // Append all basic fields
+    const formData = new FormData();
     Object.entries(values).forEach(([key, value]) => {
-      const valueKey = key as keyof typeof values;
-      if (valueKey !== 'shopImage' && value !== undefined) {
-        formDataToSubmit.append(key, String(value));
+      if (key !== 'shopImageUrl' && value !== undefined) {
+        formData.append(key, String(value));
       }
     });
-
-    // Append the (potentially cropped) image file
-    if (finalShopImageFile instanceof File) {
-      formDataToSubmit.append('shopImage', finalShopImageFile);
+    if (finalImageUrl) {
+        formData.append('shopImageUrl', finalImageUrl);
     }
     
-    const result = await updateVendorProfile(formDataToSubmit);
+    const result = await updateVendorProfile(updateState, formData);
     
     if(result.success) {
       toast({ title: "Profile Updated", description: result.message });
-      // Refetch data to show updated image
-      const updatedVendor = await getVendorDetails();
-      if(updatedVendor.vendor) setVendorData(updatedVendor.vendor);
-
+      const updatedVendorDetails = await getVendorDetails();
+      if(updatedVendorDetails.vendor) {
+          setVendorData(updatedVendorDetails.vendor);
+          form.setValue('shopImageUrl', updatedVendorDetails.vendor.shopImageUrl || '');
+          setImgSrc('');
+          setOriginalFile(null);
+      }
     } else {
       toast({ variant: "destructive", title: "Update Failed", description: result.error });
     }
     setIsSubmittingForm(false);
+    setUploadProgress(null);
   }
 
   if (isLoadingData) {
     return (
       <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-3xl mx-auto">
-          <CardHeader><Skeleton className="h-8 w-48" /></CardHeader>
-          <CardContent className="space-y-4">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-10 w-1/2" />
-          </CardContent>
+        <Card className="w-full max-w-3xl mx-auto"><CardHeader><Skeleton className="h-8 w-48" /></CardHeader>
+          <CardContent className="space-y-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</CardContent>
         </Card>
       </div>
     );
   }
 
   if (!vendorData) {
-    return <div className="container mx-auto py-8">Error loading vendor data or vendor not found.</div>;
+    return <div className="container mx-auto py-8">Error loading vendor data.</div>;
   }
+
+  const displayedImage = imgSrc || vendorData.shopImageUrl || 'https://placehold.co/150x100.png';
 
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
     <Card className="w-full max-w-3xl mx-auto shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold flex items-center">
-          <UserCog className="mr-3 h-6 w-6 text-primary" /> Shop Profile Settings
-        </CardTitle>
+      <CardHeader><CardTitle className="text-2xl font-bold flex items-center"><UserCog className="mr-3 h-6 w-6 text-primary" /> Shop Profile</CardTitle>
         <CardDescription>Update your shop information and display picture.</CardDescription>
       </CardHeader>
       <CardContent>
         <TooltipProvider>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              
-              {/* Shop Image Section */}
-              <FormField
-                control={form.control}
-                name="shopImage"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col items-center p-4 border rounded-md bg-muted/30">
-                    <FormLabel className="text-lg font-semibold mb-2">Shop Display Picture</FormLabel>
-                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
-                        <div className="w-32 h-32 sm:w-40 sm:h-auto flex-shrink-0 rounded-md overflow-hidden border flex items-center justify-center bg-background">
-                        {(imgSrc && !imgSrc.startsWith('data:')) || (imgSrc.startsWith('data:') && completedCrop) ? (
-                            <Image
-                                src={completedCrop && imgSrc.startsWith('data:') ? imgSrc : (vendorData.shopImageUrl || 'https://placehold.co/150x100.png')}
-                                alt="Shop Image Preview"
-                                width={TARGET_IMAGE_WIDTH}
-                                height={TARGET_IMAGE_HEIGHT}
-                                className="object-cover"
-                                data-ai-hint="shop logo storefront"
-                                key={vendorData.shopImageUrl || imgSrc} // Force re-render if URL changes
-                            />
-                        ) : (
-                            <Image src="https://placehold.co/150x100.png" alt="Placeholder" width={150} height={100} data-ai-hint="placeholder image"/>
-                        )}
-                        </div>
-                        <div className="flex-grow space-y-2">
-                            <Input
-                                id="shopImageUpload" type="file" accept="image/*"
-                                onChange={handleImageFileChange}
-                                className="hidden" ref={fileInputRef}
-                                disabled={isSubmittingForm}
-                            />
-                            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full" disabled={isSubmittingForm}>
-                                <UploadCloud className="mr-2 h-4 w-4" /> Change Image
-                            </Button>
-                            <FormDescription className="text-xs text-center sm:text-left">
-                                Upload a new picture (JPG, PNG). It will be cropped to 150x100 pixels.
-                            </FormDescription>
-                        </div>
-                    </div>
-
-                    {imgSrc && imgSrc.startsWith('data:') && ( // Only show cropper for new, local images
-                      <div className="mt-4 p-2 border rounded-md w-full bg-background">
-                        <p className="text-sm text-muted-foreground mb-2 text-center">Adjust crop for 150x100 display:</p>
-                        <ReactCrop
-                          crop={crop}
-                          onChange={(_, percentCrop) => setCrop(percentCrop)}
-                          onComplete={(c) => setCompletedCrop(c)}
-                          aspect={TARGET_ASPECT_RATIO}
-                          minWidth={TARGET_IMAGE_WIDTH / 5}
-                          minHeight={TARGET_IMAGE_HEIGHT / 5}
-                        >
-                          <img
-                            ref={imgRef} alt="Crop preview" src={imgSrc}
-                            onLoad={onImageLoadForCrop}
-                            style={{ maxHeight: '300px', display: 'block', margin: 'auto', maxWidth: '100%' }}
-                          />
-                        </ReactCrop>
-                      </div>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Email (Read-only) */}
-              <FormItem>
-                <FormLabel>Email (Login ID)</FormLabel>
-                <FormControl>
-                  <Input value={vendorData.email} readOnly disabled className="bg-muted/50 cursor-not-allowed" />
-                </FormControl>
-                <FormDescription className="text-xs">Your login email cannot be changed here.</FormDescription>
+              <FormItem className="flex flex-col items-center p-4 border rounded-md bg-muted/30">
+                <FormLabel className="text-lg font-semibold mb-2">Shop Display Picture</FormLabel>
+                <div className="w-40 h-auto flex-shrink-0 rounded-md overflow-hidden border flex items-center justify-center bg-background mb-4">
+                    <Image src={displayedImage} alt="Shop Image Preview" width={TARGET_IMAGE_WIDTH} height={TARGET_IMAGE_HEIGHT} className="object-cover" key={displayedImage} />
+                </div>
+                <Input id="shopImageUpload" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" ref={fileInputRef} disabled={isSubmittingForm} />
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full max-w-xs" disabled={isSubmittingForm}>
+                    <UploadCloud className="mr-2 h-4 w-4" /> Change Image
+                </Button>
+                <FormDescription className="text-xs text-center sm:text-left mt-2">Will be cropped to 150x100 pixels.</FormDescription>
+                {uploadProgress !== null && <Progress value={uploadProgress} className="w-full max-w-xs mt-2" />}
               </FormItem>
 
+              {imgSrc && (
+                <div className="mt-4 p-2 border rounded-md w-full bg-background">
+                  <p className="text-sm text-muted-foreground mb-2 text-center">Adjust crop for 150x100 display:</p>
+                  <ReactCrop crop={crop} onChange={(_, percentCrop) => setCrop(percentCrop)} onComplete={(c) => setCompletedCrop(c)} aspect={TARGET_ASPECT_RATIO} minWidth={TARGET_IMAGE_WIDTH/2} minHeight={TARGET_IMAGE_HEIGHT/2}>
+                    <img ref={imgRef} alt="Crop preview" src={imgSrc} onLoad={onImageLoadForCrop} style={{ maxHeight: '300px', display: 'block', margin: 'auto', maxWidth: '100%' }} />
+                  </ReactCrop>
+                </div>
+              )}
+              
+              <FormItem><FormLabel>Email (Login ID)</FormLabel><FormControl><Input value={vendorData.email} readOnly disabled className="cursor-not-allowed" /></FormControl></FormItem>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="shopName" render={({ field }) => (
-                    <FormItem><FormLabel>Shop Name *</FormLabel><FormControl><Input {...field} disabled={isSubmittingForm} /></FormControl><FormMessage /></FormItem>
-                )}/>
-                <FormField control={form.control} name="storeCategory" render={({ field }) => (
-                    <FormItem><FormLabel>Store Category *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>{storeCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                    </Select><FormMessage /></FormItem>
-                )}/>
+                <FormField control={form.control} name="shopName" render={({ field }) => (<FormItem><FormLabel>Shop Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="storeCategory" render={({ field }) => (<FormItem><FormLabel>Store Category *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{storeCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
               </div>
-              <FormField control={form.control} name="ownerName" render={({ field }) => (
-                  <FormItem><FormLabel>Owner Name *</FormLabel><FormControl><Input {...field} disabled={isSubmittingForm} /></FormControl><FormMessage /></FormItem>
-              )}/>
+              <FormField control={form.control} name="ownerName" render={({ field }) => (<FormItem><FormLabel>Owner Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <FormItem><FormLabel>Phone No *</FormLabel>
                 <div className="flex gap-2">
-                  <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (
-                      <FormItem className="w-1/4"><Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                      </Select><FormMessage /></FormItem>
-                  )}/>
-                  <FormField control={form.control} name="phoneNumber" render={({ field }) => (
-                      <FormItem className="flex-1"><FormControl><Input type="tel" {...field} disabled={isSubmittingForm} /></FormControl><FormMessage /></FormItem>
-                  )}/>
+                  <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (<FormItem className="w-1/4"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </FormItem>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="gender" render={({ field }) => (
-                  <FormItem><FormLabel>Gender</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl>
-                      <SelectContent>{genders.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
-                  </Select><FormMessage /></FormItem>
-                )}/>
-                <FormField control={form.control} name="city" render={({ field }) => (
-                    <FormItem><FormLabel>City *</FormLabel><FormControl><Input {...field} disabled={isSubmittingForm} /></FormControl><FormMessage /></FormItem>
-                )}/>
+                <FormField control={form.control} name="gender" render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl><SelectContent>{genders.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="openingTime" render={({ field }) => (
-                  <FormItem><FormLabel>Opening Time *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>{timeOptions.map(t => <SelectItem key={`open-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-                  </Select><FormMessage /></FormItem>
-                )}/>
-                <FormField control={form.control} name="closingTime" render={({ field }) => (
-                  <FormItem><FormLabel>Closing Time *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>{timeOptions.map(t => <SelectItem key={`close-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-                  </Select><FormMessage /></FormItem>
-                )}/>
+                <FormField control={form.control} name="openingTime" render={({ field }) => (<FormItem><FormLabel>Opening Time *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={`open-${t}`} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="closingTime" render={({ field }) => (<FormItem><FormLabel>Closing Time *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={`close-${t}`} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
               </div>
-              <FormField control={form.control} name="weeklyCloseOn" render={({ field }) => (
-                <FormItem><FormLabel>Weekly Close On *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value} disabled={isSubmittingForm}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                  <SelectContent>{weeklyCloseDays.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-                </Select><FormMessage /></FormItem>
-              )}/>
-              <FormField control={form.control} name="shopFullAddress" render={({ field }) => (
-                <FormItem><FormLabel>Shop Full Address *</FormLabel>
-                <FormControl><Textarea {...field} rows={3} disabled={isSubmittingForm} /></FormControl><FormMessage /></FormItem>
-              )}/>
+              <FormField control={form.control} name="weeklyCloseOn" render={({ field }) => (<FormItem><FormLabel>Weekly Close On *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{weeklyCloseDays.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="shopFullAddress" render={({ field }) => (<FormItem><FormLabel>Shop Full Address *</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)}/>
               <div className="space-y-1">
                 <FormLabel>Shop Location (Latitude & Longitude) *</FormLabel>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                  <FormField control={form.control} name="latitude" render={({ field }) => (
-                    <FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} disabled={isSubmittingForm}/></FormControl><FormMessage /></FormItem>
-                  )}/>
-                  <FormField control={form.control} name="longitude" render={({ field }) => (
-                    <FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} disabled={isSubmittingForm}/></FormControl><FormMessage /></FormItem>
-                  )}/>
+                  <FormField control={form.control} name="latitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="longitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isSubmittingForm} className="mt-2">
-                  <LocateFixed className="mr-2 h-4 w-4" /> Use My Current Location
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2"><LocateFixed className="mr-2 h-4 w-4" /> Use My Current Location</Button>
               </div>
 
               <Button type="submit" className="w-full" disabled={isSubmittingForm}>

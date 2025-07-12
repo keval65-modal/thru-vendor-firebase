@@ -12,9 +12,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
-
+import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirebaseAuth } from '@/lib/firebase';
 
 
 const loginFormSchema = z.object({
@@ -23,6 +22,7 @@ const loginFormSchema = z.object({
 });
 
 export function LoginForm() {
+  const { auth } = useFirebaseAuth(); // Get auth from context
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -38,11 +38,21 @@ export function LoginForm() {
 
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
+
+    if (!auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Initialization Error',
+        description: 'Firebase is not ready. Please try again in a moment.',
+      });
+      setIsLoading(false);
+      return;
+    }
+    
     console.log('[LoginForm] Submitting login form with values:', values);
     
     try {
       // Step 1: Authenticate with Firebase Auth on the client
-      const auth = getFirebaseAuth();
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('[LoginForm] Firebase client-side sign-in successful. UID:', user.uid);
@@ -52,10 +62,7 @@ export function LoginForm() {
 
       if (sessionResult?.success) {
         toast({ title: 'Login Successful', description: 'Redirecting...' });
-
-        // Navigate to the dashboard. The middleware will allow this transition.
         router.push('/dashboard');
-
       } else {
         toast({
           variant: 'destructive',

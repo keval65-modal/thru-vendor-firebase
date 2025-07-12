@@ -26,7 +26,7 @@ import { createSession } from '@/lib/auth';
 
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
-import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from '@/lib/firebase';
+import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
@@ -158,6 +158,7 @@ async function generateCroppedImage(
 
 
 export function SignupForm() {
+  const { auth, db, storage } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -254,17 +255,25 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
+
+    if (!auth || !db || !storage) {
+       toast({
+        variant: 'destructive',
+        title: 'Initialization Error',
+        description: 'Firebase is not ready. Please try again in a moment.',
+      });
+      setIsLoading(false);
+      return;
+    }
     
     try {
       // Step 1: Create user in Firebase Auth
-      const auth = getFirebaseAuth();
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
 
       // Step 2: Handle image upload to Firebase Storage
       let imageUrl: string | undefined = undefined;
-      // Use the default crop if the user hasn't interacted with the cropper.
       if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
         const finalCrop = completedCrop || {
             unit: 'px',
@@ -277,7 +286,6 @@ export function SignupForm() {
         const croppedFile = await generateCroppedImage(originalFile, finalCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
 
         if (croppedFile) {
-          const storage = getFirebaseStorage();
           const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;
           const imageStorageRef = storageRef(storage, imagePath);
           await uploadBytes(imageStorageRef, croppedFile);
@@ -287,7 +295,6 @@ export function SignupForm() {
       }
 
       // Step 3: Prepare data and create vendor document in Firestore directly from the client
-      const db = getFirebaseDb();
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
@@ -316,8 +323,6 @@ export function SignupForm() {
           });
           router.push('/orders'); // Redirect to main app page
       } else {
-          // This path is taken if session creation fails after signup.
-          // The user is authenticated but doesn't have a server session.
           toast({
             variant: 'destructive',
             title: 'Signup Almost Complete',
@@ -396,7 +401,6 @@ export function SignupForm() {
                       aspect={TARGET_ASPECT_RATIO}
                       minWidth={TARGET_IMAGE_WIDTH / 5} // min crop selection width
                       minHeight={TARGET_IMAGE_HEIGHT / 5} // min crop selection height
-                      // circularCrop // if you want circular logo crop
                     >
                       <img
                         ref={imgRef}
