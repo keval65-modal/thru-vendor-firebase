@@ -2,12 +2,13 @@
 'use server';
 
 import { z } from 'zod';
-import { getFirebaseAuth, firebaseAdminApp } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { createSession } from '@/lib/auth';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Vendor } from '@/lib/inventoryModels';
 import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase-admin-client';
 
 
 const LoginSchema = z.object({
@@ -30,11 +31,8 @@ export async function handleAdminLogin(formData: FormData): Promise<{ success: b
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // CRITICAL STEP: After password is verified, check for admin role in Firestore using the Admin SDK.
-    const db = adminDb();
-    if (!db) {
-        return { success: false, error: "Server database not configured. Cannot verify role." };
-    }
+    // CRITICAL STEP: After password is verified, check for admin role in Firestore using the CLIENT-COMPATIBLE Admin SDK.
+    // This avoids the service account dependency for this critical login flow.
     const userDocRef = doc(db, 'vendors', uid);
     const userDocSnap = await getDoc(userDocRef);
 
