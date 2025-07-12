@@ -1,10 +1,12 @@
+
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
-import type { FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,3 +25,30 @@ export interface FirebaseContextValue {
   db: Firestore | null;
   storage: FirebaseStorage | null;
 }
+
+let firebaseApp: FirebaseApp | null = null;
+let firebaseAuth: Auth | null = null;
+
+function initializeFirebase() {
+    if (getApps().length === 0) {
+        firebaseApp = initializeApp(firebaseConfig);
+    } else {
+        firebaseApp = getApp();
+    }
+    firebaseAuth = getAuth(firebaseApp);
+}
+
+// Initialize on first load
+initializeFirebase();
+
+// Export a function to get the auth instance, which can be used in server actions
+export const getFirebaseAuth = () => {
+    if (!firebaseAuth) {
+        // This should not happen if initializeFirebase() is called, but as a safeguard
+        initializeFirebase();
+    }
+    return firebaseAuth as Auth;
+};
+
+// Export app for other services if needed
+export const firebaseAdminApp = firebaseApp;
