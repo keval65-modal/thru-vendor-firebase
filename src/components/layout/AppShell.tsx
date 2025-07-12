@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flame } from 'lucide-react';
-import { getSession } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
 
 import { cn } from '@/lib/utils';
 import { mainNavItems, bottomNavItems, type NavItem } from '@/config/nav';
@@ -65,16 +65,10 @@ function NavLinks({ items, currentPath }: { items: NavItem[]; currentPath: strin
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
-  const [sessionRole, setSessionRole] = React.useState<'vendor' | 'admin' | undefined>();
-
-  React.useEffect(() => {
-    getSession().then(session => {
-      setSessionRole(session?.role);
-    });
-  }, []);
+  const { session } = useSession();
 
   const visibleBottomNavItems = bottomNavItems.filter(item => {
-    return !item.adminOnly || (item.adminOnly && sessionRole === 'admin');
+    return !item.adminOnly || (item.adminOnly && session?.role === 'admin');
   });
 
   return (

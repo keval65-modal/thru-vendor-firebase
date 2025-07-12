@@ -17,63 +17,29 @@ import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import type { Vendor } from '@/lib/inventoryModels';
 import { Card, CardContent } from '@/components/ui/card';
-
-
-interface VendorSession {
-  uid?: string;
-  email?: string;
-  shopName?: string;
-  storeCategory?: string;
-}
+import { useSession } from '@/hooks/use-session';
 
 export default function OrdersPage() {
-  const { auth, db } = useFirebaseAuth();
-  const [session, setSession] = useState<VendorSession | null>(null);
+  const { db } = useFirebaseAuth();
+  const { session, isLoading: isLoadingSession } = useSession();
   const [isShopOpen, setIsShopOpen] = useState(true);
   const [orders, setOrders] = useState<VendorDisplayOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
 
-  // 1. Get the logged-in vendor's auth state and profile data
+  // Set up the real-time listener for orders when the session is available
   useEffect(() => {
-    if (!auth || !db) return;
-
-    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
-      if (user && user.email) {
-        // User is logged in, now fetch their vendor profile from Firestore
-        const vendorDocRef = doc(db, 'vendors', user.uid);
-        const vendorDocSnap = await getDoc(vendorDocRef);
-        if (vendorDocSnap.exists()) {
-          const vendorData = vendorDocSnap.data() as Vendor;
-          setSession({
-            uid: user.uid,
-            email: user.email,
-            shopName: vendorData.shopName,
-            storeCategory: vendorData.storeCategory,
-          });
-        } else {
-           console.error("User authenticated but no vendor profile found in Firestore.");
-           setSession(null);
-           router.push('/login');
-        }
-      } else {
-        setSession(null);
-        router.push('/login');
+    if (!session || !db) {
+      if (!isLoadingSession) {
+        // If session loading is finished and there's no session, clear orders.
+        setOrders([]);
+        setIsLoadingOrders(false);
       }
-    });
-    return () => unsubscribeAuth(); // Cleanup listener on unmount
-  }, [auth, db, router]);
-
-  // 2. Set up the real-time listener when the email is available
-  useEffect(() => {
-    if (!session?.email || !db) {
-      setOrders([]);
-      setIsLoading(false); 
       return;
     }
 
-    setIsLoading(true);
+    setIsLoadingOrders(true);
     console.log(`Setting up real-time order listener for vendor email: ${session.email}`);
     
     const ordersRef = collection(db, "orders");
@@ -106,7 +72,7 @@ export default function OrdersPage() {
       });
       
       setOrders(fetchedOrders);
-      setIsLoading(false);
+      setIsLoadingOrders(false);
       console.log(`Real-time update for ${session.email}! Orders:`, fetchedOrders);
     }, (error) => {
       console.error("Error with real-time order listener:", error);
@@ -115,15 +81,14 @@ export default function OrdersPage() {
             title: 'Failed to Listen for Orders',
             description: 'Please check the developer console. A Firestore index may be required.'
       });
-      setIsLoading(false);
+      setIsLoadingOrders(false);
     });
 
     return () => {
         console.log("Cleaning up order listener.");
         unsubscribeSnapshot();
     };
-
-  }, [session, db, toast]);
+  }, [session, db, toast, isLoadingSession]);
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     return {
@@ -147,7 +112,7 @@ export default function OrdersPage() {
   };
   
   const renderOrdersList = (orderList: VendorDisplayOrder[], status: 'New' | 'Preparing' | 'Ready') => {
-    if (isLoading) {
+    if (isLoadingOrders) {
       return (
          <div className="space-y-4">
           <Skeleton className="h-48 w-full rounded-lg" />
@@ -207,11 +172,24 @@ export default function OrdersPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden">
-                <Image src="https://placehold.co/60x60.png" alt="Shop Logo" width={48} height={48} data-ai-hint="shop logo" />
+                {isLoadingSession ? (
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                ) : (
+                    <Image src={session?.shopImageUrl || "https://placehold.co/60x60.png"} alt="Shop Logo" width={48} height={48} data-ai-hint="shop logo" />
+                )}
               </div>
               <div>
-                <h1 className="text-xl font-bold">{session?.shopName || "Your Shop"}</h1>
-                <p className="text-xs opacity-90">{session?.storeCategory || "Category"}</p>
+                {isLoadingSession ? (
+                    <div className="space-y-1">
+                        <Skeleton className="h-6 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                    </div>
+                ) : (
+                    <>
+                        <h1 className="text-xl font-bold">{session?.shopName || "Your Shop"}</h1>
+                        <p className="text-xs opacity-90">{session?.storeCategory || "Category"}</p>
+                    </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -227,15 +205,17 @@ export default function OrdersPage() {
                   {isShopOpen ? "Online" : "Offline"}
                 </label>
               </div>
-               <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleLogout}
-                className="text-primary-foreground border-primary-foreground/50 hover:bg-primary/80 hover:text-primary-foreground"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </Button>
+              <form action={logout}>
+                <Button 
+                  type="submit"
+                  variant="outline" 
+                  size="sm" 
+                  className="text-primary-foreground border-primary-foreground/50 hover:bg-primary/80 hover:text-primary-foreground"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </form>
             </div>
           </div>
           <div className="mt-2 rounded-md overflow-hidden">
@@ -256,13 +236,13 @@ export default function OrdersPage() {
         <Tabs defaultValue="new" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-muted p-1 rounded-md">
             <TabsTrigger value="new" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                New ({isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : newOrders.length})
+                New ({isLoadingOrders ? <Loader2 className="h-4 w-4 animate-spin"/> : newOrders.length})
             </TabsTrigger>
             <TabsTrigger value="preparing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Preparing ({isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : preparingOrders.length})
+                Preparing ({isLoadingOrders ? <Loader2 className="h-4 w-4 animate-spin"/> : preparingOrders.length})
             </TabsTrigger>
             <TabsTrigger value="ready" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Ready ({isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : readyOrders.length})
+                Ready ({isLoadingOrders ? <Loader2 className="h-4 w-4 animate-spin"/> : readyOrders.length})
             </TabsTrigger>
           </TabsList>
 
