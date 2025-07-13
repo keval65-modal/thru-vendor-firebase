@@ -5,24 +5,32 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Vendor } from '@/lib/inventoryModels';
-import { db } from '@/lib/firebase-admin-client';
-import { doc, getDoc } from 'firebase/firestore';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
 export async function createSession(uid: string, isAdminLogin = false): Promise<{success: boolean, error?: string}> {
   if (!uid) {
-    throw new Error('User ID is required to create a session.');
+    return { success: false, error: 'User ID is required to create a session.' };
+  }
+  
+  const db = adminDb();
+  if (!db) {
+    return { success: false, error: 'Server configuration error. Cannot verify user role.' };
   }
 
-  // If this is a special admin login (like the direct login workaround),
-  // we can add specific logic here.
+  // If this is an admin login (direct or standard), we must verify their role.
   if (isAdminLogin) {
-    // THIS IS THE WORKAROUND: For direct admin login, we skip the role check
-    // because the admin SDK isn't initializing correctly.
-    console.log(`[createSession] Bypassing role check for direct admin login for UID: ${uid}`);
-  } else {
-    // For regular vendor logins, no role check is needed.
+      try {
+          const userDocRef = db.collection('vendors').doc(uid);
+          const userDocSnap = await userDocRef.get();
+
+          if (!userDocSnap.exists || userDocSnap.data()?.role !== 'admin') {
+              return { success: false, error: 'Access denied. This account does not have admin privileges.' };
+          }
+      } catch (error) {
+          console.error('[createSession] Admin role check failed:', error);
+          return { success: false, error: 'Server configuration error. Could not verify admin role.' };
+      }
   }
   
   cookies().set(AUTH_COOKIE_NAME, uid, {
@@ -31,6 +39,7 @@ export async function createSession(uid: string, isAdminLogin = false): Promise<
     maxAge: 60 * 60 * 24 * 7, // 1 week
     path: '/',
   });
+
   return { success: true };
 }
 
@@ -54,11 +63,15 @@ export async function getSession(): Promise<{
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
-    // For server components, we still prefer the admin SDK if available because it's faster and more secure.
-    const database = adminDb() || db; // Fallback to client-side DB access from server context
+    const db = adminDb();
+    if (!db) {
+        console.error('[getSession] Admin DB not available. Cannot fetch user details.');
+        return { isAuthenticated: false };
+    }
+
     try {
-      const userDocRef = doc(database, 'vendors', userUidFromCookie);
-      const userDocSnap = await getDoc(userDocRef);
+      const userDocRef = db.collection('vendors').doc(userUidFromCookie);
+      const userDocSnap = await userDocRef.get();
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data() as Vendor;

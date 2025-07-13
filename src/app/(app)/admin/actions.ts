@@ -9,6 +9,8 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+const ADMIN_LOGIN_ROUTE = '/admin/login';
+
 const dbCheck = () => {
     const db = adminDb();
     if (!db) {
@@ -187,7 +189,7 @@ export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: 
     if (!vendorSnap.exists) {
       return { error: 'Vendor not found.' };
     }
-    const vendorData = vendorSnap.data() as Vendor;
+    const vendorData = vendorSnap.data() as Omit<Vendor, 'id'>;
     return {
       vendor: {
         id: vendorSnap.id,
