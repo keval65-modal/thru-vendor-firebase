@@ -46,7 +46,7 @@ export async function processCsvData(input: ProcessCsvInput): Promise<ProcessCsv
 const prompt = ai.definePrompt({
     name: 'processCsvPrompt',
     input: { schema: ProcessCsvInputSchema },
-    output: { schema: ProcessCsvOutputSchema },
+    output: { schema: ProcessCsvOutputSchema, force: true },
     prompt: `You are an expert data mapping AI. You will be given a small sample of a CSV file, including the header row.
     Your task is to analyze the sample and determine which column header from the CSV file corresponds to each field in our target schema.
 
@@ -61,7 +61,7 @@ const prompt = ai.definePrompt({
     - description: A description of the product.
     - barcode: The product's barcode.
 
-    Your output must be a JSON object containing a single key "mappings". The value of "mappings" should be an object where each key is a field from our target schema and the value is the EXACT corresponding column name from the provided CSV header. If a mapping for an optional field cannot be determined, omit the key.
+    Your output MUST be a valid JSON object that conforms to the specified schema, and nothing else. Do not include any extra text, explanations, or markdown formatting like \`\`\`json.
 
     Here is the CSV sample:
     ---
@@ -89,6 +89,30 @@ const processCsvFlow = ai.defineFlow(
         const { output } = await prompt(input);
         
         if (!output || !output.mappings) {
+             let rawOutputText = '';
+            // If the output is not structured, maybe it's in the text response.
+            // This is a resilience mechanism.
+            try {
+                // Temporarily disable forcing JSON to see what the model is actually returning
+                const result = await ai.generate({ prompt: prompt.prompt!, input: input });
+                rawOutputText = result.text ?? '';
+                console.warn("[processCsvFlow] AI did not return a valid structured output. Raw text response:", rawOutputText);
+                
+                // Try to extract JSON from the raw text
+                const jsonMatch = rawOutputText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    const validated = ProcessCsvOutputSchema.safeParse(parsed);
+                    if (validated.success) {
+                        console.log("[processCsvFlow] Successfully recovered JSON from raw text response.");
+                        return validated.data;
+                    }
+                }
+            } catch (innerError) {
+                 console.error("[processCsvFlow] Could not recover from non-JSON response. Raw output was:", rawOutputText, "Inner error:", innerError);
+                 throw new Error("The model has returned a non-JSON response.");
+            }
+            
             console.error("[processCsvFlow] AI mapping failed to return valid mappings. Raw output:", output);
             throw new Error("AI could not determine column mappings from the provided CSV sample.");
         }
