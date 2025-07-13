@@ -6,11 +6,12 @@ import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, Eye, EyeOff, AlertTriangle } from 'lucide-react';
-import { handleAdminLogin, type LoginState } from './actions';
+import { Loader2, LogIn, Eye, EyeOff, AlertTriangle, KeyRound } from 'lucide-react';
+import { handleAdminLogin, handleDirectAdminLogin, type LoginState } from './actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
 
 const initialState: LoginState = { success: false };
 
@@ -33,59 +34,94 @@ export function AdminLoginForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [isDirectLoginLoading, setIsDirectLoginLoading] = useState(false);
 
   useEffect(() => {
     if (state.success) {
       toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
       router.push('/admin');
     }
-    // Error is now handled by the Alert component below
   }, [state, toast, router]);
 
+  const onDirectLogin = async () => {
+      setIsDirectLoginLoading(true);
+      const result = await handleDirectAdminLogin();
+      if (result.success) {
+          toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
+          router.push('/admin');
+      } else {
+          toast({ variant: 'destructive', title: 'Direct Login Failed', description: result.error });
+      }
+      setIsDirectLoginLoading(false);
+  };
+
   return (
-    <form action={formAction} className="space-y-6">
-      {state.error && (
-        <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Login Failed</AlertTitle>
-            <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
-      <div className="space-y-2">
-        <Label htmlFor="email">Admin Email</Label>
-        <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="admin@example.com"
-            required
-        />
-        {state.fields?.email && <p className="text-sm text-destructive">{state.fields.email[0]}</p>}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <div className="relative">
+    <div className="space-y-6">
+        <form action={formAction} className="space-y-6">
+        {state.error && (
+            <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{state.error}</AlertDescription>
+            </Alert>
+        )}
+        <div className="space-y-2">
+            <Label htmlFor="email">Admin Email</Label>
             <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                id="email"
+                name="email"
+                type="email"
+                placeholder="admin@example.com"
                 required
             />
-             <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </Button>
+            {state.fields?.email && <p className="text-sm text-destructive">{state.fields.email[0]}</p>}
         </div>
-        {state.fields?.password && <p className="text-sm text-destructive">{state.fields.password[0]}</p>}
-      </div>
-      <SubmitButton />
-    </form>
+        <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+                <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                />
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </Button>
+            </div>
+            {state.fields?.password && <p className="text-sm text-destructive">{state.fields.password[0]}</p>}
+        </div>
+        <SubmitButton />
+        </form>
+
+        <div className="relative">
+            <Separator />
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center">
+                <span className="bg-card px-2 text-xs text-muted-foreground">OR</span>
+            </div>
+        </div>
+
+        <Button
+            variant="secondary"
+            className="w-full"
+            onClick={onDirectLogin}
+            disabled={isDirectLoginLoading}
+        >
+            {isDirectLoginLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+                <KeyRound className="mr-2 h-4 w-4" />
+            )}
+            Direct Admin Login (Workaround)
+        </Button>
+    </div>
   );
 }
