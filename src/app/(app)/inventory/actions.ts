@@ -741,7 +741,7 @@ export async function handleCsvUpload(
 
         return {
             itemName: getString(mappings.itemName) || 'Unnamed Item',
-            sharedItemType: category?.toLowerCase().includes('grocery') ? 'grocery' : 'other',
+            sharedItemType: (category && category.toLowerCase().includes('grocery')) ? 'grocery' : 'other',
             defaultCategory: getString(mappings.defaultCategory) || 'Uncategorized',
             defaultUnit: getString(mappings.defaultUnit) || 'unit',
             brand: getString(mappings.brand),
