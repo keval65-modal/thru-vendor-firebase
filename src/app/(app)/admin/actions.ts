@@ -18,11 +18,6 @@ const ADMIN_LOGIN_ROUTE = '/admin/login';
  * Enforces admin-only access via Firestore Security Rules.
  */
 export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
-  const session = await getSession();
-  if (session?.role !== 'admin') {
-    return { error: "You are not authorized to perform this action." };
-  }
-
   try {
     const vendorsCollection = collection(db, 'vendors');
     const vendorSnapshot = await getDocs(vendorsCollection);
@@ -66,11 +61,6 @@ export async function updateVendorByAdmin(
     prevState: UpdateVendorByAdminFormState,
     formData: FormData
 ): Promise<UpdateVendorByAdminFormState> {
-    const session = await getSession();
-    if (session?.role !== 'admin') {
-        return { error: "You are not authorized to perform this action." };
-    }
-    
     const validatedFields = UpdateVendorByAdminSchema.safeParse(
         Object.fromEntries(formData.entries())
     );
@@ -115,11 +105,6 @@ export type DeleteVendorResult = {
  * WARNING: This does NOT delete the user from Firebase Auth. That must be done manually.
  */
 export async function deleteVendorAndInventory(vendorId: string): Promise<DeleteVendorResult> {
-    const session = await getSession();
-    if (session?.role !== 'admin') {
-        return { success: false, error: "You are not authorized to perform this action." };
-    }
-
     if (!vendorId) {
         return { success: false, error: 'Vendor ID is missing.' };
     }
@@ -168,11 +153,6 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
  * Fetches a single vendor's details for the edit page.
  */
 export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor, error?: string }> {
-  const session = await getSession();
-  if (session?.role !== 'admin') {
-    redirect(ADMIN_LOGIN_ROUTE);
-  }
-
   try {
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);

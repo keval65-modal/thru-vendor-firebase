@@ -4,32 +4,31 @@ import type { NextRequest } from 'next/server';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts', '/profile'];
-const ADMIN_PROTECTED_ROUTES = ['/admin'];
 const PUBLIC_ROUTES_FOR_REDIRECT = ['/login', '/signup']; // Pages to redirect from if logged in
-const ADMIN_LOGIN_ROUTE = '/admin/login';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
   const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
-  const isAdminProtectedRoute = ADMIN_PROTECTED_ROUTES.some(route => pathname.startsWith(route) && !pathname.startsWith(ADMIN_LOGIN_ROUTE));
   const isPublicRouteForRedirect = PUBLIC_ROUTES_FOR_REDIRECT.some(route => pathname.startsWith(route));
+
+  // If trying to access admin route, allow it unconditionally.
+  if (pathname.startsWith('/admin')) {
+    return NextResponse.next();
+  }
 
   // --- No Token ---
   if (!token) {
-    // Redirect to the appropriate login page if trying to access a protected route
+    // Redirect to the login page if trying to access a protected route
     if (isProtectedRoute) {
       return NextResponse.redirect(new URL('/login', request.url));
-    }
-    if (isAdminProtectedRoute) {
-      return NextResponse.redirect(new URL(ADMIN_LOGIN_ROUTE, request.url));
     }
     // Redirect from root to login if no token
     if (pathname === '/') {
         return NextResponse.redirect(new URL('/login', request.url));
     }
-    // Otherwise, allow access to public routes (like /login, /signup, /admin/login, /forgot-password)
+    // Otherwise, allow access to public routes
     return NextResponse.next();
   }
 
@@ -45,8 +44,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // In all other cases (e.g., logged-in user accessing a protected route, or any user accessing
-  // /admin/login or /forgot-password), allow the request to proceed.
+  // In all other cases, allow the request to proceed.
   return NextResponse.next();
 }
 
