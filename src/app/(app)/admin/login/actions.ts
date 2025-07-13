@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createSession } from '@/lib/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { adminDb } from '@/lib/firebase-admin';
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -35,11 +36,9 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // The `createSession` function will now perform the admin role check internally.
     const sessionResult = await createSession(uid, true);
 
     if (!sessionResult.success) {
-        // This will now correctly return either "Access denied" or "Server configuration error"
         return { success: false, error: sessionResult.error };
     }
 
@@ -56,11 +55,6 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
       return { success: false, error: 'Invalid credentials. Please check your email and password.' };
     }
     
-    // This case will now be handled by the sessionResult check above.
-    // if (error.message.includes("Could not verify admin role")) {
-    //     return { success: false, error: error.message };
-    // }
-
     return { success: false, error: 'An unexpected error occurred during login.' };
   }
 }
