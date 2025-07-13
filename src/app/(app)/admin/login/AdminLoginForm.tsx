@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useEffect, useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, LogIn, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { handleAdminLogin, type LoginState } from './actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -29,7 +29,7 @@ function SubmitButton() {
 }
 
 export function AdminLoginForm() {
-  const [state, formAction] = useFormState(handleAdminLogin, initialState);
+  const [state, formAction] = useActionState(handleAdminLogin, initialState);
   const { toast } = useToast();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
