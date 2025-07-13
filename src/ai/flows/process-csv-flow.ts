@@ -46,7 +46,7 @@ export async function processCsvData(input: ProcessCsvInput): Promise<ProcessCsv
 const prompt = ai.definePrompt({
     name: 'processCsvPrompt',
     input: { schema: ProcessCsvInputSchema },
-    output: { schema: ProcessCsvOutputSchema, force: true },
+    output: { schema: ProcessCsvOutputSchema },
     prompt: `You are an expert data mapping AI. You will be given a string of comma-separated column headers from a CSV file.
     Your task is to analyze the headers and determine which column header corresponds to each field in our target schema.
 
@@ -89,16 +89,12 @@ const processCsvFlow = ai.defineFlow(
         const { output } = await prompt(input);
         
         if (!output || !output.mappings) {
-             let rawOutputText = '';
-            // If the output is not structured, maybe it's in the text response.
-            // This is a resilience mechanism.
+            console.error("[processCsvFlow] AI mapping failed to return valid structured mappings. Raw output:", output);
+            // This fallback logic is now less necessary with definePrompt, but kept for resilience.
+            let rawOutputText = '';
             try {
-                // Temporarily disable forcing JSON to see what the model is actually returning
                 const result = await ai.generate({ prompt: prompt.prompt!, input: input });
                 rawOutputText = result.text ?? '';
-                console.warn("[processCsvFlow] AI did not return a valid structured output. Raw text response:", rawOutputText);
-                
-                // Try to extract JSON from the raw text
                 const jsonMatch = rawOutputText.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     const parsed = JSON.parse(jsonMatch[0]);
@@ -113,7 +109,6 @@ const processCsvFlow = ai.defineFlow(
                  throw new Error("The model has returned a non-JSON response.");
             }
             
-            console.error("[processCsvFlow] AI mapping failed to return valid mappings. Raw output:", output);
             throw new Error("AI could not determine column mappings from the provided CSV sample.");
         }
         
@@ -123,6 +118,7 @@ const processCsvFlow = ai.defineFlow(
     } catch (error) {
         console.error("[processCsvFlow] An error occurred during AI processing:", error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        // Throw a specific, clear error to be caught by the server action.
         throw new Error(`The AI failed to determine mappings: ${errorMessage}`);
     }
   }

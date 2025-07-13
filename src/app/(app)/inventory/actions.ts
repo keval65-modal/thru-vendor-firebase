@@ -719,7 +719,16 @@ export async function handleCsvUpload(
     const csvSample = headers.join(',');
     
     console.log(`DEBUG: [handleCsvUpload] Sending headers to AI for mapping: ${csvSample}`);
-    const { mappings } = await processCsvData({ csvSample });
+    
+    let mappings;
+    try {
+        const mappingResult = await processCsvData({ csvSample });
+        mappings = mappingResult.mappings;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI mapping.";
+        console.error('DEBUG: [handleCsvUpload] AI mapping failed:', errorMessage);
+        return { error: `AI mapping failed: ${errorMessage}` };
+    }
     
     if (!mappings) {
         console.error('DEBUG: [handleCsvUpload] AI failed to return mappings.');
