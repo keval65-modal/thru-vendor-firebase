@@ -1,11 +1,11 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow to parse raw CSV text into structured GlobalItem data.
- * This flow sends the raw CSV data to the model and asks it to perform the parsing,
- * leveraging the model's ability to understand various data layouts and formats.
+ * @fileOverview A Genkit flow to determine column mappings from a CSV sample.
+ * This flow receives a small sample of a CSV file (headers and a few rows)
+ * and determines how the columns in the CSV map to the target GlobalItem schema fields.
  *
- * - processCsvData - A function that handles the CSV processing.
+ * - processCsvData - A function that handles the CSV mapping process.
  * - ProcessCsvInput - The input type for the processCsvData function.
  * - ProcessCsvOutput - The return type for the processCsvData function.
  */
@@ -13,26 +13,27 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
-const ParsedItemSchema = z.object({
-  itemName: z.string().describe("The name of the product. Map from the 'Name' column."),
-  sharedItemType: z.enum(['grocery', 'medical', 'liquor', 'other']).describe("The high-level type of the item (grocery, medical, liquor, other). Infer from the 'Category' column or default to 'other'."),
-  defaultCategory: z.string().describe("A specific category for the item. Use the 'SubCategory' column for this. If 'SubCategory' is not present, use 'Category'."),
-  defaultUnit: z.string().describe("The unit of measurement or sale. Use the 'Quantity' column for this. Default to 'unit' if not specified."),
-  brand: z.string().optional().describe("The brand name of the product. Map from the 'Brand' column."),
-  mrp: z.number().optional().describe("The Maximum Retail Price of the product. Map this from the 'Price' column."),
-  price: z.number().optional().describe("The actual selling price of the product. Map this from the 'DiscountedPrice' column."),
-  defaultImageUrl: z.string().url().optional().describe("A URL for the product's image."),
-  description: z.string().optional().describe("A brief description of the product. Map from the 'Description' column."),
-  barcode: z.string().optional().describe("The barcode or UPC of the product."),
+// Describes the expected output: a mapping from our schema fields to the CSV column headers.
+const CsvMappingSchema = z.object({
+  itemName: z.string().describe("The name of the column in the CSV that maps to the product's name. Likely 'Name' or 'Product Name'."),
+  sharedItemType: z.string().optional().describe("The column name for the high-level item type (e.g., 'grocery', 'medical'). This is likely the 'Category' column."),
+  defaultCategory: z.string().describe("The column name for the specific item category. This is likely the 'SubCategory' column, or 'Category' if SubCategory is not present."),
+  defaultUnit: z.string().optional().describe("The column name for the unit of measurement. Likely 'Quantity' or 'Unit'."),
+  brand: z.string().optional().describe("The column name for the product's brand. Likely 'Brand'."),
+  mrp: z.string().optional().describe("The column name for the Maximum Retail Price. This should be the original, non-discounted price column, likely 'Price'."),
+  price: z.string().optional().describe("The column name for the actual selling price. This is likely the 'DiscountedPrice' or 'Selling Price' column."),
+  description: z.string().optional().describe("The column name for the product's description. Likely 'Description'."),
+  barcode: z.string().optional().describe("The column name for the product's barcode or UPC."),
 });
 
+
 const ProcessCsvInputSchema = z.object({
-  csvData: z.string().describe("A string containing comma-separated values (CSV) of items to be parsed. The string includes the header row."),
+  csvSample: z.string().describe("A small string sample from a CSV file, including the header row and the first few data rows, used to determine column mappings."),
 });
 export type ProcessCsvInput = z.infer<typeof ProcessCsvInputSchema>;
 
 const ProcessCsvOutputSchema = z.object({
-  parsedItems: z.array(ParsedItemSchema).describe('An array of structured item objects parsed from the CSV.'),
+  mappings: CsvMappingSchema.describe('An object where keys are our target schema fields and values are the corresponding column names from the CSV header.'),
 });
 export type ProcessCsvOutput = z.infer<typeof ProcessCsvOutputSchema>;
 
@@ -49,33 +50,32 @@ const processCsvFlow = ai.defineFlow(
     outputSchema: ProcessCsvOutputSchema,
   },
   async (input) => {
-    console.log(`[processCsvFlow] Started: Processing CSV data with AI.`);
+    console.log(`[processCsvFlow] Started: Determining column mappings from CSV sample.`);
     
-    if (!input.csvData || input.csvData.trim().length === 0) {
-        console.warn("[processCsvFlow] Input CSV data is empty.");
-        return { parsedItems: [] };
+    if (!input.csvSample || input.csvSample.trim().length === 0) {
+        console.warn("[processCsvFlow] Input CSV sample is empty.");
+        throw new Error("CSV sample cannot be empty.");
     }
 
-    const prompt = `You are an expert data parsing AI. You will be given a string of raw CSV data.
-    Your task is to analyze the data, identify the columns that correspond to our target schema, and extract the information for each row.
+    const prompt = `You are an expert data mapping AI. You will be given a small sample of a CSV file, including the header row.
+    Your task is to analyze the sample and determine which column header from the CSV file corresponds to each field in our target schema.
 
-    Our target schema for each item is:
-    - itemName: The name of the product. Map from the 'Name' column. This is required.
-    - sharedItemType: Must be one of 'grocery', 'medical', 'liquor', or 'other'. Infer this from the 'Category' column. If no clear mapping exists, default to 'other'.
-    - defaultCategory: The specific sub-category of the item. Map from the 'SubCategory' column. If 'SubCategory' is missing, use 'Category'.
-    - defaultUnit: The unit of sale. Map from the 'Quantity' column (e.g., '500 gm'). If not specified, default to 'unit'.
-    - brand: The brand of the product. Map from the 'Brand' column.
-    - mrp: The Maximum Retail Price. Map this from the 'Price' column. It should be a number.
-    - price: The selling price. Map this from the 'DiscountedPrice' column. It should be a number.
-    - description: A description of the product. Map from the 'Description' column.
-    - defaultImageUrl: A URL for an image of the product.
+    Our target schema fields are:
+    - itemName: The name of the product.
+    - sharedItemType: The general type like 'grocery' or 'medical'. Use the 'Category' column.
+    - defaultCategory: The specific category. Use 'SubCategory' if available, otherwise use 'Category'.
+    - defaultUnit: The unit of sale (e.g., '500 gm'). Use 'Quantity' or similar.
+    - brand: The brand of the product.
+    - mrp: The Maximum Retail Price (original price). Map this from a column named 'Price' or similar.
+    - price: The actual selling price. Map this from a column named 'DiscountedPrice' or similar.
+    - description: A description of the product.
     - barcode: The product's barcode.
 
-    Carefully parse the provided CSV data below and return a JSON object containing a key "parsedItems", which is an array of objects matching our target schema. Filter out any rows that do not have an item name.
+    Your output must be a JSON object containing a single key "mappings". The value of "mappings" should be an object where each key is a field from our target schema and the value is the EXACT corresponding column name from the provided CSV header. If a mapping for an optional field cannot be determined, omit the key.
 
-    Here is the CSV data:
+    Here is the CSV sample:
     ---
-    ${input.csvData}
+    ${input.csvSample}
     ---
     `;
 
@@ -88,17 +88,18 @@ const processCsvFlow = ai.defineFlow(
             },
         });
         
-        if (!output || !output.parsedItems) {
-            console.error("[processCsvFlow] AI parsing failed to return valid items.");
-            return { parsedItems: [] };
+        if (!output || !output.mappings) {
+            console.error("[processCsvFlow] AI mapping failed to return valid mappings. Raw output:", output);
+            throw new Error("AI could not determine column mappings from the provided CSV sample.");
         }
         
-        console.log(`[processCsvFlow] Successfully parsed ${output.parsedItems.length} items.`);
+        console.log(`[processCsvFlow] Successfully determined column mappings:`, output.mappings);
         return output;
 
     } catch (error) {
         console.error("[processCsvFlow] An error occurred during AI processing:", error);
-        throw new Error("The AI failed to process the CSV data. Please ensure the format is correct and try again.");
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        throw new Error(`The AI failed to determine mappings: ${errorMessage}`);
     }
   }
 );
