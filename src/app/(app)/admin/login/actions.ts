@@ -35,10 +35,12 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
+    // The `createSession` function will now perform the admin role check internally.
     const sessionResult = await createSession(uid, true);
 
     if (!sessionResult.success) {
-        return { success: false, error: sessionResult.error || 'Access denied. This account does not have admin privileges.' };
+        // This will now correctly return either "Access denied" or "Server configuration error"
+        return { success: false, error: sessionResult.error };
     }
 
     return { success: true };
@@ -54,9 +56,10 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
       return { success: false, error: 'Invalid credentials. Please check your email and password.' };
     }
     
-    if (error.message.includes("Could not verify admin role")) {
-        return { success: false, error: error.message };
-    }
+    // This case will now be handled by the sessionResult check above.
+    // if (error.message.includes("Could not verify admin role")) {
+    //     return { success: false, error: error.message };
+    // }
 
     return { success: false, error: 'An unexpected error occurred during login.' };
   }
@@ -64,16 +67,17 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
 
 /**
  * WORKAROUND: Direct login for admin user to bypass auth issues.
- * IMPORTANT: Replace 'PLACEHOLDER_ADMIN_UID' with the actual Firebase UID for keval@kiptech.in.
+ * This calls `createSession` with `isAdminLogin` set to true, which performs the role check.
  */
 export async function handleDirectAdminLogin(): Promise<LoginState> {
-    const adminUid = "1kYPC0L4k0Yc6Qz1h1v10o9A2fB3"; // <-- IMPORTANT: Replace this with the real UID from Firebase Auth for keval@kiptech.in
+    const adminUid = "1kYPC0L4k0Yc6Qz1h1v10o9A2fB3"; // UID for keval@kiptech.in
 
-    if (!adminUid || adminUid === "PLACEHOLDER_ADMIN_UID") {
-        return { success: false, error: "Direct login is not configured. Please replace the placeholder UID in the server action." };
+    if (!adminUid) {
+        return { success: false, error: "Direct login is not configured correctly." };
     }
 
     console.log(`[Direct Login] Attempting to create session for admin UID: ${adminUid}`);
+    // The `true` here is critical. It tells createSession to perform the admin role check.
     const sessionResult = await createSession(adminUid, true);
 
     if (!sessionResult.success) {

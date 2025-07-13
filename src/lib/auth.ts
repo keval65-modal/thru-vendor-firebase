@@ -15,8 +15,12 @@ export async function createSession(uid: string, isAdminLogin = false): Promise<
     throw new Error('User ID is required to create a session.');
   }
 
+  // If this is a special admin login (like the direct login workaround),
+  // we can add specific logic here.
   if (isAdminLogin) {
     const db = adminDb();
+    // If the database isn't configured, the check will fail.
+    // The direct login bypasses the normal email/pass auth, so we must check the role here.
     if (!db) {
         const errorMsg = "Server configuration error. Could not verify admin role.";
         console.error(`[createSession] Admin DB not available. ${errorMsg}`);
