@@ -2,8 +2,8 @@
 'use server';
 
 import { z } from 'zod';
-import { adminDb } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore'; // Use admin Timestamp
+import { db } from '@/lib/firebase-admin-client'; // Using the client SDK-based db
+import { Timestamp, collection, getDocs, doc, updateDoc, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -11,17 +11,11 @@ import { redirect } from 'next/navigation';
 
 const ADMIN_LOGIN_ROUTE = '/admin/login';
 
-const dbCheck = () => {
-    const db = adminDb();
-    if (!db) {
-        throw new Error("Server database is not configured. Admin actions are disabled.");
-    }
-    return db;
-}
+// Security is now enforced by Firestore Security Rules, not by dbCheck.
 
 /**
  * Fetches all vendors from the 'vendors' collection.
- * Enforces admin-only access.
+ * Enforces admin-only access via Firestore Security Rules.
  */
 export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
   const session = await getSession();
@@ -30,9 +24,8 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   }
 
   try {
-    const db = dbCheck();
-    const vendorsCollection = db.collection('vendors');
-    const vendorSnapshot = await vendorsCollection.get();
+    const vendorsCollection = collection(db, 'vendors');
+    const vendorSnapshot = await getDocs(vendorsCollection);
     const vendorsList = vendorSnapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
@@ -47,7 +40,7 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   } catch (error) {
     console.error('[AdminActions] Error fetching vendors:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    return { error: `Failed to fetch vendors: ${errorMessage}` };
+    return { error: `Failed to fetch vendors. This may be a permissions issue. Ensure your Firestore rules are set correctly for admins. Details: ${errorMessage}` };
   }
 }
 
@@ -92,9 +85,8 @@ export async function updateVendorByAdmin(
     const updates = validatedFields.data;
 
     try {
-        const db = dbCheck();
-        const vendorRef = db.collection('vendors').doc(vendorId);
-        await vendorRef.update({
+        const vendorRef = doc(db, 'vendors', vendorId);
+        await updateDoc(vendorRef, {
             ...updates,
             type: updates.storeCategory,
             updatedAt: Timestamp.now(),
@@ -135,12 +127,11 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
     console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
 
     try {
-        const db = dbCheck();
-        const batch = db.batch();
+        const batch = writeBatch(db);
 
         // 1. Find and stage deletion for all inventory items for that vendor
-        const inventoryCollectionRef = db.collection('vendors').doc(vendorId).collection('inventory');
-        const inventorySnapshot = await inventoryCollectionRef.get();
+        const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
+        const inventorySnapshot = await getDocs(inventoryCollectionRef);
         
         let deletedItemsCount = 0;
         if (!inventorySnapshot.empty) {
@@ -154,7 +145,7 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
         }
         
         // 2. Stage deletion for the vendor document itself
-        const vendorRef = db.collection('vendors').doc(vendorId);
+        const vendorRef = doc(db, 'vendors', vendorId);
         batch.delete(vendorRef);
         console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
         
@@ -183,9 +174,8 @@ export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: 
   }
 
   try {
-    const db = dbCheck();
-    const vendorRef = db.collection('vendors').doc(vendorId);
-    const vendorSnap = await vendorRef.get();
+    const vendorRef = doc(db, 'vendors', vendorId);
+    const vendorSnap = await getDoc(vendorRef);
     if (!vendorSnap.exists) {
       return { error: 'Vendor not found.' };
     }

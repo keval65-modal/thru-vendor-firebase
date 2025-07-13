@@ -3,7 +3,8 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminDb } from '@/lib/firebase-admin';
+import { db } from '@/lib/firebase-admin-client';
+import { doc, getDoc } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
@@ -12,24 +13,22 @@ export async function createSession(uid: string, isAdminLogin = false): Promise<
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
-  
-  const db = adminDb();
-  if (!db) {
-    return { success: false, error: 'Server configuration error. Cannot verify user role.' };
-  }
 
   // If this is an admin login (direct or standard), we must verify their role.
   if (isAdminLogin) {
       try {
-          const userDocRef = db.collection('vendors').doc(uid);
-          const userDocSnap = await userDocRef.get();
+          const userDocRef = doc(db, 'vendors', uid);
+          const userDocSnap = await getDoc(userDocRef);
 
-          if (!userDocSnap.exists || userDocSnap.data()?.role !== 'admin') {
+          if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'admin') {
+              console.warn(`[createSession] Admin login failed for UID: ${uid}. User is not an admin or does not exist.`);
               return { success: false, error: 'Access denied. This account does not have admin privileges.' };
           }
+           console.log(`[createSession] Admin role verified for UID: ${uid}.`);
       } catch (error) {
           console.error('[createSession] Admin role check failed:', error);
-          return { success: false, error: 'Server configuration error. Could not verify admin role.' };
+          // This is the error the user was seeing.
+          return { success: false, error: 'Server configuration error. Could not verify admin role. Please check Firestore permissions and connectivity.' };
       }
   }
   
@@ -63,15 +62,9 @@ export async function getSession(): Promise<{
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
-    const db = adminDb();
-    if (!db) {
-        console.error('[getSession] Admin DB not available. Cannot fetch user details.');
-        return { isAuthenticated: false };
-    }
-
     try {
-      const userDocRef = db.collection('vendors').doc(userUidFromCookie);
-      const userDocSnap = await userDocRef.get();
+      const userDocRef = doc(db, 'vendors', userUidFromCookie);
+      const userDocSnap = await getDoc(userDocRef);
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data() as Vendor;

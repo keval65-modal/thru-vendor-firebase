@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { createSession } from '@/lib/auth';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { adminDb } from '@/lib/firebase-admin';
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -36,6 +35,7 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
+    // The createSession function now handles the admin role check internally.
     const sessionResult = await createSession(uid, true);
 
     if (!sessionResult.success) {
