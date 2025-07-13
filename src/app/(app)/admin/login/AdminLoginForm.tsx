@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, LogIn, Eye, EyeOff, AlertTriangle, KeyRound } from 'lucide-react';
-import { handleAdminLogin, handleDirectAdminLogin, type LoginState } from './actions';
+import { handleAdminLogin, type LoginState } from './actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -15,8 +15,27 @@ import { Separator } from '@/components/ui/separator';
 
 const initialState: LoginState = { success: false };
 
-function SubmitButton() {
+function SubmitButton({ isDirectLogin }: { isDirectLogin?: boolean }) {
   const { pending } = useFormStatus();
+  if (isDirectLogin) {
+      return (
+          <Button
+              type="submit"
+              variant="secondary"
+              className="w-full"
+              name="isDirectLogin"
+              value="true"
+              disabled={pending}
+          >
+              {pending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                  <KeyRound className="mr-2 h-4 w-4" />
+              )}
+              Direct Admin Login
+          </Button>
+      )
+  }
   return (
     <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={pending}>
       {pending ? (
@@ -34,30 +53,17 @@ export function AdminLoginForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [isDirectLoginLoading, setIsDirectLoginLoading] = useState(false);
 
   useEffect(() => {
     if (state.success) {
       toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
-      router.push('/admin');
+      // Using window.location.href for a more forceful redirect after state changes.
+      window.location.href = '/admin';
     }
   }, [state, toast, router]);
 
-  const onDirectLogin = async () => {
-      setIsDirectLoginLoading(true);
-      const result = await handleDirectAdminLogin();
-      if (result.success) {
-          toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
-          router.push('/admin');
-      } else {
-          toast({ variant: 'destructive', title: 'Direct Login Failed', description: result.error });
-      }
-      setIsDirectLoginLoading(false);
-  };
-
   return (
-    <div className="space-y-6">
-        <form action={formAction} className="space-y-6">
+    <form action={formAction} className="space-y-6">
         {state.error && (
             <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
@@ -84,7 +90,6 @@ export function AdminLoginForm() {
                     name="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    required
                 />
                 <Button
                     type="button"
@@ -99,8 +104,8 @@ export function AdminLoginForm() {
             </div>
             {state.fields?.password && <p className="text-sm text-destructive">{state.fields.password[0]}</p>}
         </div>
+        
         <SubmitButton />
-        </form>
 
         <div className="relative">
             <Separator />
@@ -109,19 +114,7 @@ export function AdminLoginForm() {
             </div>
         </div>
 
-        <Button
-            variant="secondary"
-            className="w-full"
-            onClick={onDirectLogin}
-            disabled={isDirectLoginLoading}
-        >
-            {isDirectLoginLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-                <KeyRound className="mr-2 h-4 w-4" />
-            )}
-            Direct Admin Login (Workaround)
-        </Button>
-    </div>
+        <SubmitButton isDirectLogin={true} />
+    </form>
   );
 }

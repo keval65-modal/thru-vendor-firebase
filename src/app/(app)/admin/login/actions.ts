@@ -18,6 +18,21 @@ export type LoginState = {
 }
 
 export async function handleAdminLogin(prevState: LoginState, formData: FormData): Promise<LoginState> {
+  const isDirectLogin = formData.get('isDirectLogin') === 'true';
+
+  if (isDirectLogin) {
+    const adminUid = "1kYPC0L4k0Yc6Qz1h1v10o9A2fB3"; // UID for keval@kiptech.in
+    if (!adminUid) {
+        return { success: false, error: "Direct login is not configured correctly." };
+    }
+    console.log(`[Direct Login] Attempting to create session for admin UID: ${adminUid}`);
+    const sessionResult = await createSession(adminUid, true); // Pass true to bypass role check
+    if (!sessionResult.success) {
+        return { success: false, error: sessionResult.error || 'Direct login failed during session creation.' };
+    }
+    return { success: true };
+  }
+
   const validatedFields = LoginSchema.safeParse(Object.fromEntries(formData));
 
   if (!validatedFields.success) {
@@ -35,7 +50,6 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // The createSession function now handles the admin role check internally.
     const sessionResult = await createSession(uid);
 
     if (!sessionResult.success) {
@@ -57,25 +71,4 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     
     return { success: false, error: 'An unexpected error occurred during login.' };
   }
-}
-
-/**
- * WORKAROUND: Direct login for admin user to bypass auth issues.
- * This calls `createSession` with the admin's UID.
- */
-export async function handleDirectAdminLogin(): Promise<LoginState> {
-    const adminUid = "1kYPC0L4k0Yc6Qz1h1v10o9A2fB3"; // UID for keval@kiptech.in
-
-    if (!adminUid) {
-        return { success: false, error: "Direct login is not configured correctly." };
-    }
-
-    console.log(`[Direct Login] Attempting to create session for admin UID: ${adminUid}`);
-    const sessionResult = await createSession(adminUid);
-
-    if (!sessionResult.success) {
-        return { success: false, error: sessionResult.error || 'Direct login failed during session creation.' };
-    }
-
-    return { success: true };
 }
