@@ -14,14 +14,15 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 const ParsedItemSchema = z.object({
-  itemName: z.string().describe("The name of the product."),
-  sharedItemType: z.enum(['grocery', 'medical', 'liquor', 'other']).describe("The high-level type of the item (grocery, medical, liquor, other). If not specified, infer or default to 'other'."),
-  defaultCategory: z.string().describe("A specific category for the item (e.g., 'Dairy', 'Pain Relief', 'Dry Fruits'). If a sub-category is present, use it. Otherwise, use the main category."),
-  defaultUnit: z.string().describe("The unit of measurement or sale (e.g., '1kg', 'bottle', 'packet', '500 gm'). Default to 'unit' if not specified."),
-  brand: z.string().optional().describe("The brand name of the product."),
-  mrp: z.number().optional().describe("The Maximum Retail Price of the product. Extract numeric values from price columns."),
+  itemName: z.string().describe("The name of the product. Map from the 'Name' column."),
+  sharedItemType: z.enum(['grocery', 'medical', 'liquor', 'other']).describe("The high-level type of the item (grocery, medical, liquor, other). Infer from the 'Category' column or default to 'other'."),
+  defaultCategory: z.string().describe("A specific category for the item. Use the 'SubCategory' column for this. If 'SubCategory' is not present, use 'Category'."),
+  defaultUnit: z.string().describe("The unit of measurement or sale. Use the 'Quantity' column for this. Default to 'unit' if not specified."),
+  brand: z.string().optional().describe("The brand name of the product. Map from the 'Brand' column."),
+  mrp: z.number().optional().describe("The Maximum Retail Price of the product. Map this from the 'Price' column."),
+  price: z.number().optional().describe("The actual selling price of the product. Map this from the 'DiscountedPrice' column."),
   defaultImageUrl: z.string().url().optional().describe("A URL for the product's image."),
-  description: z.string().optional().describe("A brief description of the product."),
+  description: z.string().optional().describe("A brief description of the product. Map from the 'Description' column."),
   barcode: z.string().optional().describe("The barcode or UPC of the product."),
 });
 
@@ -59,13 +60,14 @@ const processCsvFlow = ai.defineFlow(
     Your task is to analyze the data, identify the columns that correspond to our target schema, and extract the information for each row.
 
     Our target schema for each item is:
-    - itemName: The name of the product. This is a required field.
-    - sharedItemType: Must be one of 'grocery', 'medical', 'liquor', or 'other'. Infer this from a 'category' or 'type' column. If no clear mapping exists, default to 'other'.
-    - defaultCategory: The specific sub-category of the item (e.g., 'Dairy', 'Pain Relief'). If a 'SubCategory' or similar column exists, use it. Otherwise, use the main category.
-    - defaultUnit: The unit of sale (e.g., 'kg', 'bottle'). If not specified, default to 'unit'.
-    - brand: The brand of the product.
-    - mrp: The price of the product. It should be a number.
-    - description: A description of the product.
+    - itemName: The name of the product. Map from the 'Name' column. This is required.
+    - sharedItemType: Must be one of 'grocery', 'medical', 'liquor', or 'other'. Infer this from the 'Category' column. If no clear mapping exists, default to 'other'.
+    - defaultCategory: The specific sub-category of the item. Map from the 'SubCategory' column. If 'SubCategory' is missing, use 'Category'.
+    - defaultUnit: The unit of sale. Map from the 'Quantity' column (e.g., '500 gm'). If not specified, default to 'unit'.
+    - brand: The brand of the product. Map from the 'Brand' column.
+    - mrp: The Maximum Retail Price. Map this from the 'Price' column. It should be a number.
+    - price: The selling price. Map this from the 'DiscountedPrice' column. It should be a number.
+    - description: A description of the product. Map from the 'Description' column.
     - defaultImageUrl: A URL for an image of the product.
     - barcode: The product's barcode.
 
