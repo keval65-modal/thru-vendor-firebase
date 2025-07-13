@@ -43,21 +43,11 @@ export async function processCsvData(input: ProcessCsvInput): Promise<ProcessCsv
 }
 
 
-const processCsvFlow = ai.defineFlow(
-  {
-    name: 'processCsvFlow',
-    inputSchema: ProcessCsvInputSchema,
-    outputSchema: ProcessCsvOutputSchema,
-  },
-  async (input) => {
-    console.log(`[processCsvFlow] Started: Determining column mappings from CSV sample.`);
-    
-    if (!input.csvSample || input.csvSample.trim().length === 0) {
-        console.warn("[processCsvFlow] Input CSV sample is empty.");
-        throw new Error("CSV sample cannot be empty.");
-    }
-
-    const prompt = `You are an expert data mapping AI. You will be given a small sample of a CSV file, including the header row.
+const prompt = ai.definePrompt({
+    name: 'processCsvPrompt',
+    input: { schema: ProcessCsvInputSchema },
+    output: { schema: ProcessCsvOutputSchema },
+    prompt: `You are an expert data mapping AI. You will be given a small sample of a CSV file, including the header row.
     Your task is to analyze the sample and determine which column header from the CSV file corresponds to each field in our target schema.
 
     Our target schema fields are:
@@ -75,18 +65,28 @@ const processCsvFlow = ai.defineFlow(
 
     Here is the CSV sample:
     ---
-    ${input.csvSample}
+    {{{csvSample}}}
     ---
-    `;
+    `,
+});
+
+
+const processCsvFlow = ai.defineFlow(
+  {
+    name: 'processCsvFlow',
+    inputSchema: ProcessCsvInputSchema,
+    outputSchema: ProcessCsvOutputSchema,
+  },
+  async (input) => {
+    console.log(`[processCsvFlow] Started: Determining column mappings from CSV sample.`);
+    
+    if (!input.csvSample || input.csvSample.trim().length === 0) {
+        console.warn("[processCsvFlow] Input CSV sample is empty.");
+        throw new Error("CSV sample cannot be empty.");
+    }
 
     try {
-        const { output } = await ai.generate({
-            model: 'googleai/gemini-1.5-flash-latest',
-            prompt: prompt,
-            output: {
-                schema: ProcessCsvOutputSchema,
-            },
-        });
+        const { output } = await prompt(input);
         
         if (!output || !output.mappings) {
             console.error("[processCsvFlow] AI mapping failed to return valid mappings. Raw output:", output);
