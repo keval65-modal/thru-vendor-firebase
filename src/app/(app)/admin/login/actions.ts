@@ -36,7 +36,7 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const uid = userCredential.user.uid;
 
     // The createSession function now handles the admin role check internally.
-    const sessionResult = await createSession(uid, true);
+    const sessionResult = await createSession(uid);
 
     if (!sessionResult.success) {
         return { success: false, error: sessionResult.error };
@@ -61,7 +61,7 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
 
 /**
  * WORKAROUND: Direct login for admin user to bypass auth issues.
- * This calls `createSession` with `isAdminLogin` set to true, which performs the role check.
+ * This calls `createSession` with the admin's UID.
  */
 export async function handleDirectAdminLogin(): Promise<LoginState> {
     const adminUid = "1kYPC0L4k0Yc6Qz1h1v10o9A2fB3"; // UID for keval@kiptech.in
@@ -71,8 +71,7 @@ export async function handleDirectAdminLogin(): Promise<LoginState> {
     }
 
     console.log(`[Direct Login] Attempting to create session for admin UID: ${adminUid}`);
-    // The `true` here is critical. It tells createSession to perform the admin role check.
-    const sessionResult = await createSession(adminUid, true);
+    const sessionResult = await createSession(adminUid);
 
     if (!sessionResult.success) {
         return { success: false, error: sessionResult.error || 'Direct login failed during session creation.' };
