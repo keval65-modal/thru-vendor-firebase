@@ -3,7 +3,6 @@
 
 import { z } from 'zod';
 import { createSession } from '@/lib/auth';
-import { adminDb } from '@/lib/firebase-admin'; 
 import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
