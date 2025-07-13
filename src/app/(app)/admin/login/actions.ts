@@ -30,13 +30,7 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
   }
   
   const { email, password } = validatedFields.data;
-  const db = adminDb();
-
-  if (!db) {
-    console.error('[Admin Login] Admin database is not configured. Cannot verify role.');
-    return { success: false, error: "Server configuration error. Could not verify admin role." };
-  }
-
+  
   try {
     // We use the client SDK here just to verify the password.
     // The UID it returns is what we trust.
@@ -44,16 +38,16 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // NOW we use the Admin SDK to securely check the role from the backend.
-    const userDocRef = db.collection('vendors').doc(uid);
-    const userDocSnap = await userDocRef.get();
+    // NOW we use a server-side function to create the session,
+    // which internally uses the Admin SDK to securely check the role.
+    const sessionResult = await createSession(uid, true); // Pass `isAdminLogin = true`
 
-    if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'admin') {
-      return { success: false, error: 'Access denied. This account does not have admin privileges.' };
+    if (!sessionResult.success) {
+        // This means the user authenticated but the role check failed.
+        return { success: false, error: sessionResult.error || 'Access denied. This account does not have admin privileges.' };
     }
 
-    // If role is verified, create the session cookie
-    await createSession(uid);
+    // If role is verified and session is created, success!
     return { success: true };
 
   } catch (error: any) {
@@ -67,6 +61,11 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
       return { success: false, error: 'Invalid credentials. Please check your email and password.' };
     }
     
+    // This will catch the "Server configuration error" if the admin SDK fails in createSession
+    if (error.message.includes("Could not verify admin role")) {
+        return { success: false, error: error.message };
+    }
+
     return { success: false, error: 'An unexpected error occurred during login.' };
   }
 }

@@ -10,9 +10,28 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
-export async function createSession(uid: string): Promise<void> {
+export async function createSession(uid: string, isAdminLogin = false): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     throw new Error('User ID is required to create a session.');
+  }
+
+  if (isAdminLogin) {
+    const db = adminDb();
+    if (!db) {
+        const errorMsg = "Server configuration error. Could not verify admin role.";
+        console.error(`[createSession] Admin DB not available. ${errorMsg}`);
+        return { success: false, error: errorMsg };
+    }
+    try {
+        const userDocRef = db.collection('vendors').doc(uid);
+        const userDocSnap = await userDocRef.get();
+        if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'admin') {
+            return { success: false, error: 'Access denied. This account does not have admin privileges.' };
+        }
+    } catch (e) {
+        console.error("[createSession] Error during admin role verification:", e);
+        return { success: false, error: "An error occurred while verifying admin role."};
+    }
   }
   
   cookies().set(AUTH_COOKIE_NAME, uid, {
@@ -21,6 +40,7 @@ export async function createSession(uid: string): Promise<void> {
     maxAge: 60 * 60 * 24 * 7, // 1 week
     path: '/',
   });
+  return { success: true };
 }
 
 export async function logout() {

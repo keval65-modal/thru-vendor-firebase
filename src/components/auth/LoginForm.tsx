@@ -55,10 +55,14 @@ export function LoginForm() {
       const user = userCredential.user;
 
       // Step 2: Create a server-side session (cookie)
-      await createSession(user.uid);
+      const sessionResult = await createSession(user.uid);
       
-      toast({ title: 'Login Successful', description: 'Redirecting...' });
-      router.push('/dashboard');
+      if (sessionResult.success) {
+        toast({ title: 'Login Successful', description: 'Redirecting...' });
+        router.push('/dashboard');
+      } else {
+         throw new Error(sessionResult.error || "Session creation failed.");
+      }
 
     } catch (error: any) {
       console.error('[LoginForm] Login submission error:', error);
@@ -75,6 +79,8 @@ export function LoginForm() {
             errorMessage = error.message;
             break;
         }
+      } else if (error.message) {
+          errorMessage = error.message;
       }
       toast({
         variant: 'destructive',
