@@ -170,3 +170,4 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         console.error(`[fetchOrderDetails] Error fetching order ${orderId}:`, error);
         return null;
     }
+}
