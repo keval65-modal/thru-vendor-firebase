@@ -28,7 +28,7 @@ const CsvMappingSchema = z.object({
 
 
 const ProcessCsvInputSchema = z.object({
-  csvSample: z.string().describe("A small string sample from a CSV file, including the header row and the first few data rows, used to determine column mappings."),
+  csvSample: z.string().describe("A string containing the comma-separated header row of a CSV file, used to determine column mappings."),
 });
 export type ProcessCsvInput = z.infer<typeof ProcessCsvInputSchema>;
 
@@ -47,8 +47,8 @@ const prompt = ai.definePrompt({
     name: 'processCsvPrompt',
     input: { schema: ProcessCsvInputSchema },
     output: { schema: ProcessCsvOutputSchema, force: true },
-    prompt: `You are an expert data mapping AI. You will be given a small sample of a CSV file, including the header row.
-    Your task is to analyze the sample and determine which column header from the CSV file corresponds to each field in our target schema.
+    prompt: `You are an expert data mapping AI. You will be given a string of comma-separated column headers from a CSV file.
+    Your task is to analyze the headers and determine which column header corresponds to each field in our target schema.
 
     Our target schema fields are:
     - itemName: The name of the product.
@@ -63,7 +63,7 @@ const prompt = ai.definePrompt({
 
     Your output MUST be a valid JSON object that conforms to the specified schema, and nothing else. Do not include any extra text, explanations, or markdown formatting like \`\`\`json.
 
-    Here is the CSV sample:
+    Here are the CSV headers:
     ---
     {{{csvSample}}}
     ---
@@ -78,7 +78,7 @@ const processCsvFlow = ai.defineFlow(
     outputSchema: ProcessCsvOutputSchema,
   },
   async (input) => {
-    console.log(`[processCsvFlow] Started: Determining column mappings from CSV sample.`);
+    console.log(`[processCsvFlow] Started: Determining column mappings from CSV headers.`);
     
     if (!input.csvSample || input.csvSample.trim().length === 0) {
         console.warn("[processCsvFlow] Input CSV sample is empty.");

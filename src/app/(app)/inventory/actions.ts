@@ -713,17 +713,28 @@ export async function handleCsvUpload(
     }
     
     const headers = parseResult.meta.fields || [];
-    const sampleRows = parseResult.data.slice(0, 3);
-    const csvSample = Papa.unparse([headers, ...sampleRows.map(row => headers.map(h => row[h]))]);
+    if (headers.length === 0) {
+        return { error: 'CSV file appears to be empty or missing headers.' };
+    }
+    const csvSample = headers.join(','); // Only send headers to AI
     
-    console.log(`DEBUG: [handleCsvUpload] Sending sample to AI for mapping:\n${csvSample}`);
+    console.log(`DEBUG: [handleCsvUpload] Sending headers to AI for mapping: ${csvSample}`);
     const { mappings } = await processCsvData({ csvSample });
     
+    if (!mappings) {
+        console.error('DEBUG: [handleCsvUpload] AI failed to return mappings.');
+        return { error: 'The AI could not determine column mappings from your CSV headers. Please ensure they are clear (e.g., "Name", "Price").' };
+    }
     console.log('DEBUG: [handleCsvUpload] AI returned mappings:', mappings);
 
     // Apply mappings to the full dataset
     const processedItems = parseResult.data.map(row => {
-        const getNum = (colName: string | undefined) => colName ? parseFloat(row[colName]?.replace(/[^0-9.-]+/g,"")) : undefined;
+        const getNum = (colName: string | undefined) => {
+             if (!colName || !row[colName]) return undefined;
+             const cleaned = String(row[colName]).replace(/[^0-9.-]+/g, "");
+             const num = parseFloat(cleaned);
+             return isNaN(num) ? undefined : num;
+        };
         const getString = (colName: string | undefined) => colName ? row[colName] : undefined;
 
         const category = getString(mappings.sharedItemType);
@@ -764,12 +775,12 @@ export async function handleBulkSaveItems(
 ): Promise<BulkSaveFormState> {
     console.log('DEBUG: handleBulkSaveItems server action started.');
     const session = await getSession();
-    if (session?.role !== 'admin') {
-        console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
-        // Bypass for direct access
-        // return { error: "You are not authorized to perform this action." };
-    }
-    console.log('DEBUG: handleBulkSaveItems - Admin check passed/bypassed.');
+    // Temporarily disable admin check for direct access
+    // if (session?.role !== 'admin') {
+    //     console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
+    //     return { error: "You are not authorized to perform this action." };
+    // }
+    console.log('DEBUG: handleBulkSaveItems - Admin check bypassed.');
 
     const itemsJson = formData.get('itemsJson') as string;
     if (!itemsJson) {
