@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 const PROTECTED_ROUTES = ['/dashboard', '/orders', '/inventory', '/pickup', '/stock-alerts', '/profile'];
 const ADMIN_PROTECTED_ROUTES = ['/admin'];
-const PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password'];
+const PUBLIC_ROUTES_FOR_REDIRECT = ['/login', '/signup']; // Pages to redirect from if logged in
 const ADMIN_LOGIN_ROUTE = '/admin/login';
 
 export function middleware(request: NextRequest) {
@@ -14,8 +14,7 @@ export function middleware(request: NextRequest) {
 
   const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
   const isAdminProtectedRoute = ADMIN_PROTECTED_ROUTES.some(route => pathname.startsWith(route) && !pathname.startsWith(ADMIN_LOGIN_ROUTE));
-  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
-  const isAdminLoginRoute = pathname.startsWith(ADMIN_LOGIN_ROUTE);
+  const isPublicRouteForRedirect = PUBLIC_ROUTES_FOR_REDIRECT.some(route => pathname.startsWith(route));
 
   // If there's no token...
   if (!token) {
@@ -31,14 +30,14 @@ export function middleware(request: NextRequest) {
     if (pathname === '/') {
         return NextResponse.redirect(new URL('/login', request.url));
     }
-    // Otherwise, allow access to public routes (like /login, /signup, /admin/login)
+    // Otherwise, allow access to public routes (like /login, /signup, /admin/login, /forgot-password)
     return NextResponse.next();
   }
 
   // If there IS a token...
-  // and they are on a public route (EXCEPT admin login), redirect them to their dashboard.
+  // and they are on a public route we want to redirect from (login/signup), send them to dashboard.
   // This prevents logged-in users from seeing the signup/login pages again.
-  if (isPublicRoute && !isAdminLoginRoute) {
+  if (isPublicRouteForRedirect) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
@@ -47,7 +46,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // In all other cases (e.g., logged-in user accessing a protected route), allow the request.
+  // In all other cases (e.g., logged-in user accessing a protected route or forgot-password), allow the request.
   return NextResponse.next();
 }
 
