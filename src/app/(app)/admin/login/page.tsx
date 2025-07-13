@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck } from 'lucide-react';
 import { AdminLoginForm } from './AdminLoginForm';
+import Link from 'next/link';
 
 export default function AdminLoginPage() {
   return (
@@ -18,6 +19,14 @@ export default function AdminLoginPage() {
         </CardHeader>
         <CardContent>
           <AdminLoginForm />
+           <div className="mt-4 text-center text-sm">
+            <Link
+              href="/forgot-password"
+              className="underline text-muted-foreground hover:text-primary"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </CardContent>
       </Card>
       <p className="mt-8 text-center text-xs text-muted-foreground">
