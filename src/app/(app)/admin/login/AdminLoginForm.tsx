@@ -1,120 +1,91 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, LogIn, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { handleAdminLogin, type LoginState } from './actions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
-import { handleAdminLogin } from './actions';
 
+const initialState: LoginState = { success: false };
 
-const loginFormSchema = z.object({
-  email: z.string().trim().email({ message: "Please enter a valid email address." }).toLowerCase(),
-  password: z.string().trim().min(1, { message: "Password is required." }),
-});
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={pending}>
+      {pending ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <LogIn className="mr-2 h-4 w-4" />
+      )}
+      Sign In
+    </Button>
+  );
+}
 
 export function AdminLoginForm() {
+  const [state, formAction] = useFormState(handleAdminLogin, initialState);
   const { toast } = useToast();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const form = useForm<z.infer<typeof loginFormSchema>>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  });
-
-  const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
-    setIsLoading(true);
-    
-    const formData = new FormData();
-    formData.append('email', values.email);
-    formData.append('password', values.password);
-
-    const result = await handleAdminLogin(formData);
-
-    if (result.success) {
-        toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
-        router.push('/admin');
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: result.error || 'An unexpected error occurred.',
-        });
-        setIsLoading(false);
+  useEffect(() => {
+    if (state.success) {
+      toast({ title: 'Login Successful', description: 'Redirecting to Admin Panel...' });
+      router.push('/admin');
     }
-  };
+    // Error is now handled by the Alert component below
+  }, [state, toast, router]);
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Admin Email</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  placeholder="admin@example.com"
-                  {...field}
-                  disabled={isLoading}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+    <form action={formAction} className="space-y-6">
+      {state.error && (
+        <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Login Failed</AlertTitle>
+            <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      )}
+      <div className="space-y-2">
+        <Label htmlFor="email">Admin Email</Label>
+        <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="admin@example.com"
+            required
         />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    {...field}
-                    disabled={isLoading}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </Button>
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <LogIn className="mr-2 h-4 w-4" />
-          )}
-          Sign In
-        </Button>
-      </form>
-    </Form>
+        {state.fields?.email && <p className="text-sm text-destructive">{state.fields.email[0]}</p>}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <div className="relative">
+            <Input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                required
+            />
+             <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </Button>
+        </div>
+        {state.fields?.password && <p className="text-sm text-destructive">{state.fields.password[0]}</p>}
+      </div>
+      <SubmitButton />
+    </form>
   );
 }
