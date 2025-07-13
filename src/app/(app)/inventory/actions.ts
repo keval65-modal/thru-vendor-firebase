@@ -712,11 +712,11 @@ export async function handleCsvUpload(
         return { error: `Failed to parse CSV file: ${parseResult.errors[0].message}` };
     }
     
-    const headers = parseResult.meta.fields || [];
-    if (headers.length === 0) {
-        return { error: 'CSV file appears to be empty or missing headers.' };
+    const headers = parseResult.meta.fields;
+    if (!headers || headers.length === 0) {
+        return { error: 'CSV file appears to be empty or missing headers. Please check the file for empty lines before the header row.' };
     }
-    const csvSample = headers.join(','); // Only send headers to AI
+    const csvSample = headers.join(',');
     
     console.log(`DEBUG: [handleCsvUpload] Sending headers to AI for mapping: ${csvSample}`);
     const { mappings } = await processCsvData({ csvSample });
