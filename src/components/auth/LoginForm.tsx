@@ -49,33 +49,17 @@ export function LoginForm() {
       return;
     }
     
-    console.log('[LoginForm] Submitting login form with values:', values);
-    
     try {
       // Step 1: Authenticate with Firebase Auth on the client
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
-      console.log('[LoginForm] Firebase client-side sign-in successful. UID:', user.uid);
 
-      // Step 2: Create a server-side session (cookie) which now also returns the role
-      const sessionResult = await createSession(user.uid);
+      // Step 2: Create a server-side session (cookie)
+      await createSession(user.uid);
+      
+      toast({ title: 'Login Successful', description: 'Redirecting...' });
+      router.push('/dashboard');
 
-      if (sessionResult?.success) {
-        toast({ title: 'Login Successful', description: 'Redirecting...' });
-        // Step 3: Redirect based on the role returned from the server
-        if (sessionResult.role === 'admin') {
-            router.push('/admin');
-        } else {
-            router.push('/dashboard');
-        }
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Login Failed',
-          description: sessionResult?.error || 'Could not create a server session.',
-        });
-        setIsLoading(false);
-      }
     } catch (error: any) {
       console.error('[LoginForm] Login submission error:', error);
       let errorMessage = 'An unexpected error occurred.';
@@ -97,7 +81,8 @@ export function LoginForm() {
         title: 'Login Error',
         description: errorMessage,
       });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 

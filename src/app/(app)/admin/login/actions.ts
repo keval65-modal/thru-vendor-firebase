@@ -2,10 +2,10 @@
 'use server';
 
 import { z } from 'zod';
+import { createSession } from '@/lib/auth';
+import { adminDb } from '@/lib/firebase-admin'; 
 import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { createSession } from '@/lib/auth';
-import { adminDb } from '@/lib/firebase-admin'; // Use the Admin SDK
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -28,28 +28,31 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
       fields: validatedFields.error.flatten().fieldErrors,
     };
   }
+  
   const { email, password } = validatedFields.data;
+  const db = adminDb();
+
+  if (!db) {
+    console.error('[Admin Login] Admin database is not configured. Cannot verify role.');
+    return { success: false, error: "Server configuration error. Could not verify admin role." };
+  }
 
   try {
-    // 1. Authenticate with Firebase Auth client SDK
+    // We use the client SDK here just to verify the password.
+    // The UID it returns is what we trust.
     const auth = getFirebaseAuth();
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
-    // 2. Verify role using the secure Admin SDK
-    const database = adminDb();
-    if (!database) {
-        throw new Error("Admin database is not configured. Cannot verify role.");
-    }
-    
-    const userDocRef = database.collection('vendors').doc(uid);
+    // NOW we use the Admin SDK to securely check the role from the backend.
+    const userDocRef = db.collection('vendors').doc(uid);
     const userDocSnap = await userDocRef.get();
 
     if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'admin') {
       return { success: false, error: 'Access denied. This account does not have admin privileges.' };
     }
 
-    // 3. If role is 'admin', create the session cookie
+    // If role is verified, create the session cookie
     await createSession(uid);
     return { success: true };
 
@@ -64,11 +67,6 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
       return { success: false, error: 'Invalid credentials. Please check your email and password.' };
     }
     
-    // For other errors, like the db not being configured.
-    if (error.message.includes("Admin database is not configured")) {
-        return { success: false, error: "Server configuration error. Could not verify admin role."}
-    }
-
     return { success: false, error: 'An unexpected error occurred during login.' };
   }
 }
