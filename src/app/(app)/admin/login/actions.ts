@@ -5,9 +5,7 @@ import { z } from 'zod';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { createSession } from '@/lib/auth';
-import { adminDb } from '@/lib/firebase-admin'; // Correct: Use the Admin SDK database instance
-import { doc, getDoc } from 'firebase/firestore';
-
+import { adminDb } from '@/lib/firebase-admin';
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -18,7 +16,7 @@ export async function handleAdminLogin(formData: FormData): Promise<{ success: b
   const validatedFields = LoginSchema.safeParse(Object.fromEntries(formData));
 
   if (!validatedFields.success) {
-    return { success: false, error: 'Invalid email or password.' };
+    return { success: false, error: 'Invalid email or password format.' };
   }
   const { email, password } = validatedFields.data;
 
@@ -29,16 +27,17 @@ export async function handleAdminLogin(formData: FormData): Promise<{ success: b
     const uid = userCredential.user.uid;
 
     // Step 2: Verify the user's role on the server BEFORE creating the session cookie.
-    // This is the critical authorization check.
     const database = adminDb();
     if (!database) {
+        // This is a server configuration error, so it's okay to be specific.
         throw new Error("Admin database is not configured. Cannot verify role.");
     }
     
-    const userDocRef = doc(database, 'vendors', uid);
-    const userDocSnap = await getDoc(userDocRef);
+    const userDocRef = database.collection('vendors').doc(uid);
+    const userDocSnap = await userDocRef.get();
 
     if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'admin') {
+      // This is a permissions error.
       return { success: false, error: 'Access denied. This account does not have admin privileges.' };
     }
 
@@ -48,7 +47,17 @@ export async function handleAdminLogin(formData: FormData): Promise<{ success: b
 
   } catch (error: any) {
     console.error('[Admin Login] Error:', error.code, error.message);
-    // Provide a generic error to avoid leaking information about which accounts exist.
-    return { success: false, error: 'Invalid credentials or access denied.' };
+    
+    // Check for common Firebase Auth errors to return a specific message.
+    if (
+      error.code === 'auth/user-not-found' ||
+      error.code === 'auth/wrong-password' ||
+      error.code === 'auth/invalid-credential'
+    ) {
+      return { success: false, error: 'Invalid credentials. Please check your email and password.' };
+    }
+
+    // For other errors, return a more generic message.
+    return { success: false, error: 'An unexpected error occurred during login.' };
   }
 }
