@@ -16,17 +16,16 @@ export function middleware(request: NextRequest) {
   const isAdminProtectedRoute = ADMIN_PROTECTED_ROUTES.some(route => pathname.startsWith(route) && !pathname.startsWith(ADMIN_LOGIN_ROUTE));
   const isPublicRouteForRedirect = PUBLIC_ROUTES_FOR_REDIRECT.some(route => pathname.startsWith(route));
 
-  // If there's no token...
+  // --- No Token ---
   if (!token) {
-    // and they try to access a protected route, redirect to the normal login page.
+    // Redirect to the appropriate login page if trying to access a protected route
     if (isProtectedRoute) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    // and they try to access a protected admin route, redirect to the admin login page.
     if (isAdminProtectedRoute) {
       return NextResponse.redirect(new URL(ADMIN_LOGIN_ROUTE, request.url));
     }
-    // and it's the root, send them to login.
+    // Redirect from root to login if no token
     if (pathname === '/') {
         return NextResponse.redirect(new URL('/login', request.url));
     }
@@ -34,19 +33,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If there IS a token...
-  // and they are on a public route we want to redirect from (login/signup), send them to dashboard.
-  // This prevents logged-in users from seeing the signup/login pages again.
+  // --- Has Token ---
+  // If the user has a token and is trying to access a regular login/signup page,
+  // redirect them to their main dashboard.
   if (isPublicRouteForRedirect) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // and they are on the root path, send them to the dashboard.
+  // If the user has a token and is on the root path, send them to the dashboard.
   if (pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
-  // In all other cases (e.g., logged-in user accessing a protected route or forgot-password), allow the request.
+  // In all other cases (e.g., logged-in user accessing a protected route, or any user accessing
+  // /admin/login or /forgot-password), allow the request to proceed.
   return NextResponse.next();
 }
 

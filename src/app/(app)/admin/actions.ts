@@ -177,7 +177,7 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
 export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor, error?: string }> {
   const session = await getSession();
   if (session?.role !== 'admin') {
-    redirect('/dashboard');
+    redirect(ADMIN_LOGIN_ROUTE);
   }
 
   try {

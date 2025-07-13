@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -5,20 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard, AlertCircle } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard, AlertCircle, UserX } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getAllVendors, deleteVendorAndInventory } from './actions';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 import Link from 'next/link';
-import { useSession } from '@/hooks/use-session';
 
 
 // --- Main Admin Page Component ---
 export default function AdminPage() {
     const { toast } = useToast();
-    const { session, isLoading: isLoadingSession } = useSession();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -40,7 +39,6 @@ export default function AdminPage() {
     }, []);
 
     useEffect(() => {
-        // We fetch vendors as soon as the component loads.
         // The server action `getAllVendors` will handle the auth check.
         fetchVendors();
     }, [fetchVendors]);
@@ -80,36 +78,24 @@ export default function AdminPage() {
         );
     }
     
-    // If the server returned an error, decide what to show.
+    // If the server returned an error (e.g., auth failure), show an error state.
     if (error) {
-        // Specifically check for authorization error text from the server action.
-        const isAuthError = error.includes("not authorized");
-        
         return (
             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
-                <Card className={`max-w-md mx-auto ${isAuthError ? 'border-destructive' : ''}`}>
+                <Card className="max-w-md mx-auto border-destructive">
                     <CardHeader>
-                        <CardTitle className={`flex items-center justify-center ${isAuthError ? 'text-destructive' : ''}`}>
-                           <AlertCircle className="mr-2 h-6 w-6"/> {isAuthError ? "Access Denied" : "Error"}
+                        <CardTitle className="flex items-center justify-center text-destructive">
+                           <UserX className="mr-2 h-6 w-6"/> Access Denied
                         </CardTitle>
                         <CardDescription>{error}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm mb-4">
-                            {isAuthError
-                                ? 'This panel is for administrators only. If you believe this is an error, please contact support.'
-                                : 'An unexpected error occurred while fetching data.'
-                            }
+                            This panel is for administrators only. Please log in with an admin account to continue. If you believe this is an error, contact support.
                         </p>
-                         {session?.role === 'vendor' ? (
-                            <Button asChild>
-                                <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Go to Your Dashboard</Link>
-                            </Button>
-                        ) : (
-                             <Button asChild variant="secondary">
-                                <Link href="/admin/login">Go to Admin Login</Link>
-                            </Button>
-                        )}
+                        <Button asChild variant="secondary">
+                            <Link href="/admin/login">Go to Admin Login</Link>
+                        </Button>
                     </CardContent>
                 </Card>
             </div>
