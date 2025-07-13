@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useActionState, useMemo, useRef } from 'react';
@@ -666,7 +665,7 @@ export default function InventoryPage() {
 
   const [deleteItemState, deleteItemFormAction, isDeletingItem] = useActionState(deleteVendorItem, initialDeleteItemState);
   const [removeDuplicatesState, removeDuplicatesFormAction, isRemovingDuplicates] = useActionState(handleRemoveDuplicateItems, initialRemoveDuplicatesState);
-  const [deleteSelectedItemsState, deleteSelectedItemsFormAction] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
+  const [deleteSelectedItemsState, deleteSelectedItemsFormAction, isDeletingSelectedItems] = useActionState(handleDeleteSelectedItems, initialDeleteSelectedItemsState);
 
 
   const [vendorInventory, setVendorInventory] = useState<VendorInventoryItem[]>([]);
