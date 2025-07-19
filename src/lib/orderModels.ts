@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 // This is the data structure for a document in the 'orders' collection.
@@ -28,7 +29,7 @@ export interface VendorOrderPortion {
   vendorName: string;
   vendorAddress?: string;
   vendorType?: string;
-  status: "New" | "Preparing" | "Ready for Pickup" | "Picked Up" | "Cancelled"; 
+  status: "New" | "Preparing" | "Ready for Pickup" | "Picked Up" | "Cancelled" | "Pending Vendor Confirmation"; 
   items: OrderItemDetail[];
   vendorSubtotal: number;
 }
@@ -50,3 +51,5 @@ export interface OrderItemDetail {
 export interface VendorDisplayOrder extends Omit<PlacedOrder, 'vendorPortions'> {
     vendorPortion: VendorOrderPortion;
 }
+
+    

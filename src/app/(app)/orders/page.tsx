@@ -91,8 +91,9 @@ export default function OrdersPage() {
   }, [session, db, toast, isLoadingSession]);
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
+    const newOrPending = orders.filter(o => o.vendorPortion.status === 'New' || o.vendorPortion.status === 'Pending Vendor Confirmation');
     return {
-      newOrders: orders.filter(o => o.vendorPortion.status === 'New'),
+      newOrders: newOrPending,
       preparingOrders: orders.filter(o => o.vendorPortion.status === 'Preparing'),
       readyOrders: orders.filter(o => o.vendorPortion.status === 'Ready for Pickup'),
     };
@@ -262,3 +263,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    

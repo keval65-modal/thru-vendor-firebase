@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useActionState, useMemo, useRef } from 'react';
@@ -12,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X, FileUp } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X, FileUp, Info } from "lucide-react";
 import { getSession } from '@/lib/auth';
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
@@ -771,17 +772,25 @@ export default function InventoryPage() {
       const currentSession = await getSession();
       if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName && currentSession.uid) {
         console.log("[InventoryPage] Session data fetched:", currentSession.uid);
-        setSession({
+        const sessionData = {
           isAuthenticated: true,
           email: currentSession.email,
           shopName: currentSession.shopName,
           storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
           uid: currentSession.uid,
-        });
-        fetchAndSetInventory(currentSession.uid);
+        };
+        setSession(sessionData);
+
+        // Only fetch inventory if not a grocery store
+        if (sessionData.storeCategory !== 'Grocery Store') {
+            fetchAndSetInventory(currentSession.uid);
+        } else {
+            setIsLoadingInventory(false);
+        }
       } else {
         console.warn("[InventoryPage] Session not authenticated or missing data.");
         setSession(null);
+        setIsLoadingInventory(false);
       }
       setIsLoadingSession(false);
     }
@@ -1147,6 +1156,36 @@ export default function InventoryPage() {
     );
   };
 
+const renderGroceryContent = () => {
+    return (
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="flex items-center"><Info className="mr-2 h-5 w-5 text-primary" /> How Grocery Orders Work</CardTitle>
+                <CardDescription>
+                    Your store operates on a dynamic order system. You don't need to manage a static inventory list here.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+                <p>
+                    1. <strong>Order Broadcast:</strong> When a customer places a grocery order, it will be broadcast to nearby vendors, including you.
+                </p>
+                <p>
+                    2. <strong>Check Your Stock:</strong> The new order will appear on your <Link href="/orders" className="text-primary underline">Orders</Link> page. You can review the requested items.
+                </p>
+                <p>
+                    3. <strong>Confirm Availability:</strong> You can then confirm which items you have in stock and accept the order. The customer will be notified of what's available from your store.
+                </p>
+                <p>
+                    This system ensures customers get the most up-to-date availability without requiring you to constantly update a digital inventory.
+                </p>
+                 <Button asChild className="mt-4">
+                    <Link href="/orders">Go to Orders</Link>
+                </Button>
+            </CardContent>
+        </Card>
+    );
+};
+
 
   const renderInventoryContent = () => {
     if (!session || !session.storeCategory) {
@@ -1155,6 +1194,7 @@ export default function InventoryPage() {
 
     switch (session.storeCategory) {
       case 'Grocery Store':
+        return renderGroceryContent();
       case 'Pharmacy':
       case 'Liquor Shop':
       case 'Pet Shop': 
@@ -1588,3 +1628,5 @@ export default function InventoryPage() {
     </Dialog>
   );
 }
+
+    
