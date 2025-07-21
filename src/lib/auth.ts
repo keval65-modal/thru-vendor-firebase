@@ -9,12 +9,23 @@ import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 
-export async function createSession(uid: string): Promise<{success: boolean, error?: string}> {
+export async function createSession(uid: string, bypassRoleCheck = false): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
 
-  // The problematic role check is removed. This function now only creates the cookie.
+  if (!bypassRoleCheck) {
+    try {
+        const vendorDocRef = doc(db, 'vendors', uid);
+        const vendorSnap = await getDoc(vendorDocRef);
+        if (!vendorSnap.exists()) {
+            return { success: false, error: 'Vendor profile not found. Cannot create session.' };
+        }
+    } catch (e) {
+        console.error('[createSession] Firestore check failed:', e);
+        return { success: false, error: 'Could not verify vendor profile.' };
+    }
+  }
   
   cookies().set(AUTH_COOKIE_NAME, uid, {
     httpOnly: true,

@@ -26,29 +26,9 @@ export interface FirebaseContextValue {
   storage: FirebaseStorage | null;
 }
 
-let firebaseApp: FirebaseApp | null = null;
-let firebaseAuth: Auth | null = null;
-
-function initializeFirebase() {
-    if (getApps().length === 0) {
-        firebaseApp = initializeApp(firebaseConfig);
-    } else {
-        firebaseApp = getApp();
-    }
-    firebaseAuth = getAuth(firebaseApp);
-}
-
-// Initialize on first load
-initializeFirebase();
-
-// Export a function to get the auth instance, which can be used in server actions
+// This function is intended to be called from the server side, specifically for actions
+// that need the client SDK on the server (e.g., password reset email).
 export const getFirebaseAuth = () => {
-    if (!firebaseAuth) {
-        // This should not happen if initializeFirebase() is called, but as a safeguard
-        initializeFirebase();
-    }
-    return firebaseAuth as Auth;
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    return getAuth(app);
 };
-
-// Export app for other services if needed
-export const firebaseAdminApp = firebaseApp;
