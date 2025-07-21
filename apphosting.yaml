@@ -5,7 +5,7 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
-branch: master
+branch: main
 customDomains:
   - vendor.kiptech.in
 secrets:
