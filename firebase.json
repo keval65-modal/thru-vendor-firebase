@@ -1,0 +1,15 @@
+
+{
+  "hosting": {
+    "site": "thru-vendor-firebase",
+    "rewrites": [
+      {
+        "source": "**",
+        "apphosting": {
+          "backendId": "thru-vendor-firebase",
+          "region": "us-west1"
+        }
+      }
+    ]
+  }
+}
