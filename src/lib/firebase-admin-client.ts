@@ -1,4 +1,3 @@
-
 // This file is a workaround for server actions needing client-compatible services
 // that still run on the server. It uses the normal client SDK initialization
 // but is intended to be used from 'use server' files. This avoids pulling

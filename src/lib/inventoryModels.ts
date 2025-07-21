@@ -1,4 +1,3 @@
-
 import type { Timestamp, DocumentReference } from 'firebase/firestore';
 
 /**

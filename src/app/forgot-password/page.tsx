@@ -1,4 +1,3 @@
-
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MailQuestion } from 'lucide-react';

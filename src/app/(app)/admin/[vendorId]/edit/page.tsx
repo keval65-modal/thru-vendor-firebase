@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { getVendorForEditing } from '../actions';
 import { EditVendorForm } from './EditVendorForm';

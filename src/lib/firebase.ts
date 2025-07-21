@@ -1,4 +1,3 @@
-
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 

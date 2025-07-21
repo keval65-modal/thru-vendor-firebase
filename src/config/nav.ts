@@ -1,4 +1,3 @@
-
 import type { LucideProps } from 'lucide-react';
 import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle, Shield } from 'lucide-react'; // Added UserCircle for Profile and Shield for Admin
 

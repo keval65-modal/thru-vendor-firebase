@@ -1,4 +1,3 @@
-
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Flame } from 'lucide-react'; // Using Flame as a generic logo icon

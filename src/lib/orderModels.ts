@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 // This is the data structure for a document in the 'orders' collection.
