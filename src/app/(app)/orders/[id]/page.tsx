@@ -20,6 +20,7 @@ const statusDetails: Record<VendorOrderPortion['status'] | 'Completed' | 'Cancel
   "Picked Up": { icon: <CheckCircle2 className="h-5 w-5" />, color: "text-green-500", description: "The customer has picked up the order." },
   "Completed": { icon: <CheckCircle2 className="h-5 w-5" />, color: "text-green-500", description: "The order has been completed and picked up." },
   "Cancelled": { icon: <XCircle className="h-5 w-5" />, color: "text-red-500", description: "This order has been cancelled." },
+  "Pending Vendor Confirmation": { icon: <PackageOpen className="h-5 w-5" />, color: "text-blue-500", description: "This is a new order, awaiting your confirmation." },
 };
 
 

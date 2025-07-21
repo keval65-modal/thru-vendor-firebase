@@ -90,5 +90,3 @@ export interface Vendor {
   type?: Vendor['storeCategory'];
   role?: 'vendor' | 'admin';
 }
-
-    

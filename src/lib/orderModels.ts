@@ -51,5 +51,3 @@ export interface OrderItemDetail {
 export interface VendorDisplayOrder extends Omit<PlacedOrder, 'vendorPortions'> {
     vendorPortion: VendorOrderPortion;
 }
-
-    

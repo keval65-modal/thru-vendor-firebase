@@ -1627,5 +1627,3 @@ const renderGroceryContent = () => {
     </Dialog>
   );
 }
-
-    

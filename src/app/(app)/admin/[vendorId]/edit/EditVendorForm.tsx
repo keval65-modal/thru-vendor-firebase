@@ -103,4 +103,3 @@ export function EditVendorForm({ vendor }: EditVendorFormProps) {
         </form>
     );
 }
-

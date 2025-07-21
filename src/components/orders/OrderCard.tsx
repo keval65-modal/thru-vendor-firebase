@@ -250,5 +250,3 @@ export function OrderCard({ order }: OrderCardProps) {
     </Card>
   );
 }
-
-    
