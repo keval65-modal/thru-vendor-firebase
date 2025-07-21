@@ -8,7 +8,8 @@ import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/a
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/firebase-admin-client';
+import { db, storage } from '@/lib/firebase-admin-client';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import Papa from 'papaparse';
 
 // Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
@@ -343,7 +344,9 @@ export async function updateVendorItemDetails(
 
   // Ensure optional fields are not set to undefined if they are empty strings
   if (dataToUpdate.description === '') dataToUpdate.description = undefined;
-  if (dataToUpdate.imageUrl === '') dataToUpdate.imageUrl = 'https://placehold.co/50x50.png'; // Default back to placeholder if cleared
+  if (dataToUpdate.imageUrl === '') {
+      dataToUpdate.imageUrl = `https://placehold.co/50x50.png?text=${encodeURIComponent(updates.itemName.substring(0,10))}`;
+  }
 
 
   try {

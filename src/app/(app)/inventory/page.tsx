@@ -48,7 +48,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Progress } from '@/components/ui/progress';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
@@ -170,7 +170,6 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
   const { storage } = useFirebaseAuth();
   const [updateState, setUpdateState] = useState<UpdateItemFormState>({});
   const { toast } = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -194,7 +193,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
   });
 
   useEffect(() => {
-    if (item) {
+    if (item && isOpen) {
       form.reset({
         itemName: item.itemName || '',
         vendorItemCategory: item.vendorItemCategory || '',
@@ -208,6 +207,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
       setSelectedFile(null);
       setUploadProgress(null);
       setIsUploadingFile(false);
+      setIsSubmitting(false);
     }
   }, [item, form, isOpen]); // Reset when dialog opens with a new item or is re-opened
 
@@ -231,9 +231,9 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
     }
   };
 
-  const currentImageUrlForDisplay = selectedFile ? imagePreviewUrl : form.watch('imageUrl');
+  const currentImageUrlForDisplay = imagePreviewUrl;
 
-  const onSubmit = async (values: z.infer<typeof EditItemFormSchema>) => {
+  const handleFormSubmit = async (values: z.infer<typeof EditItemFormSchema>) => {
     if (!item?.id || !vendorId) {
         toast({ variant: "destructive", title: "Error", description: "Item ID or Vendor ID is missing."});
         return;
@@ -247,8 +247,6 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
     const formData = new FormData();
     formData.append('itemId', item.id);
 
-    let finalImageUrl = values.imageUrl;
-
     if (selectedFile) {
         setIsUploadingFile(true);
         setUploadProgress(0);
@@ -257,7 +255,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         const uploadTask = uploadBytesResumable(fileStorageRef, selectedFile);
 
         try {
-            await new Promise<void>((resolve, reject) => {
+            const downloadURL = await new Promise<string>((resolve, reject) => {
                 uploadTask.on('state_changed',
                     (snapshot) => {
                         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
@@ -269,12 +267,12 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                         reject(error);
                     },
                     async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        finalImageUrl = downloadURL;
-                        resolve();
+                        const url = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve(url);
                     }
                 );
             });
+            formData.append('imageUrl', downloadURL);
         } catch (error) {
             setIsUploadingFile(false);
             setUploadProgress(null);
@@ -283,13 +281,14 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
         }
         setIsUploadingFile(false);
         setUploadProgress(null);
+    } else {
+        // If no new file, use the existing URL from the form values
+        formData.append('imageUrl', values.imageUrl || '');
     }
     
-    // Append all values to formData, using finalImageUrl
+    // Append all other values to formData
     Object.entries(values).forEach(([key, value]) => {
-        if (key === 'imageUrl') {
-            formData.append(key, finalImageUrl || '');
-        } else if (value !== undefined) {
+        if (key !== 'imageUrl' && value !== undefined) {
             formData.append(key, String(value));
         }
     });
@@ -314,7 +313,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
           <DialogDescription>Make changes to your inventory item here. Click save when you're done.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-            <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
                 <FormField
                     control={form.control}
                     name="itemName"
@@ -392,7 +391,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
                 <FormItem>
                     <FormLabel>Item Image</FormLabel>
                     {currentImageUrlForDisplay && (
-                        <Image src={currentImageUrlForDisplay} alt="Current item image" width={100} height={100} className="mt-2 rounded object-cover" />
+                        <Image src={currentImageUrlForDisplay} alt="Current item image" width={100} height={100} className="mt-2 rounded object-cover" unoptimized/>
                     )}
                      <FormField
                         control={form.control}
@@ -439,7 +438,7 @@ function EditItemDialog({ item, vendorId, isOpen, onOpenChange, onItemUpdate }: 
 
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline" disabled={isUploadingFile || isSubmitting}>Cancel</Button></DialogClose>
-                    <UpdateItemSubmitButton isUploadingFile={isUploadingFile} />
+                    <UpdateItemSubmitButton isUploadingFile={isUploadingFile || isSubmitting} />
                 </DialogFooter>
             </form>
         </Form>
