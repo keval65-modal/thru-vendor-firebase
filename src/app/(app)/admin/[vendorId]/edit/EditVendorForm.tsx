@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import type { Vendor } from '@/lib/inventoryModels';
-import { updateVendorByAdmin, type UpdateVendorByAdminFormState } from '../actions';
+import { updateVendorByAdmin, type UpdateVendorByAdminFormState } from '../../actions';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getVendorForEditing } from '../actions';
+import { getVendorForEditing } from '../../actions';
 import { EditVendorForm } from './EditVendorForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserCog } from 'lucide-react';
