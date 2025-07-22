@@ -9,8 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "postinstall": "node -e \"require('fs').writeFileSync('.env', require('fs').readFileSync('usr/src/app/.env', 'utf-8'))\""
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": "20"
