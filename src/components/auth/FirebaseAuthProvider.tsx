@@ -17,7 +17,10 @@ export const useFirebaseAuth = () => {
   if (!context) {
     throw new Error('useFirebaseAuth must be used within a FirebaseAuthProvider');
   }
-  return context;
+  if (!context.app) {
+     throw new Error('Firebase has not been initialized. useFirebaseAuth must be used within an initialized FirebaseAuthProvider.');
+  }
+  return context as Required<FirebaseContextValue>;
 };
 
 // The provider component that initializes Firebase and wraps the application.
@@ -41,7 +44,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     setIsLoading(false);
   }, []);
 
-  if (isLoading) {
+  if (isLoading || !firebase?.app) {
     // You can render a loading skeleton or a blank page while Firebase initializes.
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
