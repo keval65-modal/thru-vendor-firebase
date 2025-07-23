@@ -62,4 +62,4 @@
     "@types/qrcode.react": "^1.0.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "genkit-cli
+    "genkit-cli": "^1.8.0",
