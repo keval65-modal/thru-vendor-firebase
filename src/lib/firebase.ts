@@ -1,10 +1,9 @@
+
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
-import type { FirebaseApp } from 'firebase/app';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import type { Auth } from 'firebase/auth';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
 
@@ -26,6 +25,10 @@ export const firebaseConfig = {
   messagingSenderId: "211475032425",
   measurementId: "G-K3G19E152P"
 };
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const auth = getAuth(app);
+
 
 // This function is intended to be called from the server side.
 // It is simplified to use the same hardcoded config.

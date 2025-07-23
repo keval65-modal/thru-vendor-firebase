@@ -23,8 +23,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { createSession } from '@/lib/auth';
-
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { firebaseConfig } from '@/lib/firebase'; // Import the config directly
@@ -161,7 +161,7 @@ async function generateCroppedImage(
 
 export function SignupForm() {
   // Use the global context primarily for Firestore and Storage
-  const { db, storage, auth } = useFirebaseAuth();
+  const { db, storage } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
