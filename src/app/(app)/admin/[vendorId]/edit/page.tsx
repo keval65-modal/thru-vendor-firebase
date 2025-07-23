@@ -8,14 +8,9 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-// This is the correct type definition for a page with a dynamic route segment.
-interface EditVendorPageProps {
-  params: {
-    vendorId: string;
-  };
-}
-
-export default async function EditVendorPage({ params }: EditVendorPageProps) {
+// This page receives params because it's in a dynamic route directory.
+// The props for a dynamic route page need to be typed correctly.
+export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
