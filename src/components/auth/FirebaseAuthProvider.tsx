@@ -36,7 +36,6 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
             
             setFirebase({ app, auth, db, storage });
         } else {
-            // This case should ideally not be reached with the hardcoded config.
             const configError = "Firebase config is missing required fields.";
             console.error(configError, firebaseConfig);
             setError(configError);

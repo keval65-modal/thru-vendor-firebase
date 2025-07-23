@@ -161,7 +161,7 @@ async function generateCroppedImage(
 
 export function SignupForm() {
   // Use the global context primarily for Firestore and Storage
-  const { db, storage, app: firebaseApp } = useFirebaseAuth();
+  const { db, storage, auth } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -259,7 +259,7 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
 
-    if (!firebaseApp || !db || !storage) {
+    if (!auth || !db || !storage) {
        toast({
         variant: 'destructive',
         title: 'Initialization Error',
@@ -270,15 +270,13 @@ export function SignupForm() {
     }
     
     try {
-      // Step 1: Create a temporary, local Auth instance with the explicit config
-      const localAuth = getAuth(firebaseApp);
       
-      // Step 2: Create user in Firebase Auth with the local instance
-      const userCredential = await createUserWithEmailAndPassword(localAuth, values.email, values.password);
+      // Step 1: Create user in Firebase Auth with the provided auth instance
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
 
-      // Step 3: Handle image upload to Firebase Storage
+      // Step 2: Handle image upload to Firebase Storage
       let imageUrl: string | undefined = undefined;
       if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
         const finalCrop = completedCrop || {
@@ -300,7 +298,7 @@ export function SignupForm() {
         }
       }
 
-      // Step 4: Prepare data and create vendor document in Firestore
+      // Step 3: Prepare data and create vendor document in Firestore
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
@@ -320,7 +318,7 @@ export function SignupForm() {
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
 
-      // Step 5: Log the user in and redirect by creating a server session
+      // Step 4: Log the user in and redirect by creating a server session
       const sessionResult = await createSession(user.uid);
       if (sessionResult?.success) {
           toast({

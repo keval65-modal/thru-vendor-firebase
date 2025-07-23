@@ -1,4 +1,3 @@
-
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
@@ -25,7 +24,7 @@ export const firebaseConfig = {
   apiKey: "AIzaSyDpF9CVWya0YbVlfxMPyP8U0VrphEC6UJI",
   authDomain: "thru-vendor-xqmf1.firebaseapp.com",
   messagingSenderId: "211475032425",
-  measurementId: "G-K3G19E152P" // Added Measurement ID if available, can be empty string
+  measurementId: "G-K3G19E152P"
 };
 
 // This function is intended to be called from the server side.
