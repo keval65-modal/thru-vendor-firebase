@@ -2,12 +2,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import type { FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { firebaseConfig, type FirebaseContextValue } from '@/lib/firebase'; // Import the hardcoded config
+import { initializeFirebaseApp, type FirebaseContextValue } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 const FirebaseAuthContext = createContext<FirebaseContextValue | null>(null);
 
@@ -25,17 +27,19 @@ export const useFirebaseAuth = () => {
 export function FirebaseAuthProvider({ children }: { children: React.ReactNode }) {
   const [firebase, setFirebase] = useState<FirebaseContextValue | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-        const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+        const app = initializeFirebaseApp();
         const auth = getAuth(app);
         const db = getFirestore(app);
         const storage = getStorage(app);
         
         setFirebase({ app, auth, db, storage });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Failed to initialize Firebase:", e);
+        setError(e.message || "An unknown error occurred during Firebase initialization.");
         setFirebase({ app: null, auth: null, db: null, storage: null });
     } finally {
         setIsLoading(false);
@@ -54,13 +58,17 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     );
   }
 
-  if (!firebase?.app) {
+  if (error || !firebase?.app) {
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-destructive p-4 text-destructive-foreground">
-            <div className="w-full max-w-md space-y-4 text-center">
-                <h1 className="text-2xl font-bold">Firebase Initialization Failed</h1>
-                <p>Could not connect to Firebase services. Please check the console for errors and verify your configuration.</p>
-            </div>
+        <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+            <Alert variant="destructive" className="max-w-md">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Firebase Initialization Failed</AlertTitle>
+                <AlertDescription>
+                    <p>Could not connect to Firebase services. Please ensure your environment variables are correctly configured in `apphosting.yaml` and that the API key is valid.</p>
+                    <p className="mt-2 text-xs"><strong>Error:</strong> {error || "No Firebase app available."}</p>
+                </AlertDescription>
+            </Alert>
         </div>
     );
   }

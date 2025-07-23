@@ -23,11 +23,9 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { createSession } from '@/lib/auth';
-import { auth } from '@/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
-import { firebaseConfig } from '@/lib/firebase'; // Import the config directly
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
@@ -160,8 +158,7 @@ async function generateCroppedImage(
 
 
 export function SignupForm() {
-  // Use the global context primarily for Firestore and Storage
-  const { db, storage } = useFirebaseAuth();
+  const { auth, db, storage } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -271,12 +268,10 @@ export function SignupForm() {
     
     try {
       
-      // Step 1: Create user in Firebase Auth with the provided auth instance
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
 
-      // Step 2: Handle image upload to Firebase Storage
       let imageUrl: string | undefined = undefined;
       if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
         const finalCrop = completedCrop || {
@@ -298,7 +293,6 @@ export function SignupForm() {
         }
       }
 
-      // Step 3: Prepare data and create vendor document in Firestore
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
@@ -318,7 +312,6 @@ export function SignupForm() {
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
 
-      // Step 4: Log the user in and redirect by creating a server session
       const sessionResult = await createSession(user.uid);
       if (sessionResult?.success) {
           toast({
@@ -332,7 +325,7 @@ export function SignupForm() {
             title: 'Signup Almost Complete',
             description: sessionResult?.error || 'Your account was created, but we couldn\'t log you in automatically. Please go to the login page.',
           });
-          router.push('/login'); // Send to login page as a fallback
+          router.push('/login');
       }
 
     } catch (error: any) {
@@ -347,9 +340,6 @@ export function SignupForm() {
                 break;
             case 'permission-denied':
                  errorMessage = 'You do not have permission to perform this action. Please check your Firestore security rules.';
-                 break;
-            case 'auth/configuration-not-found':
-                 errorMessage = 'The Firebase configuration is invalid. Please contact support. (auth/configuration-not-found)';
                  break;
             default:
                 errorMessage = `An unexpected error occurred: ${error.message}`;
@@ -376,7 +366,7 @@ export function SignupForm() {
           <FormField
             control={form.control}
             name="shopImage"
-            render={({ field }) => ( // field is not directly used for file input value, but for RHF connection
+            render={({ field }) => (
               <FormItem className="flex flex-col items-center">
                 <FormLabel>Shop Image (Logo/Storefront)</FormLabel>
                  <Input
@@ -406,8 +396,8 @@ export function SignupForm() {
                       onChange={(_, percentCrop) => setCrop(percentCrop)}
                       onComplete={(c) => setCompletedCrop(c)}
                       aspect={TARGET_ASPECT_RATIO}
-                      minWidth={TARGET_IMAGE_WIDTH / 5} // min crop selection width
-                      minHeight={TARGET_IMAGE_HEIGHT / 5} // min crop selection height
+                      minWidth={TARGET_IMAGE_WIDTH / 5}
+                      minHeight={TARGET_IMAGE_HEIGHT / 5}
                     >
                       <img
                         ref={imgRef}
@@ -651,7 +641,7 @@ export function SignupForm() {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select opening time" />
-                      </SelectTrigger>
+                      </Trigger>
                     </FormControl>
                     <SelectContent>
                       {timeOptions.map(time => (
@@ -673,7 +663,7 @@ export function SignupForm() {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select closing time" />
-                      </SelectTrigger>
+                      </Trigger>
                     </FormControl>
                     <SelectContent>
                       {timeOptions.map(time => (

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useActionState, useMemo, useRef } from 'react';
@@ -948,9 +949,11 @@ export default function InventoryPage() {
               <CardTitle className="flex items-center"><BookOpen className="mr-2 h-5 w-5 text-primary" />Manage Your Menu</CardTitle>
               <CardDescription>Add, edit, and organize your menu items. You can upload a PDF menu to get started.</CardDescription>
             </div>
-            <DialogTrigger asChild>
-                <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
-            </DialogTrigger>
+            <Dialog onOpenChange={setIsAddCustomItemDialogOpen}>
+              <DialogTrigger asChild>
+                  <Button><PlusCircle className="mr-2 h-4 w-4" />Add Menu Item Manually</Button>
+              </DialogTrigger>
+            </Dialog>
           </CardHeader>
           <CardContent>
             <form action={menuUploadFormAction} className="space-y-4 mb-6 p-4 border rounded-md">
@@ -1285,9 +1288,11 @@ const renderGroceryContent = () => {
                             </AlertDialogContent>
                         </AlertDialog>
                     )}
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
-                    </DialogTrigger>
+                    <Dialog onOpenChange={setIsAddCustomItemDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Custom Product</Button>
+                        </DialogTrigger>
+                    </Dialog>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1447,9 +1452,11 @@ const renderGroceryContent = () => {
                         </AlertDialogContent>
                     </AlertDialog>
                   )}
-                  <DialogTrigger asChild>
-                    <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
-                  </DialogTrigger>
+                  <Dialog onOpenChange={setIsAddCustomItemDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add Product</Button>
+                    </DialogTrigger>
+                  </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -1590,39 +1597,37 @@ const renderGroceryContent = () => {
   }
 
   return (
-    <Dialog onOpenChange={setIsAddCustomItemDialogOpen}>
-        <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
-            <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Inventory Management</h1>
-            <p className="text-muted-foreground">
-                {session?.shopName ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
-            </p>
-            </div>
-        </div>
-        {renderInventoryContent()}
-        <EditItemDialog
-            item={editingItem}
-            vendorId={session?.uid || null}
-            isOpen={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
-        />
-        <AddGlobalItemDialog 
-            item={itemToAdd}
-            isOpen={isAddGlobalItemDialogOpen}
-            onOpenChange={setIsAddGlobalItemDialogOpen}
-            onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
-        />
-        <AddCustomItemDialog
-            isOpen={isAddCustomItemDialogOpen}
-            onOpenChange={setIsAddCustomItemDialogOpen}
-            onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
-        />
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-            Use the Admin panel for managing the global item catalog.
-        </p>
-        </div>
-    </Dialog>
+    <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-between mb-8">
+          <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Inventory Management</h1>
+          <p className="text-muted-foreground">
+              {session?.shopName ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
+          </p>
+          </div>
+      </div>
+      {renderInventoryContent()}
+      <EditItemDialog
+          item={editingItem}
+          vendorId={session?.uid || null}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+      />
+      <AddGlobalItemDialog 
+          item={itemToAdd}
+          isOpen={isAddGlobalItemDialogOpen}
+          onOpenChange={setIsAddGlobalItemDialogOpen}
+          onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+      />
+      <AddCustomItemDialog
+          isOpen={isAddCustomItemDialogOpen}
+          onOpenChange={setIsAddCustomItemDialogOpen}
+          onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+      />
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+          Use the Admin panel for managing the global item catalog.
+      </p>
+    </div>
   );
 }

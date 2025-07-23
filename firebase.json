@@ -1,6 +1,8 @@
+
 {
   "hosting": {
     "site": "thru-vendor-firebase",
+    "source": ".",
     "rewrites": [
       {
         "source": "**",
