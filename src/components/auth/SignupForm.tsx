@@ -80,13 +80,13 @@ const signupFormSchema = z.object({
   shopFullAddress: z.string().min(10, { message: "Shop address must be at least 10 characters." }),
   latitude: z.preprocess(
     (val) => val === "" ? undefined : parseFloat(String(val)),
-    z.number({invalid_type_error: "Latitude must be a number."}).min(-90, "Must be >= -90").max(90, "Must be <= 90")
+    z.number({invalid_type_error: "Latitude must be a number."}).min(-90).max(90)
   ).refine(val => val !== undefined, { message: "Latitude is required." }),
   longitude: z.preprocess(
     (val) => val === "" ? undefined : parseFloat(String(val)),
-    z.number({invalid_type_error: "Longitude must be a number."}).min(-180, "Must be >= -180").max(180, "Must be <= 180")
+    z.number({invalid_type_error: "Longitude must be a number."}).min(-180).max(180)
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
-  shopImage: z.any().optional(), // Will be a File object if provided
+  shopImage: z.any().optional(),
 });
 
 
@@ -350,6 +350,7 @@ export function SignupForm() {
   }
 
   return (
+    <TooltipProvider>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
          
@@ -788,5 +789,6 @@ export function SignupForm() {
           </Button>
         </form>
       </Form>
+    </TooltipProvider>
   );
 }
