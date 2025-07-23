@@ -8,18 +8,6 @@ import { getAuth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
 
-// This config object is now built from environment variables.
-export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
-
-
 // We define a type for our context to be used in the provider and consumer hooks.
 export interface FirebaseContextValue {
   app: FirebaseApp | null;
@@ -28,9 +16,25 @@ export interface FirebaseContextValue {
   storage: FirebaseStorage | null;
 }
 
+// This config object is populated at runtime by fetching from /api/config
+// It is no longer read from process.env here.
+export let firebaseConfig: Record<string, string | undefined> = {};
+
 // This function is intended to be called from the server side, specifically for actions
 // that need the client SDK on the server (e.g., password reset email).
+// This might fail if server actions also have issues accessing env vars.
 export const getFirebaseAuth = () => {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    // This server-side function will need its own way to get config if used.
+    // For now, focusing on client-side initialization.
+    const config = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    };
+    const app = getApps().length === 0 ? initializeApp(config) : getApp();
     return getAuth(app);
 };

@@ -5,13 +5,11 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { type FirebaseContextValue, firebaseConfig } from '@/lib/firebase';
+import { type FirebaseContextValue } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Create the context with a default null value.
 const FirebaseAuthContext = createContext<FirebaseContextValue | null>(null);
 
-// Export a hook that components can use to access the context.
 export const useFirebaseAuth = () => {
   const context = useContext(FirebaseAuthContext);
   if (!context) {
@@ -23,14 +21,21 @@ export const useFirebaseAuth = () => {
   return context as Required<FirebaseContextValue>;
 };
 
-// The provider component that initializes Firebase and wraps the application.
 export function FirebaseAuthProvider({ children }: { children: React.ReactNode }) {
   const [firebase, setFirebase] = useState<FirebaseContextValue | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-        if (firebaseConfig && firebaseConfig.apiKey) {
+    const initializeFirebase = async () => {
+      try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch config: ${response.statusText}`);
+        }
+        const firebaseConfig = await response.json();
+
+        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
             const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
             const auth = getAuth(app);
             const db = getFirestore(app);
@@ -38,19 +43,22 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
             
             setFirebase({ app, auth, db, storage });
         } else {
-            console.error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set.");
-            setFirebase({ app: null, auth: null, db: null, storage: null });
+            throw new Error("Firebase config fetched from API is missing required fields.");
         }
-    } catch (error) {
-        console.error("Failed to initialize Firebase:", error);
+    } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during Firebase initialization.";
+        console.error("Failed to initialize Firebase:", errorMessage);
+        setError(errorMessage);
         setFirebase({ app: null, auth: null, db: null, storage: null });
     } finally {
         setIsLoading(false);
     }
+    };
+
+    initializeFirebase();
   }, []);
 
-  if (isLoading || !firebase) {
-    // You can render a loading skeleton or a blank page while Firebase initializes.
+  if (isLoading) {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
             <div className="w-full max-w-md space-y-4">
@@ -62,17 +70,17 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     );
   }
 
-  if (!firebase.app) {
+  if (error || !firebase?.app) {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-destructive p-4 text-destructive-foreground">
             <div className="w-full max-w-md space-y-4 text-center">
                 <h1 className="text-2xl font-bold">Firebase Initialization Failed</h1>
                 <p>Could not connect to Firebase services. Please check the console for errors and verify your configuration.</p>
+                {error && <p className="mt-2 text-sm bg-destructive-foreground/20 p-2 rounded">Error: {error}</p>}
             </div>
         </div>
     );
   }
-
 
   return (
     <FirebaseAuthContext.Provider value={firebase}>
