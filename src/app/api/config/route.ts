@@ -15,5 +15,12 @@ export async function GET() {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
   };
 
+  // A simple check to see if the crucial variables are missing on the server, which would indicate a problem
+  // with the App Hosting secret configuration itself.
+  if (!config.apiKey || !config.projectId) {
+    console.error('[API/CONFIG] Server-side environment variables are not loaded. Check App Hosting secrets.');
+    return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 });
+  }
+
   return NextResponse.json(config);
 }

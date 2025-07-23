@@ -1,12 +1,15 @@
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import type { FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
-import { getAuth } from 'firebase/auth';
 
+// This config object is now primarily for server-side use and type-checking.
+// The client will fetch its config from the /api/config endpoint.
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -25,13 +28,6 @@ export interface FirebaseContextValue {
   db: Firestore | null;
   storage: FirebaseStorage | null;
 }
-
-// This function will be called by the provider to get the config.
-export const getFirebaseConfig = () => {
-    // This is now fetched from the /api/config endpoint on the client
-    return firebaseConfig;
-};
-
 
 // This function is intended to be called from the server side, specifically for actions
 // that need the client SDK on the server (e.g., password reset email).
