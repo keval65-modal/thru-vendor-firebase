@@ -101,7 +101,7 @@ const signupFormSchema = z.object({
         return closeTimeIndex > openTimeIndex;
     }
     return true;
-}, { message: "Closing time must be after opening time.", path: ["closingTime"]}));
+}, { message: "Closing time must be after opening time.", path: ["closingTime"]});
 
 
 async function generateCroppedImage(
@@ -359,7 +359,6 @@ export function SignupForm() {
   }
 
   return (
-    <TooltipProvider>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
          
@@ -683,14 +682,16 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel className="flex items-center">
                     Weekly Close On *
-                    <Tooltip delayDuration={100}>
-                      <TooltipTrigger type="button" className="ml-1">
-                        <Info className="h-3 w-3 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Select the day your shop is typically closed.</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <TooltipProvider>
+                      <Tooltip delayDuration={100}>
+                        <TooltipTrigger type="button" className="ml-1">
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Select the day your shop is typically closed.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                     <FormControl>
@@ -716,14 +717,16 @@ export function SignupForm() {
               <FormItem>
                 <FormLabel className="flex items-center">
                   Shop Full Address *
-                  <Tooltip delayDuration={100}>
-                      <TooltipTrigger type="button" className="ml-1">
-                        <Info className="h-3 w-3 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Enter your full shop address. This helps customers find you.</p>
-                      </TooltipContent>
-                  </Tooltip>
+                  <TooltipProvider>
+                    <Tooltip delayDuration={100}>
+                        <TooltipTrigger type="button" className="ml-1">
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Enter your full shop address. This helps customers find you.</p>
+                        </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </FormLabel>
                 <FormControl>
                   <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={isLoading}/>
@@ -790,6 +793,5 @@ export function SignupForm() {
           </Button>
         </form>
       </Form>
-    </TooltipProvider>
   );
 }
