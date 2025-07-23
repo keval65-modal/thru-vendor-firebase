@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
+type EditVendorPageProps = {
+  params: { vendorId: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+};
+
+
+export default async function EditVendorPage({ params }: EditVendorPageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
