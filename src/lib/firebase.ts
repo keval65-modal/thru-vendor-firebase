@@ -21,10 +21,11 @@ export interface FirebaseContextValue {
 export const firebaseConfig = {
   projectId: "thru-vendor-xqmf1",
   appId: "1:211475032425:web:aba3df27ff211aff4775f8",
-  storageBucket: "thru-vendor-xqmf1.appspot.com", // Corrected bucket name
+  storageBucket: "thru-vendor-xqmf1.appspot.com",
   apiKey: "AIzaSyDpF9CVWya0YbVlfxMPyP8U0VrphEC6UJI",
   authDomain: "thru-vendor-xqmf1.firebaseapp.com",
   messagingSenderId: "211475032425",
+  measurementId: "G-K3G19E152P" // Added Measurement ID if available, can be empty string
 };
 
 // This function is intended to be called from the server side.

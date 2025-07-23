@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,9 +24,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { createSession } from '@/lib/auth';
 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
+import { firebaseConfig } from '@/lib/firebase'; // Import the config directly
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import ReactCrop, {
@@ -97,6 +99,7 @@ const signupFormSchema = z.object({
         }
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
+        if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
         return closeTimeIndex > openTimeIndex;
     }
     return true;
@@ -157,7 +160,8 @@ async function generateCroppedImage(
 
 
 export function SignupForm() {
-  const { auth, db, storage } = useFirebaseAuth();
+  // Use the global context primarily for Firestore and Storage
+  const { db, storage, app: firebaseApp } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -255,7 +259,7 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
 
-    if (!auth || !db || !storage) {
+    if (!firebaseApp || !db || !storage) {
        toast({
         variant: 'destructive',
         title: 'Initialization Error',
@@ -266,12 +270,15 @@ export function SignupForm() {
     }
     
     try {
-      // Step 1: Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      // Step 1: Create a temporary, local Auth instance with the explicit config
+      const localAuth = getAuth(firebaseApp);
+      
+      // Step 2: Create user in Firebase Auth with the local instance
+      const userCredential = await createUserWithEmailAndPassword(localAuth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
 
-      // Step 2: Handle image upload to Firebase Storage
+      // Step 3: Handle image upload to Firebase Storage
       let imageUrl: string | undefined = undefined;
       if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
         const finalCrop = completedCrop || {
@@ -293,7 +300,7 @@ export function SignupForm() {
         }
       }
 
-      // Step 3: Prepare data and create vendor document in Firestore directly from the client
+      // Step 4: Prepare data and create vendor document in Firestore
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
@@ -313,7 +320,7 @@ export function SignupForm() {
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
 
-      // Step 4: Log the user in and redirect by creating a server session
+      // Step 5: Log the user in and redirect by creating a server session
       const sessionResult = await createSession(user.uid);
       if (sessionResult?.success) {
           toast({
@@ -342,6 +349,9 @@ export function SignupForm() {
                 break;
             case 'permission-denied':
                  errorMessage = 'You do not have permission to perform this action. Please check your Firestore security rules.';
+                 break;
+            case 'auth/configuration-not-found':
+                 errorMessage = 'The Firebase configuration is invalid. Please contact support. (auth/configuration-not-found)';
                  break;
             default:
                 errorMessage = `An unexpected error occurred: ${error.message}`;
