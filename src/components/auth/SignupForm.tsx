@@ -87,21 +87,7 @@ const signupFormSchema = z.object({
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180, "Must be >= -180").max(180, "Must be <= 180")
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
   shopImage: z.any().optional(), // Will be a File object if provided
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-}).refine(data => {
-    if(data.openingTime && data.closingTime) {
-        if (data.openingTime === data.closingTime && data.openingTime !== "12:00 AM (Midnight)") {
-            // Potentially allow this if "Open 24 Hours" is an option or implies it
-        }
-        const openTimeIndex = timeOptions.indexOf(data.openingTime);
-        const closeTimeIndex = timeOptions.indexOf(data.closingTime);
-        if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
-        return closeTimeIndex > openTimeIndex;
-    }
-    return true;
-}, { message: "Closing time must be after opening time.", path: ["closingTime"]});
+});
 
 
 async function generateCroppedImage(
@@ -256,6 +242,12 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
 
+    if (values.password !== values.confirmPassword) {
+      form.setError("confirmPassword", { type: "manual", message: "Passwords don't match." });
+      setIsLoading(false);
+      return;
+    }
+
     if (!auth || !db || !storage) {
        toast({
         variant: 'destructive',
@@ -267,7 +259,6 @@ export function SignupForm() {
     }
     
     try {
-      
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       console.log('Firebase Auth user created:', user.uid);
@@ -684,8 +675,10 @@ export function SignupForm() {
                     Weekly Close On *
                     <TooltipProvider>
                       <Tooltip delayDuration={100}>
-                        <TooltipTrigger type="button" className="ml-1">
-                          <Info className="h-3 w-3 text-muted-foreground" />
+                        <TooltipTrigger asChild>
+                          <button type="button" className="ml-1">
+                            <Info className="h-3 w-3 text-muted-foreground" />
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Select the day your shop is typically closed.</p>
@@ -697,7 +690,7 @@ export function SignupForm() {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select day" />
-                      </SelectTrigger>
+                      </Trigger>
                     </FormControl>
                     <SelectContent>
                       {weeklyCloseDays.map(day => (
@@ -719,8 +712,10 @@ export function SignupForm() {
                   Shop Full Address *
                   <TooltipProvider>
                     <Tooltip delayDuration={100}>
-                        <TooltipTrigger type="button" className="ml-1">
-                          <Info className="h-3 w-3 text-muted-foreground" />
+                        <TooltipTrigger asChild>
+                          <button type="button" className="ml-1">
+                            <Info className="h-3 w-3 text-muted-foreground" />
+                          </button>
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Enter your full shop address. This helps customers find you.</p>
