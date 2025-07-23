@@ -101,7 +101,7 @@ const signupFormSchema = z.object({
         return closeTimeIndex > openTimeIndex;
     }
     return true;
-}, { message: "Closing time must be after opening time.", path: ["closingTime"]}));
+}, { message: "Closing time must be after opening time.", path: ["closingTime"]});
 
 
 async function generateCroppedImage(
