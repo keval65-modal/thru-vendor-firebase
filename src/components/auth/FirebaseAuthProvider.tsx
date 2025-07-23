@@ -38,7 +38,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
             
             setFirebase({ app, auth, db, storage });
         } else {
-            console.error("Firebase config is missing or invalid.");
+            console.error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set.");
             setFirebase({ app: null, auth: null, db: null, storage: null });
         }
     } catch (error) {

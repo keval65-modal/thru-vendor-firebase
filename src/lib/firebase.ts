@@ -16,6 +16,7 @@ export const firebaseConfig = {
   apiKey: "AIzaSyDpF9CVWya0YbVlfxMPyP8U0VrphEC6UJI",
   authDomain: "thru-vendor-xqmf1.firebaseapp.com",
   messagingSenderId: "211475032425",
+  measurementId: ""
 };
 
 
