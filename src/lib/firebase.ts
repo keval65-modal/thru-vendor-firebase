@@ -17,6 +17,7 @@ export const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+
 // We define a type for our context to be used in the provider and consumer hooks.
 export interface FirebaseContextValue {
   app: FirebaseApp | null;
