@@ -45,7 +45,8 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
                 
                 setFirebase({ app, auth, db, storage });
             } else {
-                throw new Error("Firebase config fetched from API is missing or invalid.");
+                console.error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set.");
+                setFirebase({ app: null, auth: null, db: null, storage: null });
             }
         } catch (error) {
             console.error("Failed to initialize Firebase:", error);
@@ -59,7 +60,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
 
   }, []);
 
-  if (isLoading || !firebase?.app) {
+  if (isLoading || !firebase) {
     // You can render a loading skeleton or a blank page while Firebase initializes.
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
@@ -71,6 +72,18 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
         </div>
     );
   }
+
+  if (!firebase.app) {
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center bg-destructive p-4 text-destructive-foreground">
+            <div className="w-full max-w-md space-y-4 text-center">
+                <h1 className="text-2xl font-bold">Firebase Initialization Failed</h1>
+                <p>Could not connect to Firebase services. Please check the console for errors and verify your configuration.</p>
+            </div>
+        </div>
+    );
+  }
+
 
   return (
     <FirebaseAuthContext.Provider value={firebase}>

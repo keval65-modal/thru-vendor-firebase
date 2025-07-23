@@ -12,6 +12,7 @@ export async function GET() {
   };
 
   if (Object.values(config).some(value => !value)) {
+    console.error('SERVER-SIDE ERROR: At least one Firebase environment variable is missing in the deployment environment.');
     return NextResponse.json({ error: 'Server-side Firebase configuration is incomplete.' }, { status: 500 });
   }
 

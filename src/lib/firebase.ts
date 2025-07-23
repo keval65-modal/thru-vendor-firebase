@@ -28,11 +28,7 @@ export interface FirebaseContextValue {
 
 // This function will be called by the provider to get the config.
 export const getFirebaseConfig = () => {
-    // Check if all necessary keys are present
-    if (Object.values(firebaseConfig).some(value => !value)) {
-        console.error('Firebase config is missing or incomplete. Check environment variables.');
-        return null;
-    }
+    // This is now fetched from the /api/config endpoint on the client
     return firebaseConfig;
 };
 
