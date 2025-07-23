@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
+// Correctly type the props for a Next.js Page component with dynamic routes
 type EditVendorPageProps = {
   params: { vendorId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
 };
 
 
