@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-// This page receives params because it's in a dynamic route directory.
-// The props for a dynamic route page need to be typed correctly.
+// This is the correct type definition for a page component with dynamic params
 export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
