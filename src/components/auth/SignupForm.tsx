@@ -101,7 +101,7 @@ const signupFormSchema = z.object({
         return closeTimeIndex > openTimeIndex;
     }
     return true;
-}, { message: "Closing time must be after opening time.", path: ["closingTime"]}));
+}, { message: "Closing time must be after opening time.", path: ["closingTime"]});
 
 
 async function generateCroppedImage(
@@ -152,7 +152,7 @@ async function generateCroppedImage(
         return;
       }
       resolve(new File([blob], imageFile.name, { type: imageFile.type || 'image/png' }));
-    }, imageFile.type || 'image/png', 0.9); // 0.9 quality for PNG/JPEG
+    }, imageFile.type || 'image/png', 0.9);
   });
 }
 
