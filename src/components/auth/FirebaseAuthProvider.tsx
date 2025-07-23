@@ -5,7 +5,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { type FirebaseContextValue } from '@/lib/firebase';
+import { type FirebaseContextValue, firebaseConfig } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Create the context with a default null value.
@@ -29,35 +29,24 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function initializeFirebase() {
-        try {
-            const response = await fetch('/api/config');
-            if (!response.ok) {
-                throw new Error(`Failed to fetch config: ${response.statusText}`);
-            }
-            const config = await response.json();
-
-            if (config && config.apiKey) {
-                const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                const storage = getStorage(app);
-                
-                setFirebase({ app, auth, db, storage });
-            } else {
-                console.error("Firebase config is missing. Ensure NEXT_PUBLIC_ environment variables are set.");
-                setFirebase({ app: null, auth: null, db: null, storage: null });
-            }
-        } catch (error) {
-            console.error("Failed to initialize Firebase:", error);
+    try {
+        if (firebaseConfig && firebaseConfig.apiKey) {
+            const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const storage = getStorage(app);
+            
+            setFirebase({ app, auth, db, storage });
+        } else {
+            console.error("Firebase config is missing or invalid.");
             setFirebase({ app: null, auth: null, db: null, storage: null });
-        } finally {
-            setIsLoading(false);
         }
+    } catch (error) {
+        console.error("Failed to initialize Firebase:", error);
+        setFirebase({ app: null, auth: null, db: null, storage: null });
+    } finally {
+        setIsLoading(false);
     }
-    
-    initializeFirebase();
-
   }, []);
 
   if (isLoading || !firebase) {
