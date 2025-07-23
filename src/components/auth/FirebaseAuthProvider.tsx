@@ -1,11 +1,11 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { getFirebaseConfig, type FirebaseContextValue } from '@/lib/firebase';
+import { getFirebaseConfig, type FirebaseContextValue, firebaseConfig } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Create the context with a default null value.
@@ -29,10 +29,10 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const firebaseConfig = getFirebaseConfig();
+    const config = getFirebaseConfig();
     // Check if Firebase config keys are present
-    if (firebaseConfig) {
-      const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    if (config) {
+      const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
       const auth = getAuth(app);
       const db = getFirestore(app);
       const storage = getStorage(app);

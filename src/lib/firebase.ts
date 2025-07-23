@@ -27,21 +27,12 @@ export interface FirebaseContextValue {
 
 // This function will be called by the provider to get the config.
 export const getFirebaseConfig = () => {
-    const config = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-      measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-    };
     // Check if all necessary keys are present
-    if (Object.values(config).some(value => !value)) {
+    if (Object.values(firebaseConfig).some(value => !value)) {
         console.error('Firebase config is missing or incomplete. Check environment variables.');
         return null;
     }
-    return config;
+    return firebaseConfig;
 };
 
 
