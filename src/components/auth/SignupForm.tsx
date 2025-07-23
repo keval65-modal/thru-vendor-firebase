@@ -247,6 +247,15 @@ export function SignupForm() {
       setIsLoading(false);
       return;
     }
+    
+    const openTimeIndex = timeOptions.indexOf(values.openingTime);
+    const closeTimeIndex = timeOptions.indexOf(values.closingTime);
+    if (values.openingTime !== "12:00 AM (Midnight)" && values.closingTime !== "12:00 AM (Midnight)" && closeTimeIndex <= openTimeIndex) {
+        form.setError("closingTime", { type: "manual", message: "Closing time must be after opening time." });
+        setIsLoading(false);
+        return;
+    }
+
 
     if (!auth || !db || !storage) {
        toast({
@@ -350,7 +359,6 @@ export function SignupForm() {
   }
 
   return (
-    <TooltipProvider>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
          
@@ -789,6 +797,5 @@ export function SignupForm() {
           </Button>
         </form>
       </Form>
-    </TooltipProvider>
   );
 }
