@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -87,7 +86,16 @@ const signupFormSchema = z.object({
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180).max(180)
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
   shopImage: z.any().optional(),
-});
+}).refine(data => {
+    if(data.openingTime && data.closingTime) {
+        const openTimeIndex = timeOptions.indexOf(data.openingTime);
+        const closeTimeIndex = timeOptions.indexOf(data.closingTime);
+        if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
+        return closeTimeIndex > openTimeIndex;
+    }
+    return true;
+}, { message: "Closing time must be after opening time.", path: ["closingTime"]})
+);
 
 
 async function generateCroppedImage(
@@ -292,7 +300,7 @@ export function SignupForm() {
           console.log('Image uploaded, URL:', imageUrl);
         }
       }
-
+      
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
       const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
       
