@@ -5,7 +5,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { type FirebaseContextValue } from '@/lib/firebase';
+import { firebaseConfig, type FirebaseContextValue } from '@/lib/firebase'; // Import the hardcoded config
 import { Skeleton } from '@/components/ui/skeleton';
 
 const FirebaseAuthContext = createContext<FirebaseContextValue | null>(null);
@@ -27,14 +27,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeFirebase = async () => {
-      try {
-        const response = await fetch('/api/config');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch config: ${response.statusText}`);
-        }
-        const firebaseConfig = await response.json();
-
+    try {
         if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
             const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
             const auth = getAuth(app);
@@ -43,7 +36,11 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
             
             setFirebase({ app, auth, db, storage });
         } else {
-            throw new Error("Firebase config fetched from API is missing required fields.");
+            // This case should ideally not be reached with the hardcoded config.
+            const configError = "Firebase config is missing required fields.";
+            console.error(configError, firebaseConfig);
+            setError(configError);
+            setFirebase({ app: null, auth: null, db: null, storage: null });
         }
     } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "An unknown error occurred during Firebase initialization.";
@@ -53,9 +50,6 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     } finally {
         setIsLoading(false);
     }
-    };
-
-    initializeFirebase();
   }, []);
 
   if (isLoading) {

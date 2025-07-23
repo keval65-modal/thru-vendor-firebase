@@ -1,3 +1,4 @@
+
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
@@ -16,25 +17,19 @@ export interface FirebaseContextValue {
   storage: FirebaseStorage | null;
 }
 
-// This config object is populated at runtime by fetching from /api/config
-// It is no longer read from process.env here.
-export let firebaseConfig: Record<string, string | undefined> = {};
+// This config object is now hardcoded with the values provided by the Firebase platform.
+export const firebaseConfig = {
+  projectId: "thru-vendor-xqmf1",
+  appId: "1:211475032425:web:aba3df27ff211aff4775f8",
+  storageBucket: "thru-vendor-xqmf1.appspot.com", // Corrected bucket name
+  apiKey: "AIzaSyDpF9CVWya0YbVlfxMPyP8U0VrphEC6UJI",
+  authDomain: "thru-vendor-xqmf1.firebaseapp.com",
+  messagingSenderId: "211475032425",
+};
 
-// This function is intended to be called from the server side, specifically for actions
-// that need the client SDK on the server (e.g., password reset email).
-// This might fail if server actions also have issues accessing env vars.
+// This function is intended to be called from the server side.
+// It is simplified to use the same hardcoded config.
 export const getFirebaseAuth = () => {
-    // This server-side function will need its own way to get config if used.
-    // For now, focusing on client-side initialization.
-    const config = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-      measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-    };
-    const app = getApps().length === 0 ? initializeApp(config) : getApp();
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     return getAuth(app);
 };
