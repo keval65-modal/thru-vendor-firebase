@@ -5,7 +5,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { firebaseConfig, type FirebaseContextValue } from '@/lib/firebase';
+import { getFirebaseConfig, type FirebaseContextValue } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Create the context with a default null value.
@@ -29,8 +29,9 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const firebaseConfig = getFirebaseConfig();
     // Check if Firebase config keys are present
-    if (firebaseConfig.apiKey) {
+    if (firebaseConfig) {
       const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
       const auth = getAuth(app);
       const db = getFirestore(app);
