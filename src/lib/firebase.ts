@@ -8,15 +8,15 @@ import { getAuth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
 
-// This config object is now hardcoded with the values from your project.
+// This config object is now built from environment variables.
 export const firebaseConfig = {
-  projectId: "thru-vendor-xqmf1",
-  appId: "1:211475032425:web:aba3df27ff211aff4775f8",
-  storageBucket: "thru-vendor-xqmf1.appspot.com",
-  apiKey: "AIzaSyDpF9CVWya0YbVlfxMPyP8U0VrphEC6UJI",
-  authDomain: "thru-vendor-xqmf1.firebaseapp.com",
-  messagingSenderId: "211475032425",
-  measurementId: ""
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 
