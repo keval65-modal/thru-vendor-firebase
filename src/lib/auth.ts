@@ -15,19 +15,20 @@ export async function createSession(uid: string, bypassRoleCheck = false): Promi
     return { success: false, error: 'User ID is required to create a session.' };
   }
 
-  // Enforce that a vendor document must exist before creating a session, unless it's a bypass (e.g., admin).
+  // Enforce that a vendor document must exist before creating a session.
   try {
       const vendorDocRef = doc(db, 'vendors', uid);
       const vendorSnap = await getDoc(vendorDocRef);
       
-      // If we are NOT bypassing the check (i.e. for a regular vendor) and the doc doesn't exist, fail.
-      if (!vendorSnap.exists() && !bypassRoleCheck) {
+      if (!vendorSnap.exists()) {
+          // If it's an admin user logging in directly without a profile, this is a configuration error.
+          if (bypassRoleCheck) {
+              console.error(`[createSession] Admin login failed: Admin user with UID ${uid} does not have a corresponding vendor profile in Firestore.`);
+              return { success: false, error: 'Admin user profile not found in the database. Please contact support.' };
+          }
+          // For a regular vendor, if the doc doesn't exist, fail.
           console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
           return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly or contact support if this persists.' };
-      }
-      
-       if (!vendorSnap.exists() && bypassRoleCheck) {
-          console.warn(`[createSession] Admin user with UID ${uid} does not have a corresponding vendor profile in Firestore. This is not fatal for admin login.`);
       }
       
   } catch (e) {
