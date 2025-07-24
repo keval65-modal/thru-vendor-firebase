@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Store, Info, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { createSession } from '@/lib/auth';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -379,6 +379,7 @@ export function SignupForm() {
                       style={{ maxHeight: '400px', display: 'block', margin: 'auto' }}
                       width={400}
                       height={400}
+                      unoptimized
                     />
                   </ReactCrop>
                 </div>
