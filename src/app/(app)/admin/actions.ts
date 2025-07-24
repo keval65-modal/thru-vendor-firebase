@@ -1,7 +1,8 @@
+
 'use server';
 
 import { z } from 'zod';
-import { db } from '@/lib/firebase-admin-client'; // Using the client SDK-based db
+import { db } from '@/lib/firebase-admin-client';
 import { Timestamp, collection, getDocs, doc, updateDoc, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
