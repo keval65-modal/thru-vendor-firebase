@@ -87,7 +87,6 @@ const signupFormSchema = z.object({
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
   shopImage: z.any().optional(),
 }).superRefine((data, ctx) => {
-    // Password confirmation check
     if (data.password !== data.confirmPassword) {
         ctx.addIssue({
             code: "custom",
@@ -95,13 +94,11 @@ const signupFormSchema = z.object({
             path: ["confirmPassword"],
         });
     }
-
-    // Time validation check
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
         if (data.openingTime !== "12:00 AM (Midnight)" && data.closingTime !== "12:00 AM (Midnight)" && closeTimeIndex <= openTimeIndex) {
-            ctx.addIssue({
+             ctx.addIssue({
                 code: "custom",
                 message: "Closing time must be after opening time.",
                 path: ["closingTime"],
@@ -310,10 +307,8 @@ export function SignupForm() {
           type: values.storeCategory,
           isActiveOnThru: true,
           role: 'vendor' as const,
+          shopImageUrl: imageUrl,
       };
-      if (imageUrl) {
-        (vendorToSave as any).shopImageUrl = imageUrl;
-      }
 
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
