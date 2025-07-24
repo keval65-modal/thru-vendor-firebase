@@ -347,7 +347,7 @@ export function SignupForm() {
       setIsLoading(false);
     }
   }
-
+  
   return (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
