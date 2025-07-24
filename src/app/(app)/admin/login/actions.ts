@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -25,7 +26,9 @@ export async function handleAdminLogin(prevState: LoginState, formData: FormData
         return { success: false, error: "Direct login is not configured correctly." };
     }
     console.log(`[Direct Login] Attempting to create session for admin UID: ${adminUid}`);
-    const sessionResult = await createSession(adminUid, true); // Pass true to bypass role check
+    // The `bypassRoleCheck` is true by default for direct admin login.
+    // createSession will handle fetching the admin's vendor doc.
+    const sessionResult = await createSession(adminUid, true); 
     if (!sessionResult.success) {
         return { success: false, error: sessionResult.error || 'Direct login failed during session creation.' };
     }
