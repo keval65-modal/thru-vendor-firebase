@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer base {
   :root {
     --background: 0 0% 94%; /* #F0F0F0 */
@@ -97,13 +93,12 @@ body {
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 3 89% 64%;
   }
-}
-
-@layer base {
+  
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
   }
 }
