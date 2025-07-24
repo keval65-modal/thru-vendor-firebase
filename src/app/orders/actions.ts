@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, W
 import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/firebase-admin-client';
+import { db } from '@/lib/firebase-admin';
 
 /**
  * Fetches all relevant orders for a given vendor using an efficient 'array-contains' query.
@@ -171,5 +171,3 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         return null;
     }
 }
-
-    

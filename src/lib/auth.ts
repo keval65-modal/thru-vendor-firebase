@@ -3,7 +3,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/firebase-admin-client';
+import { db } from '@/lib/firebase-admin';
 import { doc, getDoc } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 

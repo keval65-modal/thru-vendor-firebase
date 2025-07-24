@@ -1,6 +1,7 @@
+
 'use server';
 
-import { db } from '@/lib/firebase-admin-client';
+import { db } from '@/lib/firebase-admin';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, WriteBatch, writeBatch, runTransaction } from 'firebase/firestore';
 import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder, OrderItemDetail } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';

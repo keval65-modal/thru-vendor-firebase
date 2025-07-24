@@ -2,7 +2,8 @@
 'use server';
 
 import { z } from 'zod';
-import { db, storage } from '@/lib/firebase-admin-client';
+import { db } from '@/lib/firebase-admin';
+import { storage } from '@/lib/firebase-admin-client';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
@@ -154,5 +155,3 @@ export async function updateVendorProfile(
     return { success: false, error: `Failed to update profile. ${errorMessage}` };
   }
 }
-
-    

@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase-admin-client';
+import { db } from '@/lib/firebase-admin';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
@@ -50,5 +50,3 @@ export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
     return [];
   }
 }
-
-    
