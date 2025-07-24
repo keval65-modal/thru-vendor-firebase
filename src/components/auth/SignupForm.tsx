@@ -116,22 +116,23 @@ async function generateCroppedImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  canvas.width = crop.width;
-  canvas.height = crop.height;
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  canvas.width = crop.width * scaleX;
+  canvas.height = crop.height * scaleY;
 
   ctx.drawImage(
     image,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
     0,
     0,
-    crop.width,
-    crop.height
+    crop.width * scaleX,
+    crop.height * scaleY
   );
-
-  // Resize to target dimensions
+  
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = targetWidth;
   finalCanvas.height = targetHeight;
@@ -267,16 +268,9 @@ export function SignupForm() {
       console.log('Firebase Auth user created:', user.uid);
 
       let imageUrl: string | undefined = undefined;
-      if (crop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
-        const finalCrop = completedCrop || {
-            unit: 'px',
-            x: (imgRef.current.naturalWidth * crop.x) / 100,
-            y: (imgRef.current.naturalHeight * crop.y) / 100,
-            width: (imgRef.current.naturalWidth * crop.width) / 100,
-            height: (imgRef.current.naturalHeight * crop.height) / 100,
-        };
-
-        const croppedFile = await generateCroppedImage(originalFile, finalCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
+      if (completedCrop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
+        
+        const croppedFile = await generateCroppedImage(originalFile, completedCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
 
         if (croppedFile) {
           const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;

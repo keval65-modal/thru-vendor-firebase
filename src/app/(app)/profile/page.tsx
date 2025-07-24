@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +17,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef } from 'react';
 import { Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserCog, UploadCloud, Save } from 'lucide-react';
@@ -24,8 +24,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { Progress } from '@/components/ui/progress';
 
 import ReactCrop, {
   centerCrop,
@@ -35,8 +33,9 @@ import ReactCrop, {
 } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-import { getVendorDetails, updateVendorProfile } from './actions';
+import { getVendorDetails, updateVendorProfile, type UpdateProfileFormState } from './actions';
 import type { Vendor } from '@/lib/inventoryModels';
+import { useActionState } from 'react';
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
 const genders = ["Male", "Female", "Other", "Prefer not to say"];
@@ -85,7 +84,7 @@ const profileFormSchema = z.object({
     (val) => val === "" ? undefined : parseFloat(String(val)),
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180).max(180)
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
-  shopImageUrl: z.string().url().optional(),
+  shopImage: z.any().optional(),
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
@@ -148,7 +147,8 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+
+  const [state, formAction, isPending] = useActionState(updateVendorProfile, {success: false});
   
   const [imgSrc, setImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
@@ -156,7 +156,6 @@ export default function ProfilePage() {
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const form = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
@@ -164,12 +163,11 @@ export default function ProfilePage() {
       shopName: '', storeCategory: '', ownerName: '', phoneCountryCode: '+91',
       phoneNumber: '', gender: '', city: '', weeklyCloseOn: '',
       openingTime: '', closingTime: '', shopFullAddress: '',
-      latitude: undefined, longitude: undefined, shopImageUrl: undefined,
+      latitude: undefined, longitude: undefined, shopImage: undefined,
     },
   });
 
-  useEffect(() => {
-    async function fetchVendor() {
+  const fetchVendor = async () => {
       setIsLoadingData(true);
       const result = await getVendorDetails();
       if (result.vendor) {
@@ -179,15 +177,29 @@ export default function ProfilePage() {
           latitude: result.vendor.latitude ?? undefined,
           longitude: result.vendor.longitude ?? undefined,
           gender: result.vendor.gender ?? '',
-          shopImageUrl: result.vendor.shopImageUrl ?? '',
         });
       } else {
         toast({ variant: "destructive", title: "Error", description: result.error || "Could not fetch vendor details." });
       }
       setIsLoadingData(false);
     }
+
+  useEffect(() => {
     fetchVendor();
   }, [form, toast]);
+
+  useEffect(() => {
+    if (state.success) {
+      toast({ title: "Profile Updated", description: state.message });
+      fetchVendor(); // Refetch data to show the latest updates
+      setImgSrc('');
+      setOriginalFile(null);
+      setCompletedCrop(undefined);
+    }
+    if (state.error) {
+       toast({ variant: "destructive", title: "Update Failed", description: state.error });
+    }
+  }, [state, toast]);
 
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,53 +240,28 @@ export default function ProfilePage() {
     }
   };
 
-  async function onSubmit(values: z.infer<typeof profileFormSchema>) {
-    setIsSubmittingForm(true);
-    setUploadProgress(null);
+  async function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
 
-    const formData = new FormData();
-    // Append all text-based form fields
-    Object.entries(values).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-            formData.append(key, String(value));
-        }
-    });
-
-    // Handle image separately. If there's a new image, crop it and append it.
     if (completedCrop && originalFile && imgRef.current) {
         try {
             const croppedBlob = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name);
             if(croppedBlob) {
-                // The key 'shopImage' must match what the server action expects.
-                formData.append('shopImage', croppedBlob, originalFile.name);
+                data.set('shopImage', croppedBlob, originalFile.name);
+            } else {
+                 data.delete('shopImage');
             }
         } catch (e) {
             console.error("Image cropping failed:", e);
             toast({ variant: "destructive", title: "Image Error", description: "Could not process the selected image."});
-            setIsSubmittingForm(false);
             return;
         }
-    }
-
-    const result = await updateVendorProfile(formData);
-    
-    if(result.success) {
-      toast({ title: "Profile Updated", description: result.message });
-      const updatedVendorDetails = await getVendorDetails();
-      if(updatedVendorDetails.vendor) {
-          setVendorData(updatedVendorDetails.vendor);
-          form.reset({
-              ...updatedVendorDetails.vendor,
-              latitude: updatedVendorDetails.vendor.latitude ?? undefined,
-              longitude: updatedVendorDetails.vendor.longitude ?? undefined,
-          });
-          setImgSrc('');
-          setOriginalFile(null);
-      }
     } else {
-      toast({ variant: "destructive", title: "Update Failed", description: result.error });
+        data.delete('shopImage');
     }
-    setIsSubmittingForm(false);
+    
+    formAction(data);
   }
 
   if (isLoadingData) {
@@ -300,20 +287,18 @@ export default function ProfilePage() {
         <CardDescription>Update your shop information and display picture.</CardDescription>
       </CardHeader>
       <CardContent>
-        <TooltipProvider>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleFormSubmit} className="space-y-6">
               <FormItem className="flex flex-col items-center p-4 border rounded-md bg-muted/30">
                 <FormLabel className="text-lg font-semibold mb-2">Shop Display Picture</FormLabel>
                 <div className="w-40 h-auto flex-shrink-0 rounded-md overflow-hidden border flex items-center justify-center bg-background mb-4">
                     <Image src={displayedImage} alt="Shop Image Preview" width={TARGET_IMAGE_WIDTH} height={TARGET_IMAGE_HEIGHT} className="object-cover" key={displayedImage} />
                 </div>
-                <Input id="shopImageUpload" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" ref={fileInputRef} disabled={isSubmittingForm} />
-                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full max-w-xs" disabled={isSubmittingForm}>
+                <Input id="shopImageUpload" name="shopImage" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" ref={fileInputRef} disabled={isPending} />
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full max-w-xs" disabled={isPending}>
                     <UploadCloud className="mr-2 h-4 w-4" /> Change Image
                 </Button>
                 <FormDescription className="text-xs text-center sm:text-left mt-2">Will be cropped to 150x100 pixels.</FormDescription>
-                {uploadProgress !== null && <Progress value={uploadProgress} className="w-full max-w-xs mt-2" />}
               </FormItem>
 
               {imgSrc && (
@@ -357,13 +342,12 @@ export default function ProfilePage() {
                 <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2"><LocateFixed className="mr-2 h-4 w-4" /> Use My Current Location</Button>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmittingForm}>
-                  {isSubmittingForm ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              <Button type="submit" className="w-full" disabled={isPending}>
+                  {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Save Changes
               </Button>
             </form>
           </Form>
-        </TooltipProvider>
       </CardContent>
     </Card>
     </div>

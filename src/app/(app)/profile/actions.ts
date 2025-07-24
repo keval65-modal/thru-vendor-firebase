@@ -2,13 +2,12 @@
 'use server';
 
 import { z } from 'zod';
-import { db } from '@/lib/firebase-admin';
-import { storage } from '@/lib/firebase-admin-client';
+import { db, storage } from '@/lib/firebase-admin'; // Correct admin import
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { Readable } from 'stream';
 
 const generateTimeOptions = () => {
     const options = [];
@@ -43,7 +42,7 @@ const UpdateProfileSchema = z.object({
   shopFullAddress: z.string().min(1, "Full address is required."),
   latitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
-  shopImage: z.any().optional(), // File object if new image is uploaded
+  shopImage: z.instanceof(File).optional(),
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
@@ -91,6 +90,7 @@ export type UpdateProfileFormState = {
 };
 
 export async function updateVendorProfile(
+  prevState: UpdateProfileFormState,
   formData: FormData
 ): Promise<UpdateProfileFormState> {
   const session = await getSession();
@@ -99,18 +99,15 @@ export async function updateVendorProfile(
   }
   const vendorId = session.uid;
 
-  const rawData = Object.fromEntries(formData.entries());
+  const rawData: Record<string, any> = Object.fromEntries(formData.entries());
   const shopImageFile = formData.get('shopImage') as File | null;
-
-  const dataToValidate = { ...rawData };
-   if (shopImageFile && shopImageFile.size > 0) {
-    dataToValidate.shopImage = shopImageFile;
+  if (shopImageFile && shopImageFile.size > 0) {
+    rawData.shopImage = shopImageFile;
   } else {
-    delete dataToValidate.shopImage;
+    delete rawData.shopImage;
   }
 
-
-  const validatedFields = UpdateProfileSchema.safeParse(dataToValidate);
+  const validatedFields = UpdateProfileSchema.safeParse(rawData);
 
   if (!validatedFields.success) {
     console.error("Profile update validation errors:", validatedFields.error.flatten().fieldErrors);
@@ -133,22 +130,28 @@ export async function updateVendorProfile(
     const vendorRef = doc(db, 'vendors', vendorId);
 
     if (shopImage && shopImage.size > 0) {
-      // It's a File object from the client (already cropped)
-      const imageFile = shopImage as File;
+      const bucket = storage.bucket();
       const imagePath = `vendor_shop_images/${vendorId}/shop_image.jpg`;
-      const imageStorageRef = storageRef(storage, imagePath);
+      const file = bucket.file(imagePath);
 
-      await uploadBytes(imageStorageRef, imageFile);
-      dataToUpdate.shopImageUrl = await getDownloadURL(imageStorageRef);
+      const buffer = Buffer.from(await shopImage.arrayBuffer());
+      await file.save(buffer, {
+          metadata: { contentType: shopImage.type },
+      });
+      
+      const [publicUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491', // Far-future expiration date
+      });
+
+      dataToUpdate.shopImageUrl = publicUrl;
       console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
     }
 
 
     await updateDoc(vendorRef, dataToUpdate as any);
     console.log(`Vendor profile updated successfully for ${vendorId}`);
-    
-    revalidatePath('/profile'); // Revalidate path to show updated info
-    
+    revalidatePath('/profile');
     return { success: true, message: "Profile updated successfully!" };
 
   } catch (error) {
