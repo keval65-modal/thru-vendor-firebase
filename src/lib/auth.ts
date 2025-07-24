@@ -10,7 +10,7 @@ import type { Vendor } from '@/lib/inventoryModels';
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
 const ADMIN_UID = '1kYPC0L4k0Yc6Qz1h1v10o9A2fB3'; // UID for keval@kiptech.in
 
-export async function createSession(uid: string, bypassRoleCheck = false): Promise<{success: boolean, error?: string}> {
+export async function createSession(uid: string): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
@@ -21,12 +21,6 @@ export async function createSession(uid: string, bypassRoleCheck = false): Promi
       const vendorSnap = await getDoc(vendorDocRef);
       
       if (!vendorSnap.exists()) {
-          // If it's an admin user logging in directly without a profile, this is a configuration error.
-          if (bypassRoleCheck) {
-              console.error(`[createSession] Admin login failed: Admin user with UID ${uid} does not have a corresponding vendor profile in Firestore.`);
-              return { success: false, error: 'Admin user profile not found in the database. Please contact support.' };
-          }
-          // For a regular vendor, if the doc doesn't exist, fail.
           console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
           return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly or contact support if this persists.' };
       }
@@ -56,13 +50,13 @@ export async function getSession(): Promise<{
     uid?: string;
     email?: string;
     shopImageUrl?: string;
-    ownerName?: string; // Mapped from ownerName
+    ownerName?: string;
     shopName?: string;
     storeCategory?: Vendor['storeCategory'];
-    type?: Vendor['storeCategory']; // For customer app compatibility
+    type?: Vendor['storeCategory'];
     isActiveOnThru?: boolean;
     role?: 'vendor' | 'admin';
-  } | null> {
+  }> {
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
@@ -72,13 +66,12 @@ export async function getSession(): Promise<{
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data() as Vendor;
-        // Check if the user is the specific admin user.
+        
         const isKnownAdmin = userDocSnap.id === ADMIN_UID;
-        // Assign role based on whether it's the admin UID or the role field in the doc.
-        const userRole = isKnownAdmin ? 'admin' : userData.role || 'vendor';
+        const userRole = isKnownAdmin ? 'admin' : (userData.role || 'vendor');
 
         return {
-          isAuthenticated: true, // A valid doc means they are authenticated.
+          isAuthenticated: true,
           uid: userDocSnap.id,
           email: userData.email,
           ownerName: userData.ownerName,
@@ -91,14 +84,13 @@ export async function getSession(): Promise<{
         };
       } else {
          console.warn(`[Auth GetSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
-         // If user has a cookie but no firestore doc, their account was likely deleted.
-         // Force a logout by clearing the cookie.
          cookies().delete(AUTH_COOKIE_NAME);
       }
     } catch (error) {
       console.error('[Auth GetSession] Error fetching user for session from Firestore:', error);
     }
   }
+  // Always return a valid object, even for unauthenticated users or on error.
   return { isAuthenticated: false };
 }
 
