@@ -2,10 +2,8 @@
 'use server';
 
 import { z } from 'zod';
-import { db } from '@/lib/firebase-admin';
-import { storage } from '@/lib/firebase-admin-client';
+import { db, storage } from '@/lib/firebase-admin';
 import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -133,14 +131,22 @@ export async function updateVendorProfile(
     const vendorRef = doc(db, 'vendors', vendorId);
 
     if (shopImage && shopImage.size > 0) {
-      // It's a File object from the client (already cropped)
-      const imageFile = shopImage as File;
-      const imagePath = `vendor_shop_images/${vendorId}/shop_image.jpg`;
-      const imageStorageRef = storageRef(storage, imagePath);
+        const bucket = storage.bucket();
+        const imagePath = `vendor_shop_images/${vendorId}/shop_image.jpg`;
+        const file = bucket.file(imagePath);
 
-      await uploadBytes(imageStorageRef, imageFile);
-      dataToUpdate.shopImageUrl = await getDownloadURL(imageStorageRef);
-      console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
+        const buffer = Buffer.from(await shopImage.arrayBuffer());
+        await file.save(buffer, {
+            metadata: { contentType: shopImage.type },
+        });
+        
+        const [publicUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: '03-09-2491', // Far-future expiration date
+        });
+
+        dataToUpdate.shopImageUrl = publicUrl;
+        console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
     }
 
 
