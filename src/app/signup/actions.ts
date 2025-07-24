@@ -86,7 +86,7 @@ export async function handleSignup(
       email: email,
       password: password,
       displayName: vendorData.ownerName,
-      emailVerified: false, // Set to false initially
+      emailVerified: false,
     });
     const uid = userRecord.uid;
     console.log(`Successfully created new user: ${email} (${uid})`);
@@ -105,15 +105,19 @@ export async function handleSignup(
     // 2. Upload image to Storage if it exists
     if (shopImage && shopImage.size > 0) {
         const bucket = adminStorage.bucket();
-        const imagePath = `vendor_shop_images/${uid}/shop_image.jpg`; // Use UID for folder
+        const imagePath = `vendor_shop_images/${uid}/shop_image.jpg`;
         const file = bucket.file(imagePath);
         const buffer = Buffer.from(await shopImage.arrayBuffer());
         
         await file.save(buffer, { metadata: { contentType: shopImage.type } });
         
-        // Make the file public and get its URL
-        await file.makePublic();
-        dataToSave.shopImageUrl = file.publicUrl();
+        // Generate a long-lived signed URL
+        const [publicUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: '03-09-2491', // A date far in the future
+        });
+
+        dataToSave.shopImageUrl = publicUrl;
         console.log(`Image uploaded and public URL set for ${uid}: ${dataToSave.shopImageUrl}`);
     } else {
         dataToSave.shopImageUrl = `https://placehold.co/150x100.png?text=${encodeURIComponent(vendorData.shopName.substring(0,10))}`;
@@ -126,7 +130,6 @@ export async function handleSignup(
     // 4. Create session cookie
     const sessionResult = await createSession(uid);
     if (!sessionResult.success) {
-        // This is a critical error, but the user is already created. Log it.
         console.error(`CRITICAL: User ${uid} created but session failed: ${sessionResult.error}`);
         return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
     }
