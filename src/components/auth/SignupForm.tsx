@@ -97,6 +97,7 @@ const signupFormSchema = z.object({
     }
 });
 
+type SignupFormValues = z.infer<typeof signupFormSchema>;
 
 async function generateCroppedImage(
   imageFile: File,
@@ -168,7 +169,7 @@ export function SignupForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
-  const form = useForm<z.infer<typeof signupFormSchema>>({
+  const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
       shopName: '',
@@ -247,7 +248,7 @@ export function SignupForm() {
     }
   };
 
-  async function onSubmit(values: z.infer<typeof signupFormSchema>) {
+  async function onSubmit(values: SignupFormValues) {
     setIsLoading(true);
 
     if (!auth || !db || !storage) {
