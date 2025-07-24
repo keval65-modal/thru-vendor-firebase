@@ -18,12 +18,6 @@ export interface FirebaseContextValue {
 // This is the recommended approach to avoid hardcoding values.
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
-console.log("[DEBUG] firebase.ts: Reading NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey);
-
-if (!apiKey) {
-    console.error("Firebase API Key is missing. Check your .env file and apphosting.yaml secrets.");
-}
-
 export const firebaseConfig = {
   apiKey: apiKey,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -35,7 +29,6 @@ export const firebaseConfig = {
 };
 
 function initializeFirebaseApp() {
-    console.log("[DEBUG] initializeFirebaseApp: firebaseConfig being used:", firebaseConfig);
     if (!firebaseConfig.apiKey) {
         throw new Error("Firebase API key is not configured. Cannot initialize Firebase.");
     }
