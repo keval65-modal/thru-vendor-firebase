@@ -186,7 +186,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchVendor();
-  }, [form, toast]);
+  }, []);
 
   useEffect(() => {
     if (state.success) {
@@ -199,7 +199,7 @@ export default function ProfilePage() {
     if (state.error) {
        toast({ variant: "destructive", title: "Update Failed", description: state.error });
     }
-  }, [state, toast]);
+  }, [state]);
 
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -240,17 +240,21 @@ export default function ProfilePage() {
     }
   };
 
-  async function handleFormSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
+  const onFormSubmit = async (values: z.infer<typeof profileFormSchema>) => {
+    const formData = new FormData();
+    Object.entries(values).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
 
     if (completedCrop && originalFile && imgRef.current) {
         try {
             const croppedBlob = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name);
             if(croppedBlob) {
-                data.set('shopImage', croppedBlob, originalFile.name);
+                formData.set('shopImage', croppedBlob, originalFile.name);
             } else {
-                 data.delete('shopImage');
+                 formData.delete('shopImage');
             }
         } catch (e) {
             console.error("Image cropping failed:", e);
@@ -258,10 +262,10 @@ export default function ProfilePage() {
             return;
         }
     } else {
-        data.delete('shopImage');
+        formData.delete('shopImage');
     }
     
-    formAction(data);
+    formAction(formData);
   }
 
   if (isLoadingData) {
@@ -288,7 +292,7 @@ export default function ProfilePage() {
       </CardHeader>
       <CardContent>
           <Form {...form}>
-            <form onSubmit={handleFormSubmit} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6">
               <FormItem className="flex flex-col items-center p-4 border rounded-md bg-muted/30">
                 <FormLabel className="text-lg font-semibold mb-2">Shop Display Picture</FormLabel>
                 <div className="w-40 h-auto flex-shrink-0 rounded-md overflow-hidden border flex items-center justify-center bg-background mb-4">
