@@ -86,16 +86,29 @@ const signupFormSchema = z.object({
     z.number({invalid_type_error: "Longitude must be a number."}).min(-180).max(180)
   ).refine(val => val !== undefined, { message: "Longitude is required." }),
   shopImage: z.any().optional(),
-}).refine(data => {
+}).superRefine((data, ctx) => {
+    // Password confirmation check
+    if (data.password !== data.confirmPassword) {
+        ctx.addIssue({
+            code: "custom",
+            message: "Passwords don't match.",
+            path: ["confirmPassword"],
+        });
+    }
+
+    // Time validation check
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
         const closeTimeIndex = timeOptions.indexOf(data.closingTime);
-        if (data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)") return true;
-        return closeTimeIndex > openTimeIndex;
+        if (data.openingTime !== "12:00 AM (Midnight)" && data.closingTime !== "12:00 AM (Midnight)" && closeTimeIndex <= openTimeIndex) {
+            ctx.addIssue({
+                code: "custom",
+                message: "Closing time must be after opening time.",
+                path: ["closingTime"],
+            });
+        }
     }
-    return true;
-}, { message: "Closing time must be after opening time.", path: ["closingTime"]})
-);
+});
 
 
 async function generateCroppedImage(
@@ -249,21 +262,6 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof signupFormSchema>) {
     setIsLoading(true);
-
-    if (values.password !== values.confirmPassword) {
-      form.setError("confirmPassword", { type: "manual", message: "Passwords don't match." });
-      setIsLoading(false);
-      return;
-    }
-    
-    const openTimeIndex = timeOptions.indexOf(values.openingTime);
-    const closeTimeIndex = timeOptions.indexOf(values.closingTime);
-    if (values.openingTime !== "12:00 AM (Midnight)" && values.closingTime !== "12:00 AM (Midnight)" && closeTimeIndex <= openTimeIndex) {
-        form.setError("closingTime", { type: "manual", message: "Closing time must be after opening time." });
-        setIsLoading(false);
-        return;
-    }
-
 
     if (!auth || !db || !storage) {
        toast({
