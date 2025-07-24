@@ -8,15 +8,15 @@ import { getSession } from '@/lib/auth';
 
 export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
   const session = await getSession();
-  const vendorEmail = session?.email;
+  const vendorId = session?.uid;
 
-  if (!vendorEmail) {
-    console.error("[getReadyForPickupOrders] Vendor email is required.");
+  if (!vendorId) {
+    console.error("[getReadyForPickupOrders] Vendor ID is required.");
     return [];
   }
 
   const ordersRef = collection(db, 'orders');
-  const q = query(ordersRef, where("vendorIds", "array-contains", vendorEmail));
+  const q = query(ordersRef, where("vendorIds", "array-contains", vendorId));
   
   try {
     const querySnapshot = await getDocs(q);
@@ -24,7 +24,7 @@ export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
     
     querySnapshot.forEach(docSnap => {
       const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-      const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorEmail);
+      const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
       // Filter for orders where THIS vendor's portion is ready
       if (vendorPortion && vendorPortion.status === 'Ready for Pickup') {
@@ -42,11 +42,11 @@ export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
         return dateB - dateA;
     });
 
-    console.log(`[getReadyForPickupOrders] Found ${readyOrders.length} orders ready for pickup for vendor ${vendorEmail}`);
+    console.log(`[getReadyForPickupOrders] Found ${readyOrders.length} orders ready for pickup for vendor ${vendorId}`);
     return readyOrders;
     
   } catch (error) {
-    console.error(`[getReadyForPickupOrders] Error fetching orders for vendor ${vendorEmail}:`, error);
+    console.error(`[getReadyForPickupOrders] Error fetching orders for vendor ${vendorId}:`, error);
     return [];
   }
 }

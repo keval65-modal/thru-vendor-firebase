@@ -77,9 +77,9 @@ export async function updateVendorOrderStatus(
   updatedItems?: OrderItemDetail[]
 ): Promise<{ success: boolean; error?: string }> {
   const session = await getSession();
-  const vendorEmail = session?.email;
+  const vendorId = session?.uid;
 
-  if (!vendorEmail) {
+  if (!vendorId) {
     return { success: false, error: "Authentication required." };
   }
   if (!orderId) {
@@ -100,7 +100,7 @@ export async function updateVendorOrderStatus(
         let newVendorSubtotal = 0;
 
         const updatedPortions = orderData.vendorPortions.map(portion => {
-            if (portion.vendorId === vendorEmail) {
+            if (portion.vendorId === vendorId) {
                 vendorFound = true;
                 if (updatedItems) {
                     // This is a grocery confirmation, recalculate subtotal
@@ -118,7 +118,7 @@ export async function updateVendorOrderStatus(
         }
         
         const allOtherPortionsReady = updatedPortions
-            .filter(p => p.vendorId !== vendorEmail)
+            .filter(p => p.vendorId !== vendorId)
             .every(p => p.status === 'Ready for Pickup');
             
         const thisPortionReady = newStatus === 'Ready for Pickup';
@@ -132,7 +132,7 @@ export async function updateVendorOrderStatus(
 
         // If items were updated (grocery flow), we need to recalculate the grand total.
         if (updatedItems) {
-            const oldPortion = orderData.vendorPortions.find(p => p.vendorId === vendorEmail);
+            const oldPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
             const oldSubtotal = oldPortion?.vendorSubtotal || 0;
             const difference = newVendorSubtotal - oldSubtotal;
             updatePayload.grandTotal = orderData.grandTotal + difference;
@@ -141,7 +141,7 @@ export async function updateVendorOrderStatus(
         transaction.update(orderRef, updatePayload);
     });
 
-    console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorEmail} in order ${orderId}`);
+    console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorId} in order ${orderId}`);
     revalidatePath('/orders');
     revalidatePath(`/orders/${orderId}`);
     return { success: true };
@@ -158,9 +158,9 @@ export async function updateVendorOrderStatus(
  */
 export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayOrder | null> {
     const session = await getSession();
-    const vendorEmail = session?.email;
+    const vendorId = session?.uid;
 
-    if (!vendorEmail) {
+    if (!vendorId) {
         console.error("[fetchOrderDetails] Not authenticated.");
         return null;
     }
@@ -174,10 +174,10 @@ export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayO
         }
 
         const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorEmail);
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
         if (!vendorPortion) {
-            console.warn(`[fetchOrderDetails] Vendor ${vendorEmail} not part of order ${orderId}.`);
+            console.warn(`[fetchOrderDetails] Vendor ${vendorId} not part of order ${orderId}.`);
             return null;
         }
 
