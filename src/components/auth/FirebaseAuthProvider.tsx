@@ -6,7 +6,7 @@ import type { FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { initializeFirebaseApp, type FirebaseContextValue } from '@/lib/firebase';
+import { initializeFirebaseApp, type FirebaseContextValue, firebaseConfig } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
@@ -31,6 +31,8 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     try {
+        console.log("[DEBUG] FirebaseAuthProvider: useEffect started.");
+        console.log("[DEBUG] FirebaseAuthProvider: About to call initializeFirebaseApp.");
         const app = initializeFirebaseApp();
         const auth = getAuth(app);
         const db = getFirestore(app);

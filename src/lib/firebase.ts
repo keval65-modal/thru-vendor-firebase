@@ -17,6 +17,9 @@ export interface FirebaseContextValue {
 // This config object is now populated from environment variables provided by App Hosting.
 // This is the recommended approach to avoid hardcoding values.
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+console.log("[DEBUG] firebase.ts: Reading NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey);
+
 if (!apiKey) {
     console.error("Firebase API Key is missing. Check your .env file and apphosting.yaml secrets.");
 }
@@ -32,6 +35,7 @@ export const firebaseConfig = {
 };
 
 function initializeFirebaseApp() {
+    console.log("[DEBUG] initializeFirebaseApp: firebaseConfig being used:", firebaseConfig);
     if (!firebaseConfig.apiKey) {
         throw new Error("Firebase API key is not configured. Cannot initialize Firebase.");
     }
