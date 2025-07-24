@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,14 +19,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
-import { Store, Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Store, Info, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
 import { createSession } from '@/lib/auth';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-
+import Image from 'next/image';
 import ReactCrop, {
   centerCrop,
   makeAspectCrop,
@@ -95,31 +94,32 @@ const signupFormSchema = z.object({
             path: ["confirmPassword"],
         });
     }
+    if (timeOptions.indexOf(data.closingTime) <= timeOptions.indexOf(data.openingTime)) {
+       if (!(data.openingTime === "12:00 AM (Midnight)" && data.closingTime === "12:00 AM (Midnight)")) {
+            ctx.addIssue({
+                code: "custom",
+                message: "Closing time must be after opening time.",
+                path: ["closingTime"],
+            });
+       }
+    }
 });
 
 type SignupFormValues = z.infer<typeof signupFormSchema>;
 
-async function generateCroppedImage(
-  imageFile: File,
+async function getCroppedImgBlob(
+  image: HTMLImageElement,
   crop: PixelCrop,
-  targetWidth: number,
-  targetHeight: number
+  fileName: string,
 ): Promise<File | null> {
-  const image = new Image();
-  image.src = URL.createObjectURL(imageFile);
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
-  });
-
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-
   const scaleX = image.naturalWidth / image.width;
   const scaleY = image.naturalHeight / image.height;
   canvas.width = crop.width * scaleX;
   canvas.height = crop.height * scaleY;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) return null;
 
   ctx.drawImage(
     image,
@@ -134,21 +134,21 @@ async function generateCroppedImage(
   );
   
   const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = targetWidth;
-  finalCanvas.height = targetHeight;
+  finalCanvas.width = TARGET_IMAGE_WIDTH;
+  finalCanvas.height = TARGET_IMAGE_HEIGHT;
   const finalCtx = finalCanvas.getContext('2d');
   if (!finalCtx) return null;
 
-  finalCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+  finalCtx.drawImage(canvas, 0, 0, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     finalCanvas.toBlob((blob) => {
       if (!blob) {
-        resolve(null);
+        reject(new Error('Canvas is empty'));
         return;
       }
-      resolve(new File([blob], imageFile.name, { type: imageFile.type || 'image/png' }));
-    }, imageFile.type || 'image/png', 0.9);
+      resolve(new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() }));
+    }, 'image/jpeg', 0.95);
   });
 }
 
@@ -161,7 +161,6 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Image Cropping State
   const [imgSrc, setImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
   const [crop, setCrop] = useState<Crop>();
@@ -196,13 +195,13 @@ export function SignupForm() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setCrop(undefined); // Clear crop on new image
+      setCrop(undefined);
       setCompletedCrop(undefined);
       const reader = new FileReader();
       reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''));
       reader.readAsDataURL(file);
       setOriginalFile(file);
-      form.setValue('shopImage', file); // Store original file in form state for validation / if no crop
+      form.setValue('shopImage', file);
     } else {
       setImgSrc('');
       setOriginalFile(null);
@@ -213,21 +212,11 @@ export function SignupForm() {
   function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const { width, height } = e.currentTarget;
     const crop = centerCrop(
-      makeAspectCrop(
-        {
-          unit: '%',
-          width: 90, // Initial crop selection width
-        },
-        TARGET_ASPECT_RATIO,
-        width,
-        height,
-      ),
-      width,
-      height,
+      makeAspectCrop({ unit: '%', width: 90 }, TARGET_ASPECT_RATIO, width, height),
+      width, height
     );
     setCrop(crop);
   }
-
 
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -268,10 +257,8 @@ export function SignupForm() {
       console.log('Firebase Auth user created:', user.uid);
 
       let imageUrl: string | undefined = undefined;
-      if (completedCrop && originalFile && imgRef.current && imgRef.current.naturalWidth > 0) {
-        
-        const croppedFile = await generateCroppedImage(originalFile, completedCrop, TARGET_IMAGE_WIDTH, TARGET_IMAGE_HEIGHT);
-
+      if (completedCrop && originalFile && imgRef.current) {
+        const croppedFile = await getCroppedImgBlob(imgRef.current, completedCrop, originalFile.name);
         if (croppedFile) {
           const imagePath = `vendor_shop_images/${user.uid}/shop_image.${croppedFile.name.split('.').pop()}`;
           const imageStorageRef = storageRef(storage, imagePath);
@@ -298,13 +285,13 @@ export function SignupForm() {
       await setDoc(doc(db, 'vendors', user.uid), vendorToSave);
       console.log('Vendor document created in Firestore.');
 
-      const sessionResult = await createSession(user.uid);
+      const sessionResult = await createSession(user.uid, true);
       if (sessionResult?.success) {
           toast({
             title: 'Signup Successful',
             description: 'Your shop has been registered. Redirecting...',
           });
-          router.push('/orders'); // Redirect to main app page
+          router.push('/dashboard');
       } else {
           toast({
             variant: 'destructive',
@@ -384,12 +371,14 @@ export function SignupForm() {
                     minWidth={TARGET_IMAGE_WIDTH / 5}
                     minHeight={TARGET_IMAGE_HEIGHT / 5}
                   >
-                    <img
+                    <Image
                       ref={imgRef}
                       alt="Crop preview"
                       src={imgSrc}
                       onLoad={onImageLoad}
                       style={{ maxHeight: '400px', display: 'block', margin: 'auto' }}
+                      width={400}
+                      height={400}
                     />
                   </ReactCrop>
                 </div>
@@ -406,7 +395,6 @@ export function SignupForm() {
             </FormItem>
           )}
         />
-
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField

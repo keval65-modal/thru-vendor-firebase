@@ -1,8 +1,8 @@
 
 'use server';
 
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, WriteBatch, writeBatch } from 'firebase/firestore';
-import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder } from '@/lib/orderModels';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, WriteBatch, writeBatch, runTransaction } from 'firebase/firestore';
+import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder, OrderItemDetail } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebase-admin';
@@ -69,10 +69,12 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
 
 /**
  * Updates the status of a specific vendor's portion of an order.
+ * Can also update the item list for grocery confirmations.
  */
 export async function updateVendorOrderStatus(
   orderId: string,
-  newStatus: VendorOrderPortion['status']
+  newStatus: VendorOrderPortion['status'],
+  updatedItems?: OrderItemDetail[]
 ): Promise<{ success: boolean; error?: string }> {
   const session = await getSession();
   const vendorEmail = session?.email;
@@ -87,38 +89,57 @@ export async function updateVendorOrderStatus(
   const orderRef = doc(db, 'orders', orderId);
 
   try {
-    const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) {
-      return { success: false, error: "Order not found." };
-    }
+    await runTransaction(db, async (transaction) => {
+        const orderSnap = await transaction.get(orderRef);
+        if (!orderSnap.exists()) {
+            throw new Error("Order not found.");
+        }
 
-    const orderData = orderSnap.data() as PlacedOrder;
-    let vendorFound = false;
+        const orderData = orderSnap.data() as PlacedOrder;
+        let vendorFound = false;
+        let newVendorSubtotal = 0;
 
-    const updatedPortions = orderData.vendorPortions.map(portion => {
-      if (portion.vendorId === vendorEmail) {
-        vendorFound = true;
-        return { ...portion, status: newStatus };
-      }
-      return portion;
+        const updatedPortions = orderData.vendorPortions.map(portion => {
+            if (portion.vendorId === vendorEmail) {
+                vendorFound = true;
+                if (updatedItems) {
+                    // This is a grocery confirmation, recalculate subtotal
+                    newVendorSubtotal = updatedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+                    return { ...portion, status: newStatus, items: updatedItems, vendorSubtotal: newVendorSubtotal };
+                }
+                // For non-grocery flow or status changes after confirmation
+                return { ...portion, status: newStatus };
+            }
+            return portion;
+        });
+
+        if (!vendorFound) {
+            throw new Error("This order does not concern you.");
+        }
+        
+        const allOtherPortionsReady = updatedPortions
+            .filter(p => p.vendorId !== vendorEmail)
+            .every(p => p.status === 'Ready for Pickup');
+            
+        const thisPortionReady = newStatus === 'Ready for Pickup';
+
+        const updatePayload: any = { vendorPortions: updatedPortions };
+
+        // If this action makes all portions ready for pickup, update the overall status.
+        if (thisPortionReady && allOtherPortionsReady) {
+            updatePayload.overallStatus = 'Ready for Pickup';
+        }
+
+        // If items were updated (grocery flow), we need to recalculate the grand total.
+        if (updatedItems) {
+            const oldPortion = orderData.vendorPortions.find(p => p.vendorId === vendorEmail);
+            const oldSubtotal = oldPortion?.vendorSubtotal || 0;
+            const difference = newVendorSubtotal - oldSubtotal;
+            updatePayload.grandTotal = orderData.grandTotal + difference;
+        }
+
+        transaction.update(orderRef, updatePayload);
     });
-    
-    const allPortionsReady = updatedPortions.every(p => p.status === 'Ready for Pickup');
-    const updatePayload: { vendorPortions: VendorOrderPortion[], overallStatus?: PlacedOrder['overallStatus'] } = {
-        vendorPortions: updatedPortions
-    };
-
-    // If all vendor portions are ready, update the overall order status.
-    if(newStatus === 'Ready for Pickup' && allPortionsReady) {
-        updatePayload.overallStatus = 'Ready for Pickup';
-    }
-
-
-    if (!vendorFound) {
-      return { success: false, error: "This order does not concern you." };
-    }
-
-    await updateDoc(orderRef, updatePayload as any);
 
     console.log(`[updateVendorOrderStatus] Successfully updated status to '${newStatus}' for vendor ${vendorEmail} in order ${orderId}`);
     revalidatePath('/orders');
