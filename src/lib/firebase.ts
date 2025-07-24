@@ -1,4 +1,3 @@
-
 // This file now exports the configuration and types for Firebase.
 // The actual initialization is handled by the FirebaseAuthProvider to ensure it only runs on the client.
 
@@ -17,8 +16,13 @@ export interface FirebaseContextValue {
 
 // This config object is now populated from environment variables provided by App Hosting.
 // This is the recommended approach to avoid hardcoding values.
+const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+if (!apiKey) {
+    console.error("Firebase API Key is missing. Check your .env file and apphosting.yaml secrets.");
+}
+
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  apiKey: apiKey,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
@@ -28,6 +32,9 @@ export const firebaseConfig = {
 };
 
 function initializeFirebaseApp() {
+    if (!firebaseConfig.apiKey) {
+        throw new Error("Firebase API key is not configured. Cannot initialize Firebase.");
+    }
     return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 }
 
