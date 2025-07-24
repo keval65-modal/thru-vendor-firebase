@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -39,13 +40,13 @@ export default function OrdersPage() {
     }
 
     setIsLoadingOrders(true);
-    console.log(`Setting up real-time order listener for vendor email: ${session.email}`);
+    console.log(`Setting up real-time order listener for vendor UID: ${session.uid}`);
     
     const ordersRef = collection(db, "orders");
     const activeStatuses = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup", "New"];
 
     const q = query(ordersRef,
-        where("vendorIds", "array-contains", session.email),
+        where("vendorIds", "array-contains", session.uid), // USE UID, NOT EMAIL
         where("overallStatus", "in", activeStatuses)
     );
 
@@ -53,7 +54,7 @@ export default function OrdersPage() {
       const fetchedOrders: VendorDisplayOrder[] = [];
       querySnapshot.forEach((docSnap) => {
         const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.email);
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === session.uid); // MATCH BY UID
 
         if (vendorPortion) {
             const { vendorPortions, ...rootOrderData } = orderData;
@@ -72,7 +73,7 @@ export default function OrdersPage() {
       
       setOrders(fetchedOrders);
       setIsLoadingOrders(false);
-      console.log(`Real-time update for ${session.email}! Orders:`, fetchedOrders);
+      console.log(`Real-time update for ${session.uid}! Orders:`, fetchedOrders);
     }, (error) => {
       console.error("Error with real-time order listener:", error);
       toast({

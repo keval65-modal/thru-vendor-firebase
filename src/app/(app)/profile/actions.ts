@@ -41,7 +41,7 @@ const UpdateProfileSchema = z.object({
   shopFullAddress: z.string().min(1, "Full address is required."),
   latitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
-  shopImage: z.instanceof(File).optional(),
+  shopImage: z.any().optional(),
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);

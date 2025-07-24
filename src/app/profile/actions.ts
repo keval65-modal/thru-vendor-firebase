@@ -89,6 +89,7 @@ export type UpdateProfileFormState = {
 };
 
 export async function updateVendorProfile(
+  prevState: UpdateProfileFormState,
   formData: FormData
 ): Promise<UpdateProfileFormState> {
   const session = await getSession();
