@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
@@ -31,8 +30,6 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     try {
-        console.log("[DEBUG] FirebaseAuthProvider: useEffect started.");
-        console.log("[DEBUG] FirebaseAuthProvider: About to call initializeFirebaseApp.");
         const app = initializeFirebaseApp();
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -67,7 +64,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Firebase Initialization Failed</AlertTitle>
                 <AlertDescription>
-                    <p>Could not connect to Firebase services. Please ensure your environment variables are correctly configured in `apphosting.yaml` and that the API key is valid.</p>
+                    <p>Could not connect to Firebase services. Please ensure your environment variables are correctly configured in `.env.local` and that the API key is valid.</p>
                     <p className="mt-2 text-xs"><strong>Error:</strong> {error || "No Firebase app available."}</p>
                 </AlertDescription>
             </Alert>
