@@ -94,17 +94,6 @@ const signupFormSchema = z.object({
             path: ["confirmPassword"],
         });
     }
-    if(data.openingTime && data.closingTime) {
-        const openTimeIndex = timeOptions.indexOf(data.openingTime);
-        const closeTimeIndex = timeOptions.indexOf(data.closingTime);
-        if (data.openingTime !== "12:00 AM (Midnight)" && data.closingTime !== "12:00 AM (Midnight)" && closeTimeIndex <= openTimeIndex) {
-             ctx.addIssue({
-                code: "custom",
-                message: "Closing time must be after opening time.",
-                path: ["closingTime"],
-            });
-        }
-    }
 });
 
 
