@@ -6,8 +6,6 @@ runConfig:
   # more instances in response to increased traffic.
   maxInstances: 1
 branch: main
-customDomains:
-  - vendor.kiptech.in
 secrets:
   - NEXT_PUBLIC_FIREBASE_API_KEY
   - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
