@@ -100,13 +100,15 @@ export async function updateVendorProfile(
 
   const rawData: Record<string, any> = Object.fromEntries(formData.entries());
   const shopImageFile = formData.get('shopImage') as File | null;
+  
+  const dataToValidate = { ...rawData };
   if (shopImageFile && shopImageFile.size > 0) {
-    rawData.shopImage = shopImageFile;
+    dataToValidate.shopImage = shopImageFile;
   } else {
-    delete rawData.shopImage;
+    delete dataToValidate.shopImage;
   }
 
-  const validatedFields = UpdateProfileSchema.safeParse(rawData);
+  const validatedFields = UpdateProfileSchema.safeParse(dataToValidate);
 
   if (!validatedFields.success) {
     console.error("Profile update validation errors:", validatedFields.error.flatten().fieldErrors);

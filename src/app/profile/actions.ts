@@ -41,7 +41,7 @@ const UpdateProfileSchema = z.object({
   shopFullAddress: z.string().min(1, "Full address is required."),
   latitude: z.preprocess(val => parseFloat(String(val)), z.number()),
   longitude: z.preprocess(val => parseFloat(String(val)), z.number()),
-  shopImage: z.any().optional(), // File object if new image is uploaded
+  shopImage: z.any().optional(),
 }).refine(data => {
     if(data.openingTime && data.closingTime) {
         const openTimeIndex = timeOptions.indexOf(data.openingTime);
@@ -107,7 +107,6 @@ export async function updateVendorProfile(
   } else {
     delete dataToValidate.shopImage;
   }
-
 
   const validatedFields = UpdateProfileSchema.safeParse(dataToValidate);
 

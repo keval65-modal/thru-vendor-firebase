@@ -269,7 +269,7 @@ export function SignupForm() {
       }
       
       const { password, confirmPassword, shopImage, ...vendorDataForFirestore } = values;
-      const fullPhoneNumber = `${values.phoneCountryCode}${values.phoneNumber}`;
+      const fullPhoneNumber = `${values.phoneCountryCode || '+91'}${values.phoneNumber}`;
       
       const vendorToSave = {
           ...vendorDataForFirestore,
