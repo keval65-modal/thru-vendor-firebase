@@ -348,445 +348,445 @@ export function SignupForm() {
       setIsLoading(false);
     }
   }
-  
+
   return (
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-         
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+       
+        <FormField
+          control={form.control}
+          name="shopImage"
+          render={({ field }) => (
+            <FormItem className="flex flex-col items-center">
+              <FormLabel>Shop Image (Logo/Storefront)</FormLabel>
+               <Input
+                  id="shopImageUpload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden" 
+                  ref={fileInputRef}
+                  disabled={isLoading}
+                />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full max-w-xs mt-1 mb-2"
+                disabled={isLoading}
+              >
+                <UploadCloud className="mr-2 h-4 w-4" />
+                Choose Image
+              </Button>
+
+              {imgSrc && (
+                <div className="mt-2 p-2 border rounded-md w-full max-w-md">
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(_, percentCrop) => setCrop(percentCrop)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    aspect={TARGET_ASPECT_RATIO}
+                    minWidth={TARGET_IMAGE_WIDTH / 5}
+                    minHeight={TARGET_IMAGE_HEIGHT / 5}
+                  >
+                    <img
+                      ref={imgRef}
+                      alt="Crop preview"
+                      src={imgSrc}
+                      onLoad={onImageLoad}
+                      style={{ maxHeight: '400px', display: 'block', margin: 'auto' }}
+                    />
+                  </ReactCrop>
+                </div>
+              )}
+              {completedCrop && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Preview of 150x100 (Final image will be this size)
+                </div>
+              )}
+              <FormDescription className="text-xs text-center mt-1">
+                Upload a picture of your shop. It will be cropped to 150x100 pixels.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="shopImage"
+            name="shopName"
             render={({ field }) => (
-              <FormItem className="flex flex-col items-center">
-                <FormLabel>Shop Image (Logo/Storefront)</FormLabel>
-                 <Input
-                    id="shopImageUpload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden" 
-                    ref={fileInputRef}
+              <FormItem>
+                <FormLabel>Shop Name *</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Balaji Super Mart" {...field} disabled={isLoading} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="storeCategory"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Store Category *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {storeCategories.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="ownerName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Owner Name *</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Manoj Nair" {...field} disabled={isLoading} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormItem>
+          <FormLabel>Phone No *</FormLabel>
+          <div className="flex gap-2">
+            <FormField
+              control={form.control}
+              name="phoneCountryCode"
+              render={({ field }) => (
+                <FormItem className="w-1/4">
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Code" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {countryCodes.map(code => (
+                        <SelectItem key={code} value={code}>{code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormControl>
+                    <Input type="tel" placeholder="8664312230" {...field} disabled={isLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </FormItem>
+
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email *</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="eg. aman@google.com" {...field} disabled={isLoading}/>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password *</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    {...field}
                     disabled={isLoading}
                   />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full max-w-xs mt-1 mb-2"
-                  disabled={isLoading}
-                >
-                  <UploadCloud className="mr-2 h-4 w-4" />
-                  Choose Image
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-                {imgSrc && (
-                  <div className="mt-2 p-2 border rounded-md w-full max-w-md">
-                    <ReactCrop
-                      crop={crop}
-                      onChange={(_, percentCrop) => setCrop(percentCrop)}
-                      onComplete={(c) => setCompletedCrop(c)}
-                      aspect={TARGET_ASPECT_RATIO}
-                      minWidth={TARGET_IMAGE_WIDTH / 5}
-                      minHeight={TARGET_IMAGE_HEIGHT / 5}
-                    >
-                      <img
-                        ref={imgRef}
-                        alt="Crop preview"
-                        src={imgSrc}
-                        onLoad={onImageLoad}
-                        style={{ maxHeight: '400px', display: 'block', margin: 'auto' }}
-                      />
-                    </ReactCrop>
-                  </div>
-                )}
-                {completedCrop && (
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Preview of 150x100 (Final image will be this size)
-                  </div>
-                )}
-                <FormDescription className="text-xs text-center mt-1">
-                  Upload a picture of your shop. It will be cropped to 150x100 pixels.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <FormField
+          control={form.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Confirm Password *</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    {...field}
+                    disabled={isLoading}
+                  />
+                   <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    disabled={isLoading}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="shopName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Shop Name *</FormLabel>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gender</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                   <FormControl>
-                    <Input placeholder="e.g., Balaji Super Mart" {...field} disabled={isLoading} />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="storeCategory"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Store Category *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {storeCategories.map(category => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
+                  <SelectContent>
+                    {genders.map(gender => (
+                      <SelectItem key={gender} value={gender}>{gender}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
-            name="ownerName"
+            name="city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Owner Name *</FormLabel>
+                <FormLabel>City *</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Manoj Nair" {...field} disabled={isLoading} />
+                  <Input placeholder="Select city" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
 
-          <FormItem>
-            <FormLabel>Phone No *</FormLabel>
-            <div className="flex gap-2">
-              <FormField
-                control={form.control}
-                name="phoneCountryCode"
-                render={({ field }) => (
-                  <FormItem className="w-1/4">
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Code" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {countryCodes.map(code => (
-                          <SelectItem key={code} value={code}>{code}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormControl>
-                      <Input type="tel" placeholder="8664312230" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </FormItem>
-
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email *</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="eg. aman@google.com" {...field} disabled={isLoading}/>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password *</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      disabled={isLoading}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </Button>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="confirmPassword"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Confirm Password *</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      {...field}
-                      disabled={isLoading}
-                    />
-                     <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                      disabled={isLoading}
-                    >
-                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </Button>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="gender"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Gender</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {genders.map(gender => (
-                        <SelectItem key={gender} value={gender}>{gender}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="city"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>City *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Select city" {...field} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <FormField
-              control={form.control}
-              name="openingTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Opening Time *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select opening time" />
-                      </Trigger>
-                    </FormControl>
-                    <SelectContent>
-                      {timeOptions.map(time => (
-                        <SelectItem key={`open-${time}`} value={time}>{time}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="closingTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Closing Time *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select closing time" />
-                      </Trigger>
-                    </FormControl>
-                    <SelectContent>
-                      {timeOptions.map(time => (
-                        <SelectItem key={`close-${time}`} value={time}>{time}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
            <FormField
-              control={form.control}
-              name="weeklyCloseOn"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center">
-                    Weekly Close On *
-                    <TooltipProvider>
-                      <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="ml-1">
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Select the day your shop is typically closed.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select day" />
-                      </Trigger>
-                    </FormControl>
-                    <SelectContent>
-                      {weeklyCloseDays.map(day => (
-                        <SelectItem key={day} value={day}>{day}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
+            control={form.control}
+            name="openingTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Opening Time *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select opening time" />
+                    </Trigger>
+                  </FormControl>
+                  <SelectContent>
+                    {timeOptions.map(time => (
+                      <SelectItem key={`open-${time}`} value={time}>{time}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
-            name="shopFullAddress"
+            name="closingTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Closing Time *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select closing time" />
+                    </Trigger>
+                  </FormControl>
+                  <SelectContent>
+                    {timeOptions.map(time => (
+                      <SelectItem key={`close-${time}`} value={time}>{time}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+         <FormField
+            control={form.control}
+            name="weeklyCloseOn"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center">
-                  Shop Full Address *
+                  Weekly Close On *
                   <TooltipProvider>
                     <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="ml-1">
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Enter your full shop address. This helps customers find you.</p>
-                        </TooltipContent>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="ml-1">
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Select the day your shop is typically closed.</p>
+                      </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={isLoading}/>
-                </FormControl>
-                <FormDescription className="text-xs">
-                  This will be displayed to customers.
-                </FormDescription>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select day" />
+                    </Trigger>
+                  </FormControl>
+                  <SelectContent>
+                    {weeklyCloseDays.map(day => (
+                      <SelectItem key={day} value={day}>{day}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="space-y-1">
-             <FormLabel>Shop Location (Latitude & Longitude) *</FormLabel>
-             <FormDescription className="text-xs pb-2">
-                Enter precise coordinates or use current location.
-             </FormDescription>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                <FormField
-                  control={form.control}
-                  name="latitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} disabled={isLoading} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="longitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} disabled={isLoading}/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading} className="mt-2 w-full md:w-auto">
-              <LocateFixed className="mr-2 h-4 w-4" />
-              Use My Current Location
-            </Button>
-             <FormDescription className="text-xs pt-1">
-                Tries to fetch exact latitude & longitude. You can manually adjust if needed.
-             </FormDescription>
-          </div>
+        <FormField
+          control={form.control}
+          name="shopFullAddress"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                Shop Full Address *
+                <TooltipProvider>
+                  <Tooltip delayDuration={100}>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="ml-1">
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Enter your full shop address. This helps customers find you.</p>
+                      </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </FormLabel>
+              <FormControl>
+                <Textarea placeholder="Enter your full address" {...field} rows={3} disabled={isLoading}/>
+              </FormControl>
+              <FormDescription className="text-xs">
+                This will be displayed to customers.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          <Button
-            type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <UserPlus className="mr-2 h-4 w-4" />
-            )}
-            Create Account
+        <div className="space-y-1">
+           <FormLabel>Shop Location (Latitude & Longitude) *</FormLabel>
+           <FormDescription className="text-xs pb-2">
+              Enter precise coordinates or use current location.
+           </FormDescription>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <FormField
+                control={form.control}
+                name="latitude"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input type="number" step="any" placeholder="Latitude (e.g., 12.9716)" {...field} value={field.value ?? ""} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="longitude"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input type="number" step="any" placeholder="Longitude (e.g., 77.5946)" {...field} value={field.value ?? ""} disabled={isLoading}/>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} disabled={isLoading} className="mt-2 w-full md:w-auto">
+            <LocateFixed className="mr-2 h-4 w-4" />
+            Use My Current Location
           </Button>
-        </form>
-      </Form>
+           <FormDescription className="text-xs pt-1">
+              Tries to fetch exact latitude & longitude. You can manually adjust if needed.
+           </FormDescription>
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <UserPlus className="mr-2 h-4 w-4" />
+          )}
+          Create Account
+        </Button>
+      </form>
+    </Form>
   );
 }

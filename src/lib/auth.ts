@@ -47,7 +47,7 @@ export async function getSession(): Promise<{
     uid?: string;
     email?: string;
     shopImageUrl?: string;
-    name?: string; // ownerName
+    ownerName?: string; // Mapped from ownerName
     shopName?: string;
     storeCategory?: Vendor['storeCategory'];
     type?: Vendor['storeCategory']; // For customer app compatibility
@@ -67,7 +67,7 @@ export async function getSession(): Promise<{
           isAuthenticated: true,
           uid: userDocSnap.id,
           email: userData.email,
-          name: userData.ownerName,
+          ownerName: userData.ownerName,
           shopName: userData.shopName,
           shopImageUrl: userData.shopImageUrl,
           storeCategory: userData.storeCategory,
@@ -84,6 +84,7 @@ export async function getSession(): Promise<{
   }
   return { isAuthenticated: false };
 }
+
 
 export async function isAuthenticated(): Promise<boolean> {
   const session = await getSession();
