@@ -21,7 +21,7 @@ try {
 const app = !getApps().length
   ? initializeApp({
       credential: cert(serviceAccount),
-      storageBucket: `${serviceAccount.project_id}.appspot.com`
+      storageBucket: `gs://${serviceAccount.project_id}.appspot.com`
     })
   : getApp();
 
