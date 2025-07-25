@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { SalesChart } from "@/components/dashboard/SalesChart";
 
 export default function DashboardPage() {
   const { session, isLoading } = useSession();
@@ -15,8 +16,11 @@ export default function DashboardPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-1/2" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
+        <div className="grid gap-6 md:grid-cols-2">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+        </div>
+        <Skeleton className="h-96 w-full" />
       </div>
     )
   }
@@ -76,6 +80,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      
+      <div>
+        <SalesChart />
+      </div>
+
     </div>
   );
 }
