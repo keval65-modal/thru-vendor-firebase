@@ -1,4 +1,3 @@
-
 'use server';
 
 import { cookies } from 'next/headers';
@@ -6,9 +5,9 @@ import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase-admin';
 import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
+import { ADMIN_UID } from '@/config/constants';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
-export const ADMIN_UID = '1kYPC0L4k0Yc6Qz1h1v10o9A2fB3'; // Pre-defined admin UID
 
 // A type guard to check if an object is a Vendor
 function isVendor(data: any): data is Vendor {

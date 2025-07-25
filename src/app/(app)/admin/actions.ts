@@ -8,6 +8,8 @@ import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { ADMIN_UID } from '@/config/constants';
+
 
 async function verifyAdmin() {
     const session = await getSession();
