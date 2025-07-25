@@ -1,3 +1,4 @@
+
 'use server';
 
 import { cookies } from 'next/headers';
@@ -14,34 +15,26 @@ function isVendor(data: any): data is Vendor {
     return data && typeof data.shopName === 'string' && typeof data.email === 'string';
 }
 
-export async function createSession(uid: string, bypassRoleCheck = false): Promise<{success: boolean, error?: string}> {
+export async function createSession(uid: string): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
 
-  try {
-      const vendorDocRef = doc(db, 'vendors', uid);
-      const vendorSnap = await getDoc(vendorDocRef);
-      
-      if (!vendorSnap.exists()) {
-          console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
-          return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
-      }
-
-      const vendorData = vendorSnap.data();
-
-      // For direct admin login, we trust the caller has verified the admin status.
-      if (bypassRoleCheck) {
-          if (vendorData?.role !== 'admin' && uid !== ADMIN_UID) {
-             console.warn(`[createSession] Bypass role check used for non-admin user ${uid}`);
-          }
-      } else {
-          // For regular login, we could add more role checks if needed, but for now, just existing is enough.
-      }
-      
-  } catch (e) {
-      console.error('[createSession] Firestore check failed during session creation:', e);
-      return { success: false, error: 'Could not verify user profile due to a database error.' };
+  // For the hardcoded admin user, bypass the Firestore document check.
+  // This allows the admin to log in even if they don't have a profile in the 'vendors' collection.
+  if (uid !== ADMIN_UID) {
+    try {
+        const vendorDocRef = doc(db, 'vendors', uid);
+        const vendorSnap = await getDoc(vendorDocRef);
+        
+        if (!vendorSnap.exists()) {
+            console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
+            return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
+        }
+    } catch (e) {
+        console.error('[createSession] Firestore check failed during session creation:', e);
+        return { success: false, error: 'Could not verify user profile due to a database error.' };
+    }
   }
   
   cookies().set(AUTH_COOKIE_NAME, uid, {
@@ -105,6 +98,20 @@ export async function getSession(): Promise<SessionData> {
           role: userRole,
         };
       } else {
+         // This handles the case where the cookie exists but the user doc doesn't.
+         // This is a valid case for the admin user.
+         if (userUidFromCookie === ADMIN_UID) {
+           return {
+             // Return a minimal session object for the admin
+             isAuthenticated: true,
+             uid: ADMIN_UID,
+             id: ADMIN_UID,
+             role: 'admin',
+             email: 'admin@thru.app', // Placeholder email
+             shopName: 'Thru Platform',
+             ownerName: 'Admin',
+           } as any;
+         }
          console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
          cookies().delete(AUTH_COOKIE_NAME);
       }
