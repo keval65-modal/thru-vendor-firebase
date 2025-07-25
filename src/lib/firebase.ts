@@ -15,7 +15,7 @@ export interface FirebaseContextValue {
   storage: FirebaseStorage | null;
 }
 
-// This config object is now populated from environment variables provided by App Hosting.
+// This config object is now populated from environment variables provided by Next.js.
 // This is the recommended approach to avoid hardcoding values.
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
