@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -14,14 +15,13 @@ import { useRouter } from 'next/navigation';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
-
 const loginFormSchema = z.object({
   email: z.string().trim().email({ message: "Please enter a valid email address." }).toLowerCase(),
   password: z.string().trim().min(1, { message: "Password is required." }),
 });
 
 export function LoginForm() {
-  const { auth } = useFirebaseAuth(); // Get auth from context
+  const { auth } = useFirebaseAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -37,16 +37,6 @@ export function LoginForm() {
 
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
-
-    if (!auth) {
-      toast({
-        variant: 'destructive',
-        title: 'Initialization Error',
-        description: 'Firebase is not ready. Please try again in a moment.',
-      });
-      setIsLoading(false);
-      return;
-    }
     
     try {
       // Step 1: Authenticate with Firebase Auth on the client
@@ -72,10 +62,11 @@ export function LoginForm() {
           case 'auth/wrong-password':
           case 'auth/invalid-credential':
           case 'auth/invalid-api-key':
-            errorMessage = 'Invalid email, password, or API configuration.';
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email or password.';
             break;
           default:
-            errorMessage = error.message;
+            errorMessage = "Login failed. Please check your credentials.";
             break;
         }
       } else if (error.message) {
@@ -142,7 +133,7 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (

@@ -3,13 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
-import type { Vendor } from '@/lib/inventoryModels';
-
-export interface SessionData extends Vendor {
-  isAuthenticated: boolean;
-  uid: string;
-}
+import { doc, onSnapshot } from 'firebase/firestore';
+import type { SessionData } from '@/lib/auth';
 
 export function useSession() {
   const { auth, db } = useFirebaseAuth();
@@ -30,30 +25,29 @@ export function useSession() {
           vendorDocRef,
           (docSnap) => {
             if (docSnap.exists()) {
-              const vendorData = docSnap.data() as Vendor;
+              const vendorData = docSnap.data();
               setSession({
                 ...vendorData,
                 isAuthenticated: true,
                 uid: user.uid,
-                id: user.uid, // Ensure id is set
-              });
+                id: user.uid,
+              } as SessionData);
             } else {
               // User is authenticated but has no vendor profile.
-              // This can happen during signup or if data is inconsistent.
-              setSession(null);
+              setSession({isAuthenticated: false});
             }
             setIsLoading(false);
           },
           (error) => {
             console.error("Error listening to vendor document:", error);
-            setSession(null);
+            setSession({isAuthenticated: false});
             setIsLoading(false);
           }
         );
         return () => unsubscribeFirestore(); // Cleanup Firestore listener
       } else {
         // User is not authenticated
-        setSession(null);
+        setSession({isAuthenticated: false});
         setIsLoading(false);
       }
     });

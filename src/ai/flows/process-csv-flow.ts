@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to determine column mappings from a CSV sample.
@@ -10,7 +11,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { z } from 'genkit/zod';
 
 // Describes the expected output: a mapping from our schema fields to the CSV column headers.
 const CsvMappingSchema = z.object({
@@ -77,48 +78,21 @@ const processCsvFlow = ai.defineFlow(
     outputSchema: ProcessCsvOutputSchema,
   },
   async (input) => {
-    console.log(`[processCsvFlow] Started: Determining column mappings from CSV headers.`);
+    const llmResponse = await ai.generate({
+      model: 'gemini-1.5-flash',
+      prompt: prompt.prompt!,
+      input: input,
+      output: {
+        schema: ProcessCsvOutputSchema,
+      },
+    });
+
+    const output = llmResponse.output();
+    if (!output || !output.mappings) {
+      throw new Error("AI could not determine column mappings from the provided CSV sample.");
+    }
     
-    if (!input.csvSample || input.csvSample.trim().length === 0) {
-        console.warn("[processCsvFlow] Input CSV sample is empty.");
-        throw new Error("CSV sample cannot be empty.");
-    }
-
-    try {
-        const { output } = await prompt(input);
-        
-        if (!output || !output.mappings) {
-            console.error("[processCsvFlow] AI mapping failed to return valid structured mappings. Raw output:", output);
-            // This fallback logic is now less necessary with definePrompt, but kept for resilience.
-            let rawOutputText = '';
-            try {
-                const result = await ai.generate({ prompt: prompt.prompt!, input: input });
-                rawOutputText = result.text ?? '';
-                const jsonMatch = rawOutputText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    const validated = ProcessCsvOutputSchema.safeParse(parsed);
-                    if (validated.success) {
-                        console.log("[processCsvFlow] Successfully recovered JSON from raw text response.");
-                        return validated.data;
-                    }
-                }
-            } catch (innerError) {
-                 console.error("[processCsvFlow] Could not recover from non-JSON response. Raw output was:", rawOutputText, "Inner error:", innerError);
-                 throw new Error("The model has returned a non-JSON response.");
-            }
-            
-            throw new Error("AI could not determine column mappings from the provided CSV sample.");
-        }
-        
-        console.log(`[processCsvFlow] Successfully determined column mappings:`, output.mappings);
-        return output;
-
-    } catch (error) {
-        console.error("[processCsvFlow] An error occurred during AI processing:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        // Throw a specific, clear error to be caught by the server action.
-        throw new Error(`The AI failed to determine mappings: ${errorMessage}`);
-    }
+    console.log(`[processCsvFlow] Successfully determined column mappings:`, output.mappings);
+    return output;
   }
 );

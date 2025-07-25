@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
-import { db, auth, storage as adminStorage } from '@/lib/firebase-admin';
+import { db, auth, storage } from '@/lib/firebase-admin';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { createSession } from '@/lib/auth';
@@ -104,27 +104,21 @@ export async function handleSignup(
 
     // 2. Upload image to Storage if it exists
     if (shopImage && shopImage.size > 0) {
-        const bucket = adminStorage.bucket();
+        const bucket = storage.bucket();
         const imagePath = `vendor_shop_images/${uid}/shop_image.jpg`;
         const file = bucket.file(imagePath);
         const buffer = Buffer.from(await shopImage.arrayBuffer());
         
         await file.save(buffer, { metadata: { contentType: shopImage.type } });
         
-        // Generate a long-lived signed URL
-        const [publicUrl] = await file.getSignedUrl({
-            action: 'read',
-            expires: '03-09-2491', // A date far in the future
-        });
-
-        dataToSave.shopImageUrl = publicUrl;
+        dataToSave.shopImageUrl = `https://storage.googleapis.com/${bucket.name}/${imagePath}`;
         console.log(`Image uploaded and public URL set for ${uid}: ${dataToSave.shopImageUrl}`);
     } else {
         dataToSave.shopImageUrl = `https://placehold.co/150x100.png?text=${encodeURIComponent(vendorData.shopName.substring(0,10))}`;
     }
 
     // 3. Create vendor document in Firestore with the same UID
-    await setDoc(doc(db, 'vendors', uid), dataToSave);
+    await setDoc(doc(db, 'vendors', uid), dataToSave as any);
     console.log(`Successfully created vendor document for ${uid}`);
 
     // 4. Create session cookie

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,55 +12,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { logout, getSession } from '@/lib/auth';
-import { LogOut, UserCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-interface UserSession {
-  isAuthenticated: boolean;
-  email?: string;
-}
+import { logout } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
+import { LogOut, UserCircle, LifeBuoy } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
 
 export function UserNav() {
-  const router = useRouter();
-  const [session, setSession] = useState<UserSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { session, isLoading } = useSession();
 
-  useEffect(() => {
-    async function fetchSession() {
-      setIsLoading(true);
-      const currentSession = await getSession();
-      setSession(currentSession);
-      setIsLoading(false);
-    }
-    fetchSession();
-  }, []);
-  
   if (isLoading) {
-    return (
-      <div className="flex items-center space-x-2">
-        <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-        <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-      </div>
-    );
+    return <Skeleton className="h-8 w-8 rounded-full" />;
   }
 
   if (!session?.isAuthenticated) {
-    return null; // Or a login button if appropriate for the context
+    return null;
   }
 
-  const userInitials = session.email
-    ? session.email.substring(0, 2).toUpperCase()
-    : 'V';
+  const userInitials = session.ownerName
+    ? session.ownerName.charAt(0).toUpperCase()
+    : (session.email?.charAt(0).toUpperCase() ?? 'V');
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-          <Avatar className="h-9 w-9">
-            {/* Placeholder image or dynamic user image */}
-            <AvatarImage src={`https://placehold.co/40x40.png`} alt={session.email || 'Vendor'} data-ai-hint="avatar profile" />
+        <Button variant="secondary" className="relative h-8 w-8 rounded-full">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={session.shopImageUrl} alt={session.ownerName || 'User'} />
             <AvatarFallback>{userInitials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -67,7 +46,7 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Vendor</p>
+            <p className="text-sm font-medium leading-none">{session.ownerName}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {session.email}
             </p>
@@ -75,15 +54,25 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          {/* Add other items like Profile, Settings here if needed */}
+          <Link href="/profile">
+            <DropdownMenuItem>
+              <UserCircle className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+          </Link>
+          <DropdownMenuItem>
+            <LifeBuoy className="mr-2 h-4 w-4" />
+            <span>Support</span>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
         <form action={logout}>
-            <button type="submit" className="w-full">
-                <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-            </button>
+          <button type="submit" className="w-full">
+            <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive-foreground focus:bg-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </button>
         </form>
       </DropdownMenuContent>
     </DropdownMenu>

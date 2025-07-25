@@ -4,25 +4,40 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase-admin';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 
 const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
-const ADMIN_UID = '1kYPC0L4k0Yc6Qz1h1v10o9A2fB3'; // UID for keval@kiptech.in
+export const ADMIN_UID = '1kYPC0L4k0Yc6Qz1h1v10o9A2fB3'; // Pre-defined admin UID
 
-export async function createSession(uid: string): Promise<{success: boolean, error?: string}> {
+// A type guard to check if an object is a Vendor
+function isVendor(data: any): data is Vendor {
+    return data && typeof data.shopName === 'string' && typeof data.email === 'string';
+}
+
+export async function createSession(uid: string, bypassRoleCheck = false): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
 
-  // Enforce that a vendor document must exist before creating a session.
   try {
       const vendorDocRef = doc(db, 'vendors', uid);
       const vendorSnap = await getDoc(vendorDocRef);
       
       if (!vendorSnap.exists()) {
           console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
-          return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly or contact support if this persists.' };
+          return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
+      }
+
+      const vendorData = vendorSnap.data();
+
+      // For direct admin login, we trust the caller has verified the admin status.
+      if (bypassRoleCheck) {
+          if (vendorData?.role !== 'admin' && uid !== ADMIN_UID) {
+             console.warn(`[createSession] Bypass role check used for non-admin user ${uid}`);
+          }
+      } else {
+          // For regular login, we could add more role checks if needed, but for now, just existing is enough.
       }
       
   } catch (e) {
@@ -45,18 +60,15 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getSession(): Promise<{
-    isAuthenticated: boolean;
-    uid?: string;
-    email?: string;
-    shopImageUrl?: string;
-    ownerName?: string;
-    shopName?: string;
-    storeCategory?: Vendor['storeCategory'];
-    type?: Vendor['storeCategory'];
-    isActiveOnThru?: boolean;
-    role?: 'vendor' | 'admin';
-  }> {
+export type SessionData = (Vendor & { 
+    id: string; 
+    uid: string; 
+    isAuthenticated: true;
+    role: 'vendor' | 'admin';
+}) | { isAuthenticated: false };
+
+
+export async function getSession(): Promise<SessionData> {
   const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
@@ -65,37 +77,42 @@ export async function getSession(): Promise<{
       const userDocSnap = await getDoc(userDocRef);
 
       if (userDocSnap.exists()) {
-        const userData = userDocSnap.data() as Vendor;
+        const userData = userDocSnap.data();
         
+        if (!isVendor(userData)) {
+            console.warn(`[getSession] Firestore document for ${userUidFromCookie} is not a valid vendor object.`);
+            cookies().delete(AUTH_COOKIE_NAME);
+            return { isAuthenticated: false };
+        }
+
         const isKnownAdmin = userDocSnap.id === ADMIN_UID;
         const userRole = isKnownAdmin ? 'admin' : (userData.role || 'vendor');
 
+        // Convert timestamps to ISO strings for serialization
+        const serializedData: any = {};
+        for (const [key, value] of Object.entries(userData)) {
+            if (value instanceof Timestamp) {
+                serializedData[key] = value.toDate().toISOString();
+            } else {
+                serializedData[key] = value;
+            }
+        }
+
         return {
+          ...serializedData,
           isAuthenticated: true,
           uid: userDocSnap.id,
-          email: userData.email,
-          ownerName: userData.ownerName,
-          shopName: userData.shopName,
-          shopImageUrl: userData.shopImageUrl,
-          storeCategory: userData.storeCategory,
-          type: userData.type || userData.storeCategory,
-          isActiveOnThru: userData.isActiveOnThru,
+          id: userDocSnap.id,
           role: userRole,
         };
       } else {
-         console.warn(`[Auth GetSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
+         console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
          cookies().delete(AUTH_COOKIE_NAME);
       }
     } catch (error) {
-      console.error('[Auth GetSession] Error fetching user for session from Firestore:', error);
+      console.error('[getSession] Error fetching user for session from Firestore:', error);
     }
   }
   // Always return a valid object, even for unauthenticated users or on error.
   return { isAuthenticated: false };
-}
-
-
-export async function isAuthenticated(): Promise<boolean> {
-  const session = await getSession();
-  return session?.isAuthenticated || false;
 }

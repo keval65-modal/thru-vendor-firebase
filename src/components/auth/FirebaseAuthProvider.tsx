@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
@@ -64,7 +65,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Firebase Initialization Failed</AlertTitle>
                 <AlertDescription>
-                    <p>Could not connect to Firebase services. Please ensure your environment variables are correctly configured in `.env.local` and that the API key is valid.</p>
+                    <p>Could not connect to Firebase services. Please ensure your environment variables are correctly configured and that the API key is valid.</p>
                     <p className="mt-2 text-xs"><strong>Error:</strong> {error || "No Firebase app available."}</p>
                 </AlertDescription>
             </Alert>

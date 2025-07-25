@@ -1,17 +1,22 @@
+
 import { SignupForm } from '@/components/auth/SignupForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Store } from 'lucide-react';
+import { getSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
-export default function SignupPage() {
+export default async function SignupPage() {
+    const session = await getSession();
+    if(session.isAuthenticated) {
+        redirect('/dashboard');
+    }
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6 md:p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-muted p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-2xl shadow-xl">
         <CardHeader className="text-center">
-          <div className="mb-2 text-sm text-muted-foreground">Almost done!</div>
-          <CardTitle className="text-3xl font-bold text-foreground">Register Shop with Thru</CardTitle>
+          <CardTitle className="text-3xl font-bold text-foreground">Register Your Shop</CardTitle>
           <CardDescription className="text-muted-foreground pt-2">
-            Fill in the details below to get your shop registered.
+            Fill in the details below to get your shop registered on the Thru platform.
           </CardDescription>
         </CardHeader>
         <CardContent>

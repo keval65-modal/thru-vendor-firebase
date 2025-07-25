@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useRef, useActionState } from 'react';
-import { Info, MapPin, LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud } from 'lucide-react';
+import { LocateFixed, Eye, EyeOff, Loader2, UserPlus, UploadCloud, AlertTriangle } from 'lucide-react';
 import { handleSignup, type SignupFormState } from '@/app/signup/actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ReactCrop, {
@@ -120,7 +121,9 @@ const initialState: SignupFormState = { success: false };
 
 export function SignupForm() {
   const { toast } = useToast();
-  const [state, formAction, isPending] = useActionState(handleSignup, initialState);
+  const [state, formAction] = useActionState(handleSignup, initialState);
+  const isPending = state.success === false && !state.error && !state.fields;
+
 
   const [showPassword, setShowPassword] = useState(false);
   const [imgSrc, setImgSrc] = useState('');
@@ -141,10 +144,6 @@ export function SignupForm() {
   });
 
   useEffect(() => {
-    if (state.success) {
-      toast({ title: "Signup Successful", description: state.message });
-      // Redirect handled by server action
-    }
     if (state.error) {
        toast({ variant: "destructive", title: "Signup Failed", description: state.error });
     }
@@ -203,7 +202,7 @@ export function SignupForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {state.error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert>}
+        {state.error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert>}
 
         <FormField control={form.control} name="shopName" render={({ field }) => (<FormItem><FormLabel>Shop Name *</FormLabel><FormControl><Input {...field} placeholder="e.g., The Corner Cafe" /></FormControl><FormMessage /></FormItem>)}/>
         
@@ -280,7 +279,7 @@ export function SignupForm() {
           </div>
         )}
         
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2" disabled={isPending}>
+        <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
             Register
         </Button>

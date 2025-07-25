@@ -1,3 +1,4 @@
+
 import admin from 'firebase-admin';
 import { getApps, getApp, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -21,7 +22,7 @@ try {
 const app = !getApps().length
   ? initializeApp({
       credential: cert(serviceAccount),
-      storageBucket: `gs://${serviceAccount.project_id}.appspot.com`
+      storageBucket: serviceAccount.project_id ? `${serviceAccount.project_id}.appspot.com` : undefined,
     })
   : getApp();
 

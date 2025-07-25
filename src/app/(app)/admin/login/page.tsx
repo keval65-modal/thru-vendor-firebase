@@ -1,36 +1,24 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck } from 'lucide-react';
-import { AdminLoginForm } from './AdminLoginForm';
-import Link from 'next/link';
+
+'use client';
+// This client component has been deprecated in favor of the main /login page
+// and server-side role checks. It is no longer needed.
+// You will be redirected by the middleware.
+import {useEffect} from 'react';
+import {useRouter} from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminLoginPage() {
+    const router = useRouter();
+    useEffect(() => {
+        router.replace('/login');
+    }, [router]);
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4 sm:p-6 md:p-8">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center">
-          <div className="mb-4 flex justify-center">
-            <ShieldCheck className="h-12 w-12 text-primary" />
-          </div>
-          <CardTitle className="text-3xl font-bold text-foreground">Admin Panel</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Sign in to access the administrator dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AdminLoginForm />
-           <div className="mt-4 text-center text-sm">
-            <Link
-              href="/forgot-password"
-              className="underline text-muted-foreground hover:text-primary"
-            >
-              Forgot your password?
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-      <p className="mt-8 text-center text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()} Thru. All rights reserved.
-      </p>
-    </main>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
+        <div className="w-full max-w-md space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+    </div>
   );
 }

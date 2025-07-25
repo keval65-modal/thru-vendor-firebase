@@ -8,12 +8,10 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-// This is the correct type definition for a page component with dynamic params
 export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
-    // This could render a more specific error page if needed
     return <div>Error: {error}</div>;
   }
 

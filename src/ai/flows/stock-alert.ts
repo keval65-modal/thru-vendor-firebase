@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -9,7 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'genkit/zod';
 
 const CheckStockLevelsInputSchema = z.object({
   historicalOrderData: z
@@ -59,7 +60,19 @@ const checkStockLevelsFlow = ai.defineFlow(
     outputSchema: CheckStockLevelsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const llmResponse = await ai.generate({
+      model: 'gemini-1.5-flash',
+      prompt: prompt.prompt!,
+      input: input,
+      output: {
+        schema: CheckStockLevelsOutputSchema,
+      },
+    });
+
+    const output = llmResponse.output();
+    if (!output) {
+      throw new Error("AI model returned no output for stock level analysis.");
+    }
+    return output;
   }
 );

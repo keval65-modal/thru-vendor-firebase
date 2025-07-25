@@ -1,11 +1,19 @@
+
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Flame } from 'lucide-react'; // Using Flame as a generic logo icon
+import { Flame } from 'lucide-react';
 import Link from 'next/link';
+import { getSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+    const session = await getSession();
+    if(session.isAuthenticated) {
+        redirect('/dashboard');
+    }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4 sm:p-6 md:p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-muted p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">

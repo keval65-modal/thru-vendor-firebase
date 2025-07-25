@@ -1,3 +1,4 @@
+
 import type { Timestamp, DocumentReference } from 'firebase/firestore';
 
 /**
@@ -17,7 +18,8 @@ export interface GlobalItem {
   barcode?: string;
   searchKeywords?: string[];
   mrp?: number; // Maximum Retail Price
-  createdAt?: Timestamp | string; // Allow string for data from server action before Firestore conversion or for fetched data
+  price?: number; // Selling price
+  createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
 }
 
@@ -39,19 +41,12 @@ export interface VendorInventoryItem {
   stockQuantity: number;
   price: number;
   mrp?: number; // Vendor's price should be <= MRP. Stored for reference and for custom items.
-  costPrice?: number;
   unit: string;
 
   isAvailableOnThru: boolean; // If true, listed on the Thru customer platform.
   
-  vendorSku?: string;
   imageUrl?: string; // Vendor-specific image for the item.
   description?: string; // Vendor-specific description.
-
-  // For items like restaurant dishes or configurable products
-  itemAttributes?: Record<string, any>; // e.g., { "spiceLevel": "medium", "isVegetarian": true, "size": "large" }
-  
-  preparationTimeMinutes?: number; // For prepared items like food.
 
   lastStockUpdate?: Timestamp | string;
   createdAt?: Timestamp | string;
@@ -63,14 +58,13 @@ export interface VendorInventoryItem {
  * Stored in the `vendors` collection.
  */
 export interface Vendor {
-  id?: string; // The Firebase Auth UID is used as the document ID
+  id: string; // The Firebase Auth UID is used as the document ID
   shopName: string;
   storeCategory: "Grocery Store" | "Restaurant" | "Bakery" | "Boutique" | "Electronics" | "Cafe" | "Pharmacy" | "Liquor Shop" | "Pet Shop" | "Gift Shop" | "Other";
   ownerName: string;
   phoneCountryCode: string;
   phoneNumber: string;
-  email: string; 
-  password?: string; // This should not be stored here if using Firebase Auth. Kept for model compatibility during transition.
+  email: string;
   gender?: string;
   city: string;
   weeklyCloseOn: string;
@@ -80,12 +74,11 @@ export interface Vendor {
   latitude: number;
   longitude: number;
   shopImageUrl?: string; 
-  fullPhoneNumber?: string; // Combined country code and number
-  createdAt?: Timestamp | string; 
-  updatedAt?: Timestamp | string;
+  fullPhoneNumber: string;
+  createdAt: Timestamp | string; 
+  updatedAt: Timestamp | string;
   
-  menuPdfUrl?: string; 
-  isActiveOnThru?: boolean; 
-  type?: Vendor['storeCategory'];
-  role?: 'vendor' | 'admin';
+  isActiveOnThru: boolean; 
+  type: Vendor['storeCategory'];
+  role: 'vendor' | 'admin';
 }

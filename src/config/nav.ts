@@ -1,5 +1,6 @@
+
 import type { LucideProps } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle, Shield } from 'lucide-react'; // Added UserCircle for Profile and Shield for Admin
+import { LayoutDashboard, ShoppingCart, Archive, QrCode, AlertTriangle, Settings, UserCircle, Shield } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -8,8 +9,6 @@ export interface NavItem {
   disabled?: boolean;
   external?: boolean;
   label?: string;
-  variant?: "default" | "ghost";
-  children?: NavItem[];
 }
 
 export const mainNavItems: NavItem[] = [
@@ -45,8 +44,11 @@ export const bottomNavItems: NavItem[] = [
     {
       title: 'Profile',
       href: '/profile',
-      icon: UserCircle, // Using UserCircle for profile/settings
+      icon: UserCircle,
     },
-    // The Admin nav item has been removed from the main sidebar.
-    // It is now accessed by directly navigating to /admin.
+    {
+      title: 'Admin',
+      href: '/admin',
+      icon: Shield,
+    }
 ];

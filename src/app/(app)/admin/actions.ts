@@ -9,16 +9,17 @@ import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-const ADMIN_LOGIN_ROUTE = '/admin/login';
+async function verifyAdmin() {
+    const session = await getSession();
+    if (session.role !== 'admin') {
+        throw new Error("You are not authorized to perform this action.");
+    }
+    return session;
+}
 
-// Security is now enforced by Firestore Security Rules, not by dbCheck.
-
-/**
- * Fetches all vendors from the 'vendors' collection.
- * Enforces admin-only access via Firestore Security Rules.
- */
 export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
   try {
+    await verifyAdmin();
     const vendorsCollection = collection(db, 'vendors');
     const vendorSnapshot = await getDocs(vendorsCollection);
     const vendorsList = vendorSnapshot.docs.map(docSnap => {
@@ -26,7 +27,6 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
         return {
             id: docSnap.id,
             ...data,
-            // Convert Timestamps to ISO strings for client-side compatibility
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
             updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
         } as Vendor;
@@ -35,7 +35,7 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   } catch (error) {
     console.error('[AdminActions] Error fetching vendors:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    return { error: `Failed to fetch vendors. This may be a permissions issue. Ensure your Firestore rules are set correctly for admins. Details: ${errorMessage}` };
+    return { error: `Failed to fetch vendors. ${errorMessage}` };
   }
 }
 
@@ -53,28 +53,26 @@ export type UpdateVendorByAdminFormState = {
     fields?: Record<string, string[]>;
 };
 
-/**
- * Updates a vendor's details from the dedicated admin edit page.
- */
 export async function updateVendorByAdmin(
     vendorId: string,
     prevState: UpdateVendorByAdminFormState,
     formData: FormData
 ): Promise<UpdateVendorByAdminFormState> {
-    const validatedFields = UpdateVendorByAdminSchema.safeParse(
-        Object.fromEntries(formData.entries())
-    );
-    
-    if (!validatedFields.success) {
-        return {
-            error: "Invalid data submitted.",
-            fields: validatedFields.error.flatten().fieldErrors,
-        };
-    }
-    
-    const updates = validatedFields.data;
-
     try {
+        await verifyAdmin();
+        const validatedFields = UpdateVendorByAdminSchema.safeParse(
+            Object.fromEntries(formData.entries())
+        );
+        
+        if (!validatedFields.success) {
+            return {
+                error: "Invalid data submitted.",
+                fields: validatedFields.error.flatten().fieldErrors,
+            };
+        }
+        
+        const updates = validatedFields.data;
+
         const vendorRef = doc(db, 'vendors', vendorId);
         await updateDoc(vendorRef, {
             ...updates,
@@ -100,21 +98,17 @@ export type DeleteVendorResult = {
     message?: string;
 };
 
-/**
- * Deletes a vendor and all their inventory items.
- * WARNING: This does NOT delete the user from Firebase Auth. That must be done manually.
- */
 export async function deleteVendorAndInventory(vendorId: string): Promise<DeleteVendorResult> {
-    if (!vendorId) {
-        return { success: false, error: 'Vendor ID is missing.' };
-    }
-    
-    console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
-
     try {
+        await verifyAdmin();
+        if (!vendorId) {
+            return { success: false, error: 'Vendor ID is missing.' };
+        }
+        
+        console.log(`[AdminActions] Initiating deletion for vendor: ${vendorId}`);
+
         const batch = writeBatch(db);
 
-        // 1. Find and stage deletion for all inventory items for that vendor
         const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
         const inventorySnapshot = await getDocs(inventoryCollectionRef);
         
@@ -124,20 +118,13 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
                 batch.delete(docSnap.ref);
                 deletedItemsCount++;
             });
-            console.log(`[AdminActions] Staged deletion of ${deletedItemsCount} inventory items for vendor: ${vendorId}`);
-        } else {
-            console.log(`[AdminActions] No inventory items found for vendor: ${vendorId}`);
         }
         
-        // 2. Stage deletion for the vendor document itself
         const vendorRef = doc(db, 'vendors', vendorId);
         batch.delete(vendorRef);
-        console.log(`[AdminActions] Staged deletion of vendor document: ${vendorId}`);
         
-        // 3. Commit all deletes in a single atomic operation
         await batch.commit();
 
-        console.log(`[AdminActions] Successfully deleted vendor ${vendorId} and their inventory.`);
         revalidatePath('/admin');
         return { success: true, message: `Vendor and their ${deletedItemsCount} inventory items have been deleted.` };
 
@@ -148,12 +135,9 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
     }
 }
 
-
-/**
- * Fetches a single vendor's details for the edit page.
- */
 export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor, error?: string }> {
   try {
+    await verifyAdmin();
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
     if (!vendorSnap.exists) {

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -33,8 +34,6 @@ export async function handlePasswordResetRequest(
 
   try {
     const auth = getFirebaseAuth();
-    // This is a client SDK action, but it's fine to call from a server action.
-    // It does not use the admin SDK.
     await sendPasswordResetEmail(auth, email);
     console.log(`[Password Reset] Sent password reset email to: ${email}`);
     // Return a generic success message to avoid leaking information about which emails are registered.

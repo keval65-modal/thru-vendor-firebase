@@ -1,5 +1,6 @@
+
 import { config } from 'dotenv';
-config({ path: `.env` });
+config({ path: `.env.local` });
 
 import '@/ai/flows/stock-alert.ts';
 import '@/ai/flows/extract-menu-flow.ts';

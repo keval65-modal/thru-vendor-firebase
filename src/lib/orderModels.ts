@@ -1,7 +1,9 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 // This is the data structure for a document in the 'orders' collection.
 export interface PlacedOrder {
+  id: string;
   orderId: string;
   customerInfo?: {
     id?: string;
@@ -18,8 +20,6 @@ export interface PlacedOrder {
   paymentGatewayFee: number;
   vendorPortions: VendorOrderPortion[];
   vendorIds: string[]; // NEW: Used for efficient querying.
-  // Firestore might add an 'id' field after fetching
-  id?: string; 
 }
 
 // Each order document contains an array of these portions, one for each vendor involved.

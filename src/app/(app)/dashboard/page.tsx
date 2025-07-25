@@ -25,13 +25,14 @@ export default function DashboardPage() {
     )
   }
 
-  if (!session) {
+  if (!session?.isAuthenticated) {
+    // This state should ideally not be reached due to the layout's redirect logic
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Welcome to Thru Vendor</CardTitle>
+          <CardTitle>Authentication Error</CardTitle>
           <CardDescription>
-            It looks like you're not fully logged in.
+            Could not load session. Please try logging in again.
           </CardDescription>
         </CardHeader>
         <CardContent>

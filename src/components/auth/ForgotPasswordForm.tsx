@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
@@ -38,7 +39,6 @@ export function ForgotPasswordForm() {
           type="email"
           placeholder="you@example.com"
           required
-          // Disable input if a success message is shown
           disabled={!!state?.message}
         />
         {state?.fields?.email && (
@@ -49,7 +49,7 @@ export function ForgotPasswordForm() {
       {state?.message && (
         <Alert variant="default" className="border-green-500 text-green-700 dark:border-green-600 dark:text-green-300">
           <CheckCircle className="h-4 w-4 !text-green-500" />
-          <AlertTitle>Success</AlertTitle>
+          <AlertTitle>Request Sent</AlertTitle>
           <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       )}
@@ -61,7 +61,6 @@ export function ForgotPasswordForm() {
         </Alert>
       )}
 
-      {/* Only show the button if no success message has been displayed yet */}
       {!state?.message && <SubmitButton />}
     </form>
   );

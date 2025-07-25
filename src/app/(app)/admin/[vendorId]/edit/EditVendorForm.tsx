@@ -1,9 +1,8 @@
+
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useEffect } from 'react';
-import { z } from 'zod';
-import { useToast } from '@/hooks/use-toast';
 import type { Vendor } from '@/lib/inventoryModels';
 import { updateVendorByAdmin, type UpdateVendorByAdminFormState } from '../../actions';
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from '@/components/ui/label';
 import { Loader2, Save } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
+
 
 const storeCategories = ["Grocery Store", "Restaurant", "Bakery", "Boutique", "Electronics", "Cafe", "Pharmacy", "Liquor Shop", "Pet Shop", "Gift Shop", "Other"];
 
@@ -52,12 +53,6 @@ export function EditVendorForm({ vendor }: EditVendorFormProps) {
                  <Alert variant="destructive">
                     <AlertTitle>Update Failed</AlertTitle>
                     <AlertDescription>{state.error}</AlertDescription>
-                 </Alert>
-            )}
-             {state.success && (
-                 <Alert variant="default" className="border-green-500">
-                    <AlertTitle>Success!</AlertTitle>
-                    <AlertDescription>{state.message}</AlertDescription>
                  </Alert>
             )}
 

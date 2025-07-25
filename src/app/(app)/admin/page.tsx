@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard, AlertCircle, UserX } from "lucide-react";
+import { Shield, Loader2, Edit, Trash2, FileUp, LayoutDashboard, UserX } from "lucide-react";
 import type { Vendor } from '@/lib/inventoryModels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -13,8 +14,6 @@ import { getAllVendors, deleteVendorAndInventory } from './actions';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
 import Link from 'next/link';
 
-
-// --- Main Admin Page Component ---
 export default function AdminPage() {
     const { toast } = useToast();
     const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -38,7 +37,6 @@ export default function AdminPage() {
     }, []);
 
     useEffect(() => {
-        // The server action `getAllVendors` will handle the auth check.
         fetchVendors();
     }, [fetchVendors]);
 
@@ -52,15 +50,14 @@ export default function AdminPage() {
         const result = await deleteVendorAndInventory(vendorId);
         if (result.success) {
             toast({ title: "Success", description: result.message });
-            setVendorToDelete(null); // Close dialog
-            fetchVendors(); // Refresh list
+            setVendorToDelete(null);
+            fetchVendors();
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
         setIsDeleting(false);
     };
     
-    // Show a loading state while fetching initial data
     if (isLoading) {
        return (
              <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -77,25 +74,16 @@ export default function AdminPage() {
         );
     }
     
-    // If the server returned an error (e.g., auth failure), show an error state.
     if (error) {
         return (
             <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
                 <Card className="max-w-md mx-auto border-destructive">
                     <CardHeader>
                         <CardTitle className="flex items-center justify-center text-destructive">
-                           <UserX className="mr-2 h-6 w-6"/> Access Denied
+                           <UserX className="mr-2 h-6 w-6"/> Error
                         </CardTitle>
                         <CardDescription>{error}</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-sm mb-4">
-                            This panel is for administrators only. Please log in with an admin account to continue. If you believe this is an error, contact support.
-                        </p>
-                        <Button asChild variant="secondary">
-                            <Link href="/admin/login">Go to Admin Login</Link>
-                        </Button>
-                    </CardContent>
                 </Card>
             </div>
         );
@@ -111,9 +99,6 @@ export default function AdminPage() {
                         <CardDescription>View, edit, or remove vendors from the platform.</CardDescription>
                     </div>
                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
-                         <Button variant="outline" size="sm" asChild>
-                            <Link href="/dashboard"><LayoutDashboard className="mr-2 h-4 w-4"/>Vendor Dashboard</Link>
-                        </Button>
                         <BulkAddDialog onItemsAdded={() => {
                             toast({ title: 'Global Items Added', description: 'The global catalog has been updated.' });
                         }}>
@@ -164,7 +149,7 @@ export default function AdminPage() {
                                                         <AlertDialogDescription>
                                                             This action cannot be undone. This will permanently delete the vendor
                                                             <strong className="mx-1">{vendor.shopName}</strong>
-                                                            and all associated inventory items. The user account must be deleted separately.
+                                                            and all associated inventory items. The user account must be deleted separately from Firebase Authentication.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
