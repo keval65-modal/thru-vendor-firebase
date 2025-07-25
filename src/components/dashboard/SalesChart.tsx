@@ -1,6 +1,7 @@
 
 'use client'
 
+import React from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -11,14 +12,14 @@ import {
 } from '@/components/ui/chart'
 import { TrendingUp } from 'lucide-react'
 
-// Mock data for the sales chart
-const chartData = [
-  { month: 'January', sales: Math.floor(Math.random() * 5000) + 1000 },
-  { month: 'February', sales: Math.floor(Math.random() * 5000) + 1000 },
-  { month: 'March', sales: Math.floor(Math.random() * 5000) + 1000 },
-  { month: 'April', sales: Math.floor(Math.random() * 5000) + 1000 },
-  { month: 'May', sales: Math.floor(Math.random() * 5000) + 1000 },
-  { month: 'June', sales: Math.floor(Math.random() * 5000) + 1000 },
+// Mock data structure
+const initialChartData = [
+  { month: 'January', sales: 0 },
+  { month: 'February', sales: 0 },
+  { month: 'March', sales: 0 },
+  { month: 'April', sales: 0 },
+  { month: 'May', sales: 0 },
+  { month: 'June', sales: 0 },
 ]
 
 const chartConfig = {
@@ -29,6 +30,17 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function SalesChart() {
+  const [chartData, setChartData] = React.useState(initialChartData);
+
+  React.useEffect(() => {
+    // Generate random data only on the client side
+    const generatedData = initialChartData.map(item => ({
+        ...item,
+        sales: Math.floor(Math.random() * 5000) + 1000,
+    }));
+    setChartData(generatedData);
+  }, []); // Empty dependency array ensures this runs once on mount
+
   return (
     <Card>
       <CardHeader>
