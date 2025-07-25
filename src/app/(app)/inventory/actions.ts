@@ -788,12 +788,11 @@ export async function handleBulkSaveItems(
 ): Promise<BulkSaveFormState> {
     console.log('DEBUG: handleBulkSaveItems server action started.');
     const session = await getSession();
-    // Temporarily disable admin check for direct access
-    // if (session?.role !== 'admin') {
-    //     console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
-    //     return { error: "You are not authorized to perform this action." };
-    // }
-    console.log('DEBUG: handleBulkSaveItems - Admin check bypassed.');
+    if (session?.role !== 'admin') {
+        console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
+        return { error: "You are not authorized to perform this action." };
+    }
+    console.log('DEBUG: handleBulkSaveItems - Admin check passed.');
 
     const itemsJson = formData.get('itemsJson') as string;
     if (!itemsJson) {
