@@ -37,5 +37,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# sensitive files
-src/serviceAccountKey.json
+# generated
+apphosting.yaml
+
+# sensitive credentials
+serviceAccountKey.json
