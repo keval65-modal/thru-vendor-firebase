@@ -10,7 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const CheckStockLevelsInputSchema = z.object({
   historicalOrderData: z
@@ -28,7 +28,7 @@ const CheckStockLevelsOutputSchema = z.object({
     .describe('List of product names that are predicted to be low in stock.'),
   restockSuggestions: z
     .string()
-b/    .describe('Suggestions for restocking, including product names and quantities.'),
+    .describe('Suggestions for restocking, including product names and quantities.'),
 });
 export type CheckStockLevelsOutput = z.infer<typeof CheckStockLevelsOutputSchema>;
 
