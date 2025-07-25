@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-interface PageProps {
+type EditVendorPageProps = {
   params: {
     vendorId: string;
   };
-}
+};
 
-export default async function EditVendorPage({ params }: PageProps) {
+export default async function EditVendorPage({ params }: EditVendorPageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
