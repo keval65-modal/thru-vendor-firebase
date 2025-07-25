@@ -32,6 +32,12 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     try {
         const app = initializeFirebaseApp();
+        if (!app) {
+          setError("Firebase API key is not configured. Cannot initialize Firebase client app.");
+          setFirebase({ app: null, auth: null, db: null, storage: null });
+          setIsLoading(false);
+          return;
+        }
         const auth = getAuth(app);
         const db = getFirestore(app);
         const storage = getStorage(app);
