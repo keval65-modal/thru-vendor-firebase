@@ -1,4 +1,6 @@
 
+'use server';
+
 import admin from 'firebase-admin';
 import { getApps, getApp, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -13,16 +15,22 @@ if (!serviceAccountKey) {
 
 let serviceAccount;
 try {
-    serviceAccount = JSON.parse(serviceAccountKey);
+    // The key might be wrapped in single quotes if copied from some terminals, remove them.
+    const cleanedKey = serviceAccountKey.trim().startsWith("'") && serviceAccountKey.trim().endsWith("'")
+        ? serviceAccountKey.trim().slice(1, -1)
+        : serviceAccountKey.trim();
+
+    serviceAccount = JSON.parse(cleanedKey);
 } catch (e) {
-    throw new Error('Failed to parse the FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY. Please ensure it is a valid JSON string.');
+    console.error("Failed to parse FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY. Raw key from env (first 50 chars):", serviceAccountKey.substring(0, 50));
+    throw new Error('Failed to parse the FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY. Please ensure it is a valid JSON string in your .env.local file.');
 }
 
 
 const app = !getApps().length
   ? initializeApp({
       credential: cert(serviceAccount),
-      storageBucket: serviceAccount.project_id ? `${serviceAccount.project_id}.appspot.com` : undefined,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.appspot.com`,
     })
   : getApp();
 
