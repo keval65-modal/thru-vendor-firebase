@@ -61,7 +61,8 @@ export type SessionData = (Vendor & {
 
 
 export async function getSession(): Promise<SessionData> {
-  const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
+  const cookieStore = cookies();
+  const userUidFromCookie = cookieStore.get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
     try {
