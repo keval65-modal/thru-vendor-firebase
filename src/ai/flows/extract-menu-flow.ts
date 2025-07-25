@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit/zod';
+import {z} from 'genkit';
 
 const MenuItemSchema = z.object({
   category: z.string().describe('The category of the menu item (e.g., Appetizers, Main Courses, Desserts).'),
