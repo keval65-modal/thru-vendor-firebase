@@ -30,7 +30,7 @@ export default function OrdersPage() {
 
   // Set up the real-time listener for orders when the session is available
   useEffect(() => {
-    if (!session || !db) {
+    if (!session || !db || isLoadingSession) {
       if (!isLoadingSession) {
         // If session loading is finished and there's no session, clear orders.
         setOrders([]);
@@ -263,3 +263,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
