@@ -93,9 +93,7 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 3 89% 64%;
   }
-}
 
-@layer base {
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));

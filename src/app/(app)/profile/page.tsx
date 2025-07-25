@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -299,8 +298,8 @@ export default function ProfilePage() {
                     <Image src={displayedImage} alt="Shop Image Preview" width={TARGET_IMAGE_WIDTH} height={TARGET_IMAGE_HEIGHT} className="object-cover" key={displayedImage} />
                 </div>
                 <Input id="shopImageUpload" name="shopImage" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" ref={fileInputRef} disabled={isPending} />
-                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full max-w-xs" disabled={isPending}>
-                    <UploadCloud className="mr-2 h-4 w-4" /> Change Image
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full max-w-xs flex items-center gap-2" disabled={isPending}>
+                    <UploadCloud className="h-4 w-4" /> Change Image
                 </Button>
                 <FormDescription className="text-xs text-center sm:text-left mt-2">Will be cropped to 150x100 pixels.</FormDescription>
               </FormItem>
@@ -321,32 +320,40 @@ export default function ProfilePage() {
                 <FormField control={form.control} name="storeCategory" render={({ field }) => (<FormItem><FormLabel>Store Category *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{storeCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
               </div>
               <FormField control={form.control} name="ownerName" render={({ field }) => (<FormItem><FormLabel>Owner Name *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-              <FormItem><FormLabel>Phone No *</FormLabel>
-                <div className="flex gap-2">
-                  <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (<FormItem className="w-1/4"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                </div>
-              </FormItem>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormItem>
+                    <FormLabel>Phone No *</FormLabel>
+                    <div className="flex gap-2">
+                      <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (<FormItem className="w-1/3"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                    </div>
+                </FormItem>
                 <FormField control={form.control} name="gender" render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger></FormControl><SelectContent>{genders.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="openingTime" render={({ field }) => (<FormItem><FormLabel>Opening Time *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={`open-${t}`} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="closingTime" render={({ field }) => (<FormItem><FormLabel>Closing Time *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={`close-${t}`} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
               </div>
-              <FormField control={form.control} name="weeklyCloseOn" render={({ field }) => (<FormItem><FormLabel>Weekly Close On *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{weeklyCloseDays.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="weeklyCloseOn" render={({ field }) => (<FormItem><FormLabel>Weekly Close On *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{weeklyCloseDays.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                 <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+              </div>
+
               <FormField control={form.control} name="shopFullAddress" render={({ field }) => (<FormItem><FormLabel>Shop Full Address *</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)}/>
-              <div className="space-y-1">
+              
+              <div className="space-y-2">
                 <FormLabel>Shop Location (Latitude & Longitude) *</FormLabel>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                   <FormField control={form.control} name="latitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="longitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2"><LocateFixed className="mr-2 h-4 w-4" /> Use My Current Location</Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2 flex items-center gap-2"><LocateFixed className="h-4 w-4" /> Use My Current Location</Button>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isPending}>
+              <Button type="submit" className="w-full flex items-center gap-2" disabled={isPending}>
                   {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Save Changes
               </Button>

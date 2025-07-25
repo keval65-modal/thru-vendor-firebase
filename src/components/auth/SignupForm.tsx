@@ -229,11 +229,12 @@ export function SignupForm() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormItem><FormLabel>Phone No *</FormLabel>
-            <div className="flex gap-2">
-                <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (<FormItem className="w-1/3"><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            </div>
+             <FormItem>
+                <FormLabel>Phone No *</FormLabel>
+                <div className="flex gap-2">
+                    <FormField control={form.control} name="phoneCountryCode" render={({ field }) => (<FormItem className="w-1/3"><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{countryCodes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                </div>
             </FormItem>
             <FormField control={form.control} name="gender" render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select gender"/></SelectTrigger></FormControl><SelectContent>{genders.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
         </div>
@@ -250,22 +251,23 @@ export function SignupForm() {
 
         <FormField control={form.control} name="shopFullAddress" render={({ field }) => (<FormItem><FormLabel>Shop Full Address *</FormLabel><FormControl><Textarea {...field} rows={3} placeholder="123 Main Street, Appartment 4B, New Delhi, 110001"/></FormControl><FormMessage /></FormItem>)}/>
         
-        <div className="space-y-1"><FormLabel>Shop Location (Lat & Long) *</FormLabel>
+        <div className="space-y-2">
+            <FormLabel>Shop Location (Lat & Long) *</FormLabel>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-            <FormField control={form.control} name="latitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} placeholder="e.g. 19.0760" /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="longitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} placeholder="e.g. 72.8777"/></FormControl><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="latitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} placeholder="e.g. 19.0760" /></FormControl><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="longitude" render={({ field }) => (<FormItem><FormControl><Input type="number" step="any" {...field} value={field.value ?? ""} placeholder="e.g. 72.8777"/></FormControl><FormMessage /></FormItem>)}/>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2"><LocateFixed /> Use My Current Location</Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation} className="mt-2 flex items-center gap-2"><LocateFixed className="h-4 w-4" /> Use My Current Location</Button>
         </div>
 
-        <FormItem className="flex flex-col p-4 border rounded-md bg-muted/30">
+        <FormItem className="flex flex-col items-center p-4 border rounded-md bg-muted/30">
           <FormLabel className="font-semibold mb-2 text-center">Shop Display Picture</FormLabel>
           <div className="w-40 h-auto self-center rounded-md overflow-hidden border flex items-center justify-center bg-background mb-4">
               <Image src={imgSrc || 'https://placehold.co/150x100.png'} alt="Shop Preview" width={TARGET_IMAGE_WIDTH} height={TARGET_IMAGE_HEIGHT} className="object-cover" />
           </div>
           <Input id="shopImageUpload" name="shopImage" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" ref={fileInputRef} />
-          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="self-center">
-              <UploadCloud /> Choose Image
+          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} className="self-center flex items-center gap-2">
+              <UploadCloud className="h-4 w-4" /> Choose Image
           </Button>
           <FormDescription className="text-xs text-center mt-2">Will be cropped to 150x100 pixels.</FormDescription>
         </FormItem>
@@ -278,8 +280,8 @@ export function SignupForm() {
           </div>
         )}
         
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isPending}>
-            {isPending ? <Loader2 className="animate-spin" /> : <UserPlus />}
+        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2" disabled={isPending}>
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
             Register
         </Button>
       </form>
