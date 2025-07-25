@@ -10,6 +10,7 @@ const app = !getApps().length
   ? initializeApp({
       credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
       storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
     })
   : getApp();
 
