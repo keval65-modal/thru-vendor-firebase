@@ -102,15 +102,29 @@ export async function getSession(): Promise<SessionData> {
          // This is a valid case for the admin user.
          if (userUidFromCookie === ADMIN_UID) {
            return {
-             // Return a minimal session object for the admin
              isAuthenticated: true,
              uid: ADMIN_UID,
              id: ADMIN_UID,
              role: 'admin',
-             email: 'admin@thru.app', // Placeholder email
-             shopName: 'Thru Platform',
+             email: 'admin@thru.app',
+             shopName: 'Thru Platform Admin',
              ownerName: 'Admin',
-           } as any;
+             storeCategory: 'Other',
+             city: 'N/A',
+             phoneCountryCode: '+91',
+             phoneNumber: '0000000000',
+             fullPhoneNumber: '+910000000000',
+             weeklyCloseOn: 'Never Closed',
+             openingTime: '12:00 AM (Midnight)',
+             closingTime: '12:00 AM (Midnight)',
+             shopFullAddress: 'N/A',
+             latitude: 0,
+             longitude: 0,
+             isActiveOnThru: true,
+             type: 'Other',
+             createdAt: new Date().toISOString(),
+             updatedAt: new Date().toISOString(),
+           } as SessionData;
          }
          console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
          cookies().delete(AUTH_COOKIE_NAME);
