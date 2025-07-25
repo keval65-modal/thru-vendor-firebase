@@ -88,7 +88,7 @@ export default function OrdersPage() {
         console.log("Cleaning up order listener.");
         unsubscribeSnapshot();
     };
-  }, [session, db, toast, isLoadingSession]);
+  }, [session, db, isLoadingSession]);
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     const newOrPending = orders.filter(o => o.vendorPortion.status === 'New' || o.vendorPortion.status === 'Pending Vendor Confirmation');
