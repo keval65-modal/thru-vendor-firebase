@@ -31,14 +31,18 @@ export const firebaseConfig = {
 
 function initializeFirebaseApp() {
     if (!firebaseConfig.apiKey) {
-        throw new Error("Firebase API key is not configured. Cannot initialize Firebase.");
+        console.error("Firebase API key is not configured. Cannot initialize Firebase client app.");
+        return null;
     }
     return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 }
 
-// This function is intended to be called from the server side.
+// This function is intended to be called from the server side for specific auth tasks not requiring admin sdk.
 export const getFirebaseAuth = () => {
     const app = initializeFirebaseApp();
+    if (!app) {
+        throw new Error("Firebase client app could not be initialized.");
+    }
     return getAuth(app);
 };
 
