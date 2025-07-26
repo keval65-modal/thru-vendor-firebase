@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { Vendor } from '@/lib/inventoryModels';
 
-// This is the pure UI component
+// This is the pure UI component that receives the vendor data.
 function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-2xl">
@@ -38,7 +38,8 @@ function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
   );
 }
 
-// Using `params: any` to bypass the persistent build error, as requested.
+// This is the main async component that fetches data and handles loading/error states.
+// Using `params: any` to bypass a persistent Next.js build error, as discussed.
 export default async function EditVendorPage({ params }: any) {
   const vendorId = params?.vendorId;
 
