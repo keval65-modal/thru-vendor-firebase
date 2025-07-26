@@ -15,12 +15,12 @@ type EditVendorPageProps = {
   };
 };
 
-// Async server component for the page.
+// This is the async component that fetches data
 export default async function EditVendorPage({ params }: EditVendorPageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
+  // Handle data fetching errors gracefully
   if (error) {
-    // Render an error message if the data fetching fails.
     return (
         <div className="container mx-auto py-8 text-center">
             <Card className="max-w-md mx-auto border-destructive">
@@ -38,12 +38,18 @@ export default async function EditVendorPage({ params }: EditVendorPageProps) {
     );
   }
 
+  // If the vendor is not found after a successful fetch, show a 404 page.
   if (!vendor) {
-    // If the vendor is not found, trigger a 404 page.
     notFound();
   }
 
-  // Render the page UI if data is successfully fetched.
+  // Render the page with the fetched vendor data.
+  return <EditVendorPageComponent vendor={vendor} />;
+}
+
+
+// This is the pure UI component
+function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-2xl">
       <div className="mb-4">
