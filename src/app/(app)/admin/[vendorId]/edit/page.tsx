@@ -8,18 +8,42 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { Vendor } from '@/lib/inventoryModels';
 
-// Props for the page component, defining the shape of `params` for a dynamic route.
+// Define the correct props type for the page component.
 type EditVendorPageProps = {
   params: {
     vendorId: string;
   };
 };
 
-/**
- * This is the non-async presentation component. It only receives data and renders UI.
- * This avoids the complex type issues associated with async server components that take params.
- */
-function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
+// Async server component for the page.
+export default async function EditVendorPage({ params }: EditVendorPageProps) {
+  const { vendor, error } = await getVendorForEditing(params.vendorId);
+
+  if (error) {
+    // Render an error message if the data fetching fails.
+    return (
+        <div className="container mx-auto py-8 text-center">
+            <Card className="max-w-md mx-auto border-destructive">
+                <CardHeader>
+                    <CardTitle className="text-destructive">Error</CardTitle>
+                    <CardDescription>{error}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild variant="outline">
+                        <Link href="/admin">Back to Admin Panel</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
+  }
+
+  if (!vendor) {
+    // If the vendor is not found, trigger a 404 page.
+    notFound();
+  }
+
+  // Render the page UI if data is successfully fetched.
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-2xl">
       <div className="mb-4">
@@ -46,23 +70,4 @@ function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
       </Card>
     </div>
   );
-}
-
-/**
- * This is the async server component that Next.js will render for the page.
- * It handles the data fetching and then passes the result to the simple
- * presentation component above.
- */
-export default async function EditVendorPage({ params }: EditVendorPageProps) {
-  const { vendor, error } = await getVendorForEditing(params.vendorId);
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
-  if (!vendor) {
-    notFound();
-  }
-
-  return <EditVendorPageComponent vendor={vendor} />;
 }
