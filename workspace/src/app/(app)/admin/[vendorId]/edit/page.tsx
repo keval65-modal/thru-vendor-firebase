@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-// This page now uses the correct inline prop type for dynamic server components.
-export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
+type EditVendorPageProps = {
+  params: { vendorId: string };
+};
+
+export default async function EditVendorPage({ params }: EditVendorPageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
