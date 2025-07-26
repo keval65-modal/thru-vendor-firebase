@@ -1,25 +1,18 @@
 
 import admin from 'firebase-admin';
-import { getApps, getApp, initializeApp, type AppOptions } from 'firebase-admin/app';
+import { getApps, getApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
-const firebaseConfig: AppOptions = {
-  credential: admin.credential.applicationDefault(),
-};
-
-// Only add storageBucket and databaseURL if the environment variables are set.
-// This prevents initialization errors if they are missing.
-if (process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
-  firebaseConfig.storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-}
-if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
-  firebaseConfig.databaseURL = `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`;
-}
-
 const app = !getApps().length
-  ? initializeApp(firebaseConfig)
+  ? initializeApp({
+      credential: admin.credential.applicationDefault(),
+      // The storageBucket and databaseURL are often needed for the SDK to function correctly.
+      // Firebase App Hosting provides these environment variables automatically.
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
+    })
   : getApp();
 
 const db = getFirestore(app);
