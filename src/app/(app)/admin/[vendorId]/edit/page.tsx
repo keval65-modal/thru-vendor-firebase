@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { getVendorForEditing } from '../../actions';
 import { EditVendorForm } from './EditVendorForm';
@@ -6,16 +5,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserCog, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import type { Vendor } from '@/lib/inventoryModels';
 
-type Props = {
-  params: {
-    vendorId: string;
-  };
+// Split the component into a sync renderer and async loader
+
+type Vendor = {
+  id: string;
+  shopName: string;
+  // Add any other fields needed for EditVendorForm
 };
 
-// This is now just a normal React component for presentation
-function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
+type EditVendorPageProps = {
+  vendor: Vendor;
+};
+
+function EditVendorPageComponent({ vendor }: EditVendorPageProps) {
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-2xl">
       <div className="mb-4">
@@ -44,8 +47,12 @@ function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
   );
 }
 
-// Async wrapper that fetches data and returns the presentation component
-export default async function EditVendorPage({ params }: Props) {
+// Async wrapper to handle params and data fetching
+export default async function EditVendorPage({
+  params,
+}: {
+  params: { vendorId: string };
+}) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
