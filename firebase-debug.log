@@ -1,0 +1,152 @@
+[debug] [2025-07-26T07:56:13.506Z] ----------------------------------------------------------------------
+[debug] [2025-07-26T07:56:13.508Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/gv0i9ndcpzjpfi2yr06402kzy90q51ki-firebase-tools-14.10.1/lib/node_modules/firebase-tools/lib/bin/firebase.js deploy
+[debug] [2025-07-26T07:56:13.509Z] CLI Version:   14.10.1
+[debug] [2025-07-26T07:56:13.509Z] Platform:      linux
+[debug] [2025-07-26T07:56:13.510Z] Node Version:  v20.19.1
+[debug] [2025-07-26T07:56:13.510Z] Time:          Sat Jul 26 2025 07:56:13 GMT+0000 (Coordinated Universal Time)
+[debug] [2025-07-26T07:56:13.510Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-26T07:56:13.926Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2025-07-26T07:56:13.927Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"glob"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.928Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"run"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"destination"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"function"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"regex"}
+[debug] [2025-07-26T07:56:13.929Z] Object "/hosting/rewrites/0" in "firebase.json" is missing required property: {"missingProperty":"dynamicLinks"}
+[debug] [2025-07-26T07:56:13.929Z] Field "/hosting/rewrites/0" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2025-07-26T07:56:13.929Z] Field "/hosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2025-07-26T07:56:13.929Z] Field "/hosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2025-07-26T07:56:13.934Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-26T07:56:13.936Z] > authorizing via signed-in user (keval65@gmail.com)
+[debug] [2025-07-26T07:56:13.937Z] [iam] checking project thru-vendor-xqmf1 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-07-26T07:56:13.939Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:13.939Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:13.940Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-26T07:56:13.940Z] > authorizing via signed-in user (keval65@gmail.com)
+[debug] [2025-07-26T07:56:13.941Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/thru-vendor-xqmf1:testIamPermissions [none]
+[debug] [2025-07-26T07:56:13.941Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/thru-vendor-xqmf1:testIamPermissions x-goog-quota-user=projects/thru-vendor-xqmf1
+[debug] [2025-07-26T07:56:13.941Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/thru-vendor-xqmf1:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-07-26T07:56:14.771Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/thru-vendor-xqmf1:testIamPermissions 200
+[debug] [2025-07-26T07:56:14.771Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/thru-vendor-xqmf1:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-07-26T07:56:14.772Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:14.773Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:14.773Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-26T07:56:14.773Z] > authorizing via signed-in user (keval65@gmail.com)
+[debug] [2025-07-26T07:56:14.773Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/thru-vendor-xqmf1 [none]
+[debug] [2025-07-26T07:56:15.053Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/thru-vendor-xqmf1 200
+[debug] [2025-07-26T07:56:15.055Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/thru-vendor-xqmf1 {"projectId":"thru-vendor-xqmf1","projectNumber":"211475032425","displayName":"Thru Vendor","name":"projects/thru-vendor-xqmf1","resources":{"hostingSite":"thru-vendor-xqmf1"},"state":"ACTIVE","etag":"1_2e25ad01-6c68-4ac2-b0ba-4e628c2a774d"}
+[debug] [2025-07-26T07:56:18.215Z] defaultcredentials: no credential available.
+[debug] [2025-07-26T07:56:18.216Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:18.216Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:18.217Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-26T07:56:18.217Z] > authorizing via signed-in user (keval65@gmail.com)
+[debug] [2025-07-26T07:56:18.218Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites pageToken=&pageSize=10
+[debug] [2025-07-26T07:56:18.668Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites 200
+[debug] [2025-07-26T07:56:18.669Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites {"sites":[{"name":"projects/thru-vendor-xqmf1/sites/thru-vendor-xqmf1","defaultUrl":"https://thru-vendor-xqmf1.web.app","type":"DEFAULT_SITE"}]}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 15.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2025-07-26T07:56:24.996Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:24.999Z] No OAuth tokens found
+[debug] [2025-07-26T07:56:24.999Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-26T07:56:25.003Z] > authorizing via signed-in user (keval65@gmail.com)
+[debug] [2025-07-26T07:56:25.004Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites/thru-vendor-xqmf1 [none]
+[debug] [2025-07-26T07:56:25.343Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites/thru-vendor-xqmf1 200
+[debug] [2025-07-26T07:56:25.344Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/thru-vendor-xqmf1/sites/thru-vendor-xqmf1 {"name":"projects/thru-vendor-xqmf1/sites/thru-vendor-xqmf1","defaultUrl":"https://thru-vendor-xqmf1.web.app","type":"DEFAULT_SITE"}
+[info]    ▲ Next.js 15.3.3
+
+[info]    - Environments: .env.local, .env
+
+
+[info]    Creating an optimized production build ...
+
+[info]  ⚠ Compiled with warnings in 25.0s
+
+
+[info] ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/home/user/studio/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/@genkit-ai/ai/lib/chat.js
+./node_modules/genkit/lib/common.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/extract-menu-flow.ts
+./src/app/(app)/inventory/actions.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/extract-menu-flow.ts
+./src/app/(app)/inventory/actions.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/extract-menu-flow.ts
+./src/app/(app)/inventory/actions.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/extract-menu-flow.ts
+./src/app/(app)/inventory/actions.ts
+
+
+[info]  ✓ Compiled successfully in 31.0s
+
+[info]    Linting and checking validity of types ...
+
+[info] Failed to compile.
+
+src/app/(app)/admin/[vendorId]/edit/page.tsx
+Type error: Type 'EditVendorPageProps' does not satisfy the constraint 'PageProps'.
+  Types of property 'params' are incompatible.
+    Type '{ vendorId: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+
+
+[info] Next.js build worker exited with code: 1 and signal: null
+
+[debug] [2025-07-26T07:57:45.612Z] Error: ENOENT: no such file or directory, open '/home/user/studio/.next/export-marker.json'
+[error] 
+[error] Error: An unexpected error has occurred.
