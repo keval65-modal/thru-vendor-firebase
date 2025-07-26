@@ -8,13 +8,8 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-type EditVendorPageProps = {
-  params: {
-    vendorId: string;
-  };
-};
-
-export default async function EditVendorPage({ params }: EditVendorPageProps) {
+// The props type is now defined inline to correctly match Next.js PageProps for dynamic routes.
+export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
