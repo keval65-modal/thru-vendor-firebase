@@ -3,13 +3,20 @@ import { notFound } from 'next/navigation';
 import { getVendorForEditing } from '../../actions';
 import { EditVendorForm } from './EditVendorForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCog } from 'lucide-react';
+import { UserCog, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 
-export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
-  const { vendor, error } = await getVendorForEditing(params.vendorId);
+type Props = {
+  params: {
+    vendorId: string;
+  };
+};
+
+export default async function EditVendorPage(props: Props) {
+  const { vendorId } = props.params;
+
+  const { vendor, error } = await getVendorForEditing(vendorId);
 
   if (error) {
     return <div>Error: {error}</div>;
