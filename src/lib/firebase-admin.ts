@@ -5,14 +5,15 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
+// This is the standard and recommended way to initialize the Admin SDK in a Google Cloud environment.
+// It uses Application Default Credentials (ADC) which are automatically available in App Hosting.
+const firebaseAdminConfig = {
+    credential: admin.credential.applicationDefault(),
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+};
+
 const app = !getApps().length
-  ? initializeApp({
-      credential: admin.credential.applicationDefault(),
-      // The storageBucket and databaseURL are often needed for the SDK to function correctly.
-      // Firebase App Hosting provides these environment variables automatically.
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
-    })
+  ? initializeApp(firebaseAdminConfig)
   : getApp();
 
 const db = getFirestore(app);
