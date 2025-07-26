@@ -16,11 +16,7 @@ export async function handleAdminLogin(): Promise<AdminLoginFormState> {
   try {
     const sessionResult = await createSession(ADMIN_UID);
 
-    if (sessionResult.success) {
-      // On successful session creation, redirect to the admin dashboard.
-      // Note: redirect() must be called outside of a try/catch block.
-    } else {
-      // If session creation fails, return an error message to be displayed on the client.
+    if (!sessionResult.success) {
       console.error('[Admin Login] Failed to create admin session:', sessionResult.error);
       return {
         success: false,

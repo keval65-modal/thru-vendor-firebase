@@ -10,7 +10,7 @@ import {
   updateDoc,
   deleteDoc,
   writeBatch,
-  Timestamp
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase-admin';
 import { getSession } from '@/lib/auth';
@@ -19,10 +19,13 @@ import type { Vendor } from '@/lib/inventoryModels';
 
 // Schema for validation
 const UpdateVendorByAdminSchema = z.object({
-  shopName: z.string().min(1, "Shop name is required."),
-  ownerName: z.string().min(1, "Owner name is required."),
-  storeCategory: z.string().min(1, "Store category is required."),
-  isActiveOnThru: z.preprocess(val => val === 'on' || val === true, z.boolean()),
+  shopName: z.string().min(1, 'Shop name is required.'),
+  ownerName: z.string().min(1, 'Owner name is required.'),
+  storeCategory: z.string().min(1, 'Store category is required.'),
+  isActiveOnThru: z.preprocess(
+    (val) => val === 'on' || val === true,
+    z.boolean()
+  ),
 });
 
 // Helper types
@@ -43,27 +46,32 @@ export type DeleteVendorResult = {
 async function verifyAdmin() {
   const session = await getSession();
   if (session.role !== 'admin') {
-    throw new Error("You are not authorized to perform this action.");
+    throw new Error('You are not authorized to perform this action.');
   }
   return session;
 }
 
 // Fetch all vendors
-export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: string }> {
+export async function getAllVendors(): Promise<{
+  vendors?: Vendor[];
+  error?: string;
+}> {
   try {
     await verifyAdmin();
     const vendorsSnapshot = await getDocs(collection(db, 'vendors'));
-    const vendors = vendorsSnapshot.docs.map(docSnap => {
+    const vendors = vendorsSnapshot.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
         id: docSnap.id,
         ...data,
-        createdAt: data.createdAt instanceof Timestamp
-          ? data.createdAt.toDate().toISOString()
-          : data.createdAt,
-        updatedAt: data.updatedAt instanceof Timestamp
-          ? data.updatedAt.toDate().toISOString()
-          : data.updatedAt,
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
+        updatedAt:
+          data.updatedAt instanceof Timestamp
+            ? data.updatedAt.toDate().toISOString()
+            : data.updatedAt,
       } as Vendor;
     });
 
@@ -71,13 +79,15 @@ export async function getAllVendors(): Promise<{ vendors?: Vendor[], error?: str
   } catch (err) {
     console.error('[getAllVendors]', err);
     return {
-      error: err instanceof Error ? err.message : 'Unknown error occurred.'
+      error: err instanceof Error ? err.message : 'Unknown error occurred.',
     };
   }
 }
 
 // Fetch vendor by ID for editing
-export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: Vendor; error?: string }> {
+export async function getVendorForEditing(
+  vendorId: string
+): Promise<{ vendor?: Vendor; error?: string }> {
   try {
     await verifyAdmin();
     const vendorRef = doc(db, 'vendors', vendorId);
@@ -93,18 +103,20 @@ export async function getVendorForEditing(vendorId: string): Promise<{ vendor?: 
       vendor: {
         id: vendorSnap.id,
         ...data,
-        createdAt: data.createdAt instanceof Timestamp
-          ? data.createdAt.toDate().toISOString()
-          : data.createdAt,
-        updatedAt: data.updatedAt instanceof Timestamp
-          ? data.updatedAt.toDate().toISOString()
-          : data.updatedAt,
-      } as Vendor
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
+        updatedAt:
+          data.updatedAt instanceof Timestamp
+            ? data.updatedAt.toDate().toISOString()
+            : data.updatedAt,
+      },
     };
   } catch (err) {
-    console.error(`[getVendorForEditing] Error fetching vendor ${vendorId}`, err);
+    console.error(`[getVendorForEditing] Error fetching vendor ${vendorId}:`, err);
     return {
-      error: err instanceof Error ? err.message : 'Unknown error occurred.'
+      error: err instanceof Error ? err.message : 'A database error occurred.',
     };
   }
 }
@@ -118,11 +130,13 @@ export async function updateVendorByAdmin(
   try {
     await verifyAdmin();
 
-    const parsed = UpdateVendorByAdminSchema.safeParse(Object.fromEntries(formData.entries()));
+    const parsed = UpdateVendorByAdminSchema.safeParse(
+      Object.fromEntries(formData.entries())
+    );
     if (!parsed.success) {
       return {
         error: 'Invalid data submitted.',
-        fields: parsed.error.flatten().fieldErrors
+        fields: parsed.error.flatten().fieldErrors,
       };
     }
 
@@ -141,13 +155,15 @@ export async function updateVendorByAdmin(
   } catch (err) {
     console.error(`[updateVendorByAdmin] Error updating vendor ${vendorId}`, err);
     return {
-      error: err instanceof Error ? err.message : 'Unknown error occurred.'
+      error: err instanceof Error ? err.message : 'Unknown error occurred.',
     };
   }
 }
 
 // Delete vendor & inventory
-export async function deleteVendorAndInventory(vendorId: string): Promise<DeleteVendorResult> {
+export async function deleteVendorAndInventory(
+  vendorId: string
+): Promise<DeleteVendorResult> {
   try {
     await verifyAdmin();
 
@@ -159,7 +175,7 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
 
     const inventoryRef = collection(db, 'vendors', vendorId, 'inventory');
     const inventorySnapshot = await getDocs(inventoryRef);
-    inventorySnapshot.forEach(docSnap => batch.delete(docSnap.ref));
+    inventorySnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
 
     batch.delete(doc(db, 'vendors', vendorId));
 
@@ -169,13 +185,13 @@ export async function deleteVendorAndInventory(vendorId: string): Promise<Delete
 
     return {
       success: true,
-      message: `Deleted vendor and ${inventorySnapshot.size} inventory items.`
+      message: `Deleted vendor and ${inventorySnapshot.size} inventory items.`,
     };
   } catch (err) {
     console.error(`[deleteVendorAndInventory] Error deleting vendor ${vendorId}`, err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error occurred.'
+      error: err instanceof Error ? err.message : 'Unknown error occurred.',
     };
   }
 }
