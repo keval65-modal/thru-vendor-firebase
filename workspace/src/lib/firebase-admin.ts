@@ -5,12 +5,18 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
+// Use a simplified and robust configuration for Firebase Admin SDK.
+// This relies on application default credentials, which are automatically
+// available in the App Hosting environment and work locally with `gcloud auth`.
+const firebaseAdminConfig = {
+    credential: admin.credential.applicationDefault(),
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+};
+
+// Initialize the app only if it hasn't been initialized yet.
 const app = !getApps().length
-  ? initializeApp({
-      credential: admin.credential.applicationDefault(),
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`
-    })
+  ? initializeApp(firebaseAdminConfig)
   : getApp();
 
 const db = getFirestore(app);
