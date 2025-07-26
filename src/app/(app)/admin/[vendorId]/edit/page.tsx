@@ -7,6 +7,8 @@ import { UserCog, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { Vendor } from '@/lib/inventoryModels';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 // This is the pure UI component that receives the vendor data.
 function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
@@ -39,8 +41,7 @@ function EditVendorPageComponent({ vendor }: { vendor: Vendor }) {
 }
 
 // This is the main async component that fetches data and handles loading/error states.
-// Using `params: any` to bypass a persistent Next.js build error, as discussed.
-export default async function EditVendorPage({ params }: any) {
+export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const vendorId = params?.vendorId;
 
   if (!vendorId) {
@@ -55,10 +56,13 @@ export default async function EditVendorPage({ params }: any) {
         <div className="container mx-auto py-8 text-center">
             <Card className="max-w-md mx-auto border-destructive">
                 <CardHeader>
-                    <CardTitle className="text-destructive">Error</CardTitle>
+                    <CardTitle className="flex items-center justify-center text-destructive">
+                       <AlertTriangle className="mr-2 h-6 w-6"/> Data Fetching Error
+                    </CardTitle>
                     <CardDescription>{error}</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">Could not load vendor data from the server. Please try again later.</p>
                     <Button asChild variant="outline">
                         <Link href="/admin">Back to Admin Panel</Link>
                     </Button>
