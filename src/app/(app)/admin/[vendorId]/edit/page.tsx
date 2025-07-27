@@ -3,20 +3,13 @@ import { notFound } from 'next/navigation';
 import { getVendorForEditing } from '../../actions';
 import { EditVendorForm } from './EditVendorForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCog } from 'lucide-react';
+import { UserCog, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
 
-interface PageProps {
-  params: {
-    vendorId: string;
-  };
-}
 
-export default async function EditVendorPage({ params }: PageProps) {
+export default async function EditVendorPage({ params }: { params: { vendorId: string } }) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
@@ -27,6 +20,12 @@ export default async function EditVendorPage({ params }: PageProps) {
                 <AlertTitle>Error Loading Vendor</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
+             <Button variant="outline" asChild className="mt-4">
+                <Link href="/admin">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Admin Panel
+                </Link>
+            </Button>
         </div>
     );
   }
