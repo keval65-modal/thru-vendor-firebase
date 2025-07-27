@@ -1,4 +1,3 @@
-
 import { notFound } from 'next/navigation';
 import { getVendorForEditing } from '../../actions';
 import { EditVendorForm } from './EditVendorForm';
@@ -10,11 +9,11 @@ import { ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 
-type EditVendorPageProps = {
+type PageProps = {
   params: { vendorId: string };
 };
 
-export default async function EditVendorPage({ params }: EditVendorPageProps) {
+export default async function EditVendorPage({ params }: PageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
 
   if (error) {
