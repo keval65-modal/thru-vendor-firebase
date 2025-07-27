@@ -10,9 +10,11 @@ import { ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 
-type PageProps = {
-  params: { vendorId: string };
-};
+interface PageProps {
+  params: {
+    vendorId: string;
+  };
+}
 
 export default async function EditVendorPage({ params }: PageProps) {
   const { vendor, error } = await getVendorForEditing(params.vendorId);
