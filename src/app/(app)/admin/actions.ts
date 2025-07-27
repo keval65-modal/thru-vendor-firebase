@@ -94,7 +94,8 @@ export async function getVendorForEditing(
     const vendorSnap = await getDoc(vendorRef);
 
     if (!vendorSnap.exists()) {
-      return { error: 'Vendor not found.' };
+      // Return undefined vendor without an error to trigger notFound() on the page.
+      return { vendor: undefined };
     }
 
     const data = vendorSnap.data() as Omit<Vendor, 'id'>;
