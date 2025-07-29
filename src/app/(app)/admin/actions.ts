@@ -81,7 +81,7 @@ export async function getVendorForEditing(
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
     await verifyAdmin();
-    const vendorRef = db.doc(`vendors/${vendorId}`);
+    const vendorRef = db.collection('vendors').doc(vendorId);
     const vendorSnap = await vendorRef.get();
 
     if (!vendorSnap.exists) {
@@ -134,10 +134,14 @@ export async function updateVendorByAdmin(
     }
 
     const updates = parsed.data;
-    const vendorRef = db.doc(`vendors/${vendorId}`);
+    const vendorRef = db.collection('vendors').doc(vendorId);
+
+    const typedStoreCategory = updates.storeCategory as Vendor['storeCategory'];
+    
     await vendorRef.update({
       ...updates,
-      type: updates.storeCategory, // syncing category & type
+      storeCategory: typedStoreCategory,
+      type: typedStoreCategory, // syncing category & type
       updatedAt: Timestamp.now(),
     });
 
@@ -170,7 +174,7 @@ export async function deleteVendorAndInventory(
     const inventorySnapshot = await inventoryRef.get();
     inventorySnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
 
-    batch.delete(db.doc(`vendors/${vendorId}`));
+    batch.delete(db.collection('vendors').doc(vendorId));
 
     await batch.commit();
 

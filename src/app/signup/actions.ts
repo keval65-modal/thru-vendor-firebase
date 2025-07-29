@@ -115,6 +115,9 @@ export async function handleSignup(
         
         await file.save(buffer, { metadata: { contentType: shopImage.type } });
         
+        // The public URL of a file is not available directly after upload.
+        // It's better to construct it or use a signed URL if needed, but for simplicity
+        // and public access, we'll construct the common URL format.
         dataToSave.shopImageUrl = `https://storage.googleapis.com/${bucket.name}/${imagePath}`;
         console.log(`Image uploaded and public URL set for ${uid}: ${dataToSave.shopImageUrl}`);
     } else {
@@ -122,7 +125,7 @@ export async function handleSignup(
     }
 
     // 3. Create vendor document in Firestore with the same UID
-    await db.collection('vendors').doc(uid).set(dataToSave as any);
+    await db.collection('vendors').doc(uid).set(dataToSave);
     console.log(`Successfully created vendor document for ${uid}`);
 
     // 4. Create session cookie

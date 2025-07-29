@@ -4,7 +4,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase-admin';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { ADMIN_UID } from '@/config/constants';
 
@@ -24,10 +24,10 @@ export async function createSession(uid: string): Promise<{success: boolean, err
   // This allows the admin to log in even if they don't have a profile in the 'vendors' collection.
   if (uid !== ADMIN_UID) {
     try {
-        const vendorDocRef = doc(db, 'vendors', uid);
-        const vendorSnap = await getDoc(vendorDocRef);
+        const vendorDocRef = db.collection('vendors').doc(uid);
+        const vendorSnap = await vendorDocRef.get();
         
-        if (!vendorSnap.exists()) {
+        if (!vendorSnap.exists) {
             console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
             return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
         }
@@ -66,8 +66,8 @@ export async function getSession(): Promise<SessionData> {
 
   if (userUidFromCookie) {
     try {
-      const userDocRef = doc(db, 'vendors', userUidFromCookie);
-      const userDocSnap = await getDoc(userDocRef);
+      const userDocRef = db.collection('vendors').doc(userUidFromCookie);
+      const userDocSnap = await userDocRef.get();
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();

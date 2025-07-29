@@ -124,12 +124,13 @@ export async function updateVendorProfile(
   
   const typedStoreCategory = vendorData.storeCategory as Vendor['storeCategory'];
 
-  const dataToUpdate: Partial<Vendor> = {
+  // This is the correct way to construct the update object to avoid type conflicts.
+  const dataToUpdate: Omit<Partial<Vendor>, 'storeCategory' | 'type'> & { storeCategory: Vendor['storeCategory'], type: Vendor['storeCategory'], updatedAt: Timestamp } = {
     ...vendorData,
     storeCategory: typedStoreCategory,
+    type: typedStoreCategory, // Ensure 'type' is updated if 'storeCategory' changes
     fullPhoneNumber: `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`,
     updatedAt: Timestamp.now(),
-    type: typedStoreCategory, // Ensure 'type' is updated if 'storeCategory' changes
   };
 
   try {
@@ -151,7 +152,7 @@ export async function updateVendorProfile(
     }
 
 
-    await vendorRef.update(dataToUpdate as any);
+    await vendorRef.update(dataToUpdate);
     console.log(`Vendor profile updated successfully for ${vendorId}`);
     revalidatePath('/profile');
     return { success: true, message: "Profile updated successfully!" };
