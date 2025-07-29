@@ -7,7 +7,6 @@ import { db } from '@/lib/firebase-admin';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import type { Vendor } from '@/lib/inventoryModels';
-import { ADMIN_UID } from '@/config/constants';
 
 // Schema for validation
 const UpdateVendorByAdminSchema = z.object({
