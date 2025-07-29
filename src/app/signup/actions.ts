@@ -137,11 +137,6 @@ export async function handleSignup(
   } catch (error: any) {
     console.error('Error during signup process:', error);
     
-    // Check if the error is a redirect error, and if so, re-throw it. This should not happen now.
-    if (error.constructor.name === 'RedirectError') {
-      throw error;
-    }
-
     let errorMessage = "An unexpected error occurred during signup.";
     if (error.code === 'auth/email-already-exists') {
       errorMessage = "An account with this email address already exists. Please login instead.";
