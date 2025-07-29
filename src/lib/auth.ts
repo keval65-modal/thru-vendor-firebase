@@ -21,7 +21,6 @@ export async function createSession(uid: string): Promise<{success: boolean, err
   }
 
   // For the hardcoded admin user, bypass the Firestore document check.
-  // This allows the admin to log in even if they don't have a profile in the 'vendors' collection.
   if (uid !== ADMIN_UID) {
     try {
         const vendorDocRef = db.collection('vendors').doc(uid);
@@ -37,7 +36,8 @@ export async function createSession(uid: string): Promise<{success: boolean, err
     }
   }
   
-  cookies().set(AUTH_COOKIE_NAME, uid, {
+  const cookieStore = cookies();
+  cookieStore.set(AUTH_COOKIE_NAME, uid, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -48,7 +48,8 @@ export async function createSession(uid: string): Promise<{success: boolean, err
 }
 
 export async function logout() {
-  cookies().delete(AUTH_COOKIE_NAME);
+  const cookieStore = cookies();
+  cookieStore.delete(AUTH_COOKIE_NAME);
   redirect('/login');
 }
 

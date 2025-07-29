@@ -79,6 +79,7 @@ export async function handleSignup(
   }
 
   const { email, password, shopImage, ...vendorData } = validatedFields.data;
+  let uid: string | null = null;
 
   try {
     // 1. Create user in Firebase Auth
@@ -88,7 +89,7 @@ export async function handleSignup(
       displayName: vendorData.ownerName,
       emailVerified: false,
     });
-    const uid = userRecord.uid;
+    uid = userRecord.uid;
     console.log(`Successfully created new user: ${email} (${uid})`);
 
     // Explicitly cast storeCategory to the specific Vendor type
@@ -132,14 +133,11 @@ export async function handleSignup(
         // Even if session fails, we return here to avoid redirecting. The user can log in manually.
         return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
     }
-    
-    // 5. Redirect to dashboard on success. MUST be inside the try block.
-    redirect('/dashboard');
   
   } catch (error: any) {
     console.error('Error during signup process:', error);
     
-    // Check if the error is a redirect error, and if so, re-throw it
+    // Check if the error is a redirect error, and if so, re-throw it. This should not happen now.
     if (error.constructor.name === 'RedirectError') {
       throw error;
     }
@@ -150,4 +148,12 @@ export async function handleSignup(
     }
     return { success: false, error: errorMessage };
   }
+
+  // 5. Redirect to dashboard on success. MUST be OUTSIDE the try/catch block.
+  if (uid) {
+    redirect('/dashboard');
+  }
+
+  // This should not be reached if redirect happens, but is here for type safety.
+  return { success: true };
 }
