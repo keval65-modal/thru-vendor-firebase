@@ -30,13 +30,17 @@ export default function OrdersPage() {
 
   // Set up the real-time listener for orders when the session is available
   useEffect(() => {
-    if (!session || !db || isLoadingSession) {
+    if (isLoadingSession || !session || !db) {
       if (!isLoadingSession) {
-        // If session loading is finished and there's no session, clear orders.
-        setOrders([]);
         setIsLoadingOrders(false);
       }
       return;
+    }
+
+    if (!session.isAuthenticated) {
+        setOrders([]);
+        setIsLoadingOrders(false);
+        return;
     }
 
     setIsLoadingOrders(true);
@@ -88,7 +92,7 @@ export default function OrdersPage() {
         console.log("Cleaning up order listener.");
         unsubscribeSnapshot();
     };
-  }, [session, db, isLoadingSession]);
+  }, [session, db, isLoadingSession, toast]);
 
   const { newOrders, preparingOrders, readyOrders } = useMemo(() => {
     const newOrPending = orders.filter(o => o.vendorPortion.status === 'New' || o.vendorPortion.status === 'Pending Vendor Confirmation');
@@ -176,7 +180,7 @@ export default function OrdersPage() {
                 {isLoadingSession ? (
                     <Skeleton className="h-12 w-12 rounded-full" />
                 ) : (
-                    <Image src={session?.shopImageUrl || "https://placehold.co/60x60.png"} alt="Shop Logo" width={48} height={48} data-ai-hint="shop logo" />
+                    <Image src={session?.isAuthenticated ? session.shopImageUrl || "https://placehold.co/60x60.png" : "https://placehold.co/60x60.png"} alt="Shop Logo" width={48} height={48} data-ai-hint="shop logo" />
                 )}
               </div>
               <div>
@@ -187,8 +191,8 @@ export default function OrdersPage() {
                     </div>
                 ) : (
                     <>
-                        <h1 className="text-xl font-bold">{session?.shopName || "Your Shop"}</h1>
-                        <p className="text-xs opacity-90">{session?.storeCategory || "Category"}</p>
+                        <h1 className="text-xl font-bold">{session?.isAuthenticated ? session.shopName : "Your Shop"}</h1>
+                        <p className="text-xs opacity-90">{session?.isAuthenticated ? session.storeCategory : "Category"}</p>
                     </>
                 )}
               </div>
@@ -263,5 +267,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
