@@ -769,11 +769,10 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    if (isLoadingSession || !session?.isAuthenticated) {
-        return;
+    if (session?.isAuthenticated) {
+        fetchAndSetInventory(session.uid);
     }
-    fetchAndSetInventory(session.uid);
-  }, [session, isLoadingSession]);
+  }, [session]);
 
   useEffect(() => {
     if (menuUploadState?.extractedMenu) {
