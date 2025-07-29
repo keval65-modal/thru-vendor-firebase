@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, X, FileUp, Info } from "lucide-react";
+import { PlusCircle, Search, BookOpen, Package, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, X, FileUp, Info } from "lucide-react";
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
