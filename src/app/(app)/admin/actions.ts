@@ -88,11 +88,10 @@ export async function getAllVendors(): Promise<{
 export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
-  // Admin verification is handled by the AdminLayout which protects this entire route.
-  // A check here causes a race condition if a non-admin tries to access the page,
-  // leading to an internal server error as the page tries to render an error state
-  // while the layout is also trying to redirect.
   try {
+    // This check is crucial to ensure the action is secure and self-contained.
+    await verifyAdmin();
+
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
 

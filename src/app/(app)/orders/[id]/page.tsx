@@ -1,3 +1,4 @@
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +25,9 @@ const statusDetails: Record<VendorOrderPortion['status'] | 'Completed' | 'Cancel
 };
 
 
-export default async function OrderDetailPage({ params }: { params: { id:string } }) {
-  const order = await fetchOrderDetails(params.id);
+export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const order = await fetchOrderDetails(id);
 
   if (!order) {
     notFound();

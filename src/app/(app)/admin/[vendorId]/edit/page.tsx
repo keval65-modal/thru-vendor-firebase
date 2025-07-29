@@ -22,12 +22,16 @@ import {
   AlertTitle
 } from '@/components/ui/alert';
 
-export default async function EditVendorPage({
-  params,
-}: {
-  params: { vendorId: string };
-}) {
-  const { vendor, error } = await getVendorForEditing(params.vendorId);
+type RouteParams = { vendorId: string };
+
+// NOTE: params is typed as a Promise to satisfy Next’s generated .next/types for this route.
+// `await params` also works if Next passes a plain object at runtime (harmless no-op).
+export default async function EditVendorPage(
+  { params }: { params: Promise<RouteParams> }
+) {
+  const { vendorId } = await params; // works if object or promise
+
+  const { vendor, error } = await getVendorForEditing(vendorId);
 
   // If there was a database error during fetch, display an alert.
   if (error) {
