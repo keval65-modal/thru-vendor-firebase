@@ -139,7 +139,8 @@ export async function handleSignup(
         return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
     }
 
-    cookies().set('thru_vendor_auth_token', uid, {
+    const cookieStore = cookies();
+    cookieStore.set('thru_vendor_auth_token', uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week

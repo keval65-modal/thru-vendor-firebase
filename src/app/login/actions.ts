@@ -18,13 +18,19 @@ export type LoginFormState = {
     error?: string;
 };
 
+// Helper function to convert FormData to a plain object
+function formDataToObject(formData: FormData): Record<string, any> {
+    return Object.fromEntries((formData as any).entries());
+}
+
+
 // This is a new Server Action to handle the entire login flow.
 export async function handleLogin(
   prevState: LoginFormState,
   formData: FormData
 ): Promise<LoginFormState> {
   const validatedFields = loginFormSchema.safeParse(
-    Object.fromEntries(formData.entries())
+    formDataToObject(formData)
   );
 
   if (!validatedFields.success) {
@@ -53,7 +59,8 @@ export async function handleLogin(
     }
 
     // Set cookie
-    cookies().set('thru_vendor_auth_token', userRecord.uid, {
+    const cookieStore = cookies();
+    cookieStore.set('thru_vendor_auth_token', userRecord.uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week

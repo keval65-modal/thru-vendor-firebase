@@ -6,7 +6,8 @@ import { redirect } from 'next/navigation';
 import { db, auth, storage } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
-import { createSession } from '@/lib/auth';
+import { validateUserForSession } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 const timeOptions = [
     "12:00 AM (Midnight)", "12:30 AM", "01:00 AM", "01:30 AM", "02:00 AM", "02:30 AM",
@@ -14,7 +15,7 @@ const timeOptions = [
     "06:00 AM", "06:30 AM", "07:00 AM", "07:30 AM", "08:00 AM", "08:30 AM",
     "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
     "12:00 PM (Noon)", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
-    "03:00 PM", "03:30 AM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
     "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM",
     "09:00 PM", "09:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM"
 ];
@@ -131,13 +132,20 @@ export async function handleSignup(
     await db.collection('vendors').doc(uid).set(dataToSave);
     console.log(`Successfully created vendor document for ${uid}`);
 
-    // 4. Create session cookie
-    const sessionResult = await createSession(uid);
+    // 4. Validate user and set session cookie
+    const sessionResult = await validateUserForSession(uid);
     if (!sessionResult.success) {
-        console.error(`CRITICAL: User ${uid} created but session failed: ${sessionResult.error}`);
-        // Even if session fails, we return here to avoid redirecting. The user can log in manually.
+        console.error(`CRITICAL: User ${uid} created but session validation failed: ${sessionResult.error}`);
         return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
     }
+
+    const cookieStore = cookies();
+    cookieStore.set('thru_vendor_auth_token', uid, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/',
+    });
   
     // 5. Redirect to dashboard on success. MUST be called after all successful async operations inside the try block.
     redirect('/dashboard');

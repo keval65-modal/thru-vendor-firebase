@@ -20,12 +20,7 @@ export type LoginFormState = {
 
 // Helper function to convert FormData to a plain object
 function formDataToObject(formData: FormData): Record<string, any> {
-    const obj: Record<string, any> = {};
-    // Use `(formData as any).entries()` to bypass TypeScript's strict DOM lib checking in a server context.
-    for (const [key, value] of (formData as any).entries()) {
-        obj[key] = value;
-    }
-    return obj;
+    return Object.fromEntries((formData as any).entries());
 }
 
 
@@ -64,7 +59,8 @@ export async function handleLogin(
     }
 
     // Set cookie
-    cookies().set('thru_vendor_auth_token', userRecord.uid, {
+    const cookieStore = cookies();
+    cookieStore.set('thru_vendor_auth_token', userRecord.uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week
