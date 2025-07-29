@@ -89,7 +89,6 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    // This check is crucial to ensure the action is secure and self-contained.
     await verifyAdmin();
 
     const vendorRef = doc(db, 'vendors', vendorId);
