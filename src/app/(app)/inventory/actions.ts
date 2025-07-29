@@ -1,7 +1,6 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, doc, updateDoc, getDoc, DocumentReference, Timestamp, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/ai/flows/process-csv-flow';
@@ -9,7 +8,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { db, storage } from '@/lib/firebase-admin';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Timestamp } from 'firebase-admin/firestore';
 import Papa from 'papaparse';
 
 // Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
@@ -23,12 +22,11 @@ export async function getGlobalItemsByType(itemType: GlobalItem['sharedItemType'
   if (!itemType) return [];
 
   try {
-    const q = query(
-      collection(db, "global_items"),
-      where("sharedItemType", "==", itemType),
-      orderBy("itemName", "asc")
-    );
-    const querySnapshot = await getDocs(q);
+    const q = db.collection("global_items")
+      .where("sharedItemType", "==", itemType)
+      .orderBy("itemName", "asc");
+    
+    const querySnapshot = await q.get();
     const items = querySnapshot.docs.map(docSnap => {
       const data = docSnap.data();
       return {
@@ -63,12 +61,10 @@ export async function getVendorInventory(vendorId: string): Promise<VendorInvent
   console.log(`[getVendorInventory] Constructing query for vendorId: '${vendorId}'`);
 
   try {
-    const inventoryCollectionRef = collection(db, "vendors", vendorId, "inventory");
-    const q = query(
-      inventoryCollectionRef,
-      orderBy("itemName", "asc")
-    );
-    const querySnapshot = await getDocs(q);
+    const inventoryCollectionRef = db.collection("vendors").doc(vendorId).collection("inventory");
+    const q = inventoryCollectionRef.orderBy("itemName", "asc");
+    
+    const querySnapshot = await q.get();
     const inventoryItems = querySnapshot.docs.map(docSnap => {
       const data = docSnap.data();
       return {
@@ -160,8 +156,8 @@ export async function addCustomVendorItem(
   };
   
   try {
-    const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
-    await addDoc(inventoryCollectionRef, newItemData);
+    const inventoryCollectionRef = db.collection('vendors').doc(vendorId).collection('inventory');
+    await inventoryCollectionRef.add(newItemData);
     
     revalidatePath('/inventory');
     return { success: true, message: `${itemData.itemName} added successfully.` };
@@ -223,10 +219,10 @@ export async function linkGlobalItemToVendorInventory(
   console.log(`[linkGlobalItemToVendorInventory] Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
 
   try {
-    const globalItemRef = doc(db, 'global_items', globalItemId);
-    const globalItemSnap = await getDoc(globalItemRef);
+    const globalItemRef = db.doc(`global_items/${globalItemId}`);
+    const globalItemSnap = await globalItemRef.get();
 
-    if (!globalItemSnap.exists()) {
+    if (!globalItemSnap.exists) {
       return { success: false, error: 'Global item not found.' };
     }
     const globalItemData = globalItemSnap.data() as GlobalItem;
@@ -248,8 +244,8 @@ export async function linkGlobalItemToVendorInventory(
       lastStockUpdate: Timestamp.now(),
     };
     
-    const inventoryCollectionRef = collection(db, 'vendors', vendorId, 'inventory');
-    const docRef = await addDoc(inventoryCollectionRef, newItemData);
+    const inventoryCollectionRef = db.collection('vendors').doc(vendorId).collection('inventory');
+    const docRef = await inventoryCollectionRef.add(newItemData);
     console.log(`[linkGlobalItemToVendorInventory] Successfully created vendor inventory item ${docRef.id}`);
     revalidatePath('/inventory');
     return { success: true, message: `${globalItemData.itemName} added to your inventory.` };
@@ -350,8 +346,8 @@ export async function updateVendorItemDetails(
 
 
   try {
-    const itemRef = doc(db, "vendors", vendorId, "inventory", itemId);
-    await updateDoc(itemRef, dataToUpdate as any); // Using 'as any' to bypass strict type check on partial update
+    const itemRef = db.collection("vendors").doc(vendorId).collection("inventory").doc(itemId);
+    await itemRef.update(dataToUpdate as { [key: string]: any }); 
     console.log(`[updateVendorItemDetails] Successfully updated item ${itemId} for vendor ${vendorId}`);
     revalidatePath('/inventory');
     return { success: true, message: "Item details updated successfully." };
@@ -385,8 +381,8 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
         return { success: false, error: "Item ID is missing for deletion." };
     }
     try {
-        const itemRef = doc(db, "vendors", vendorId, "inventory", vendorInventoryItemId);
-        await deleteDoc(itemRef);
+        const itemRef = db.collection("vendors").doc(vendorId).collection("inventory").doc(vendorInventoryItemId);
+        await itemRef.delete();
         console.log(`[deleteVendorItem] Successfully deleted item ${vendorInventoryItemId}`);
         revalidatePath('/inventory');
         return { success: true, message: "Item deleted successfully." };
@@ -396,24 +392,6 @@ export async function deleteVendorItem(prevState: DeleteItemFormState, formData:
         return { success: false, error: `Failed to delete item. ${errorMessage}` };
     }
 }
-
-// --- Admin Actions for Global Items (Placeholders for Admin UI) ---
-
-export async function addGlobalItem(itemData: Omit<GlobalItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; itemId?: string; error?: string }> {
-  console.log("Placeholder for Admin UI: Adding global item:", itemData);
-  return { success: true, itemId: "mock_global_item_id" };
-}
-
-export async function updateGlobalItem(itemId: string, updates: Partial<GlobalItem>): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder for Admin UI: Updating global item:", itemId, updates);
-  return { success: true };
-}
-
-export async function deleteGlobalItem(itemId: string): Promise<{ success: boolean; error?: string }> {
-  console.log("Placeholder for Admin UI: Deleting global item:", itemId);
-  return { success: true };
-}
-
 
 // --- AI Menu Extraction ---
 const MenuPdfUploadSchema = z.object({
@@ -560,9 +538,13 @@ export async function handleRemoveDuplicateItems(
         }
 
         console.log(`[handleRemoveDuplicateItems] Found ${duplicateIdsToDelete.length} duplicates to delete for vendor ${vendorId}. IDs:`, duplicateIdsToDelete);
-
-        const deletePromises = duplicateIdsToDelete.map(id => deleteDoc(doc(db, "vendors", vendorId, "inventory", id)));
-        await Promise.all(deletePromises);
+        
+        const batch = db.batch();
+        const inventoryCollectionRef = db.collection('vendors').doc(vendorId).collection('inventory');
+        duplicateIdsToDelete.forEach(id => {
+            batch.delete(inventoryCollectionRef.doc(id));
+        });
+        await batch.commit();
 
         console.log(`[handleRemoveDuplicateItems] Successfully deleted ${duplicateIdsToDelete.length} duplicate items for vendor ${vendorId}.`);
         revalidatePath('/inventory');
@@ -641,10 +623,10 @@ export async function handleDeleteSelectedItems(
   }
 
   try {
-    const batch = writeBatch(db);
+    const batch = db.batch();
     itemIdsToDelete.forEach(itemId => {
       if (itemId && typeof itemId === 'string') {
-        const itemRef = doc(db, 'vendors', vendorId, 'inventory', itemId);
+        const itemRef = db.collection('vendors').doc(vendorId).collection('inventory').doc(itemId);
         batch.delete(itemRef);
       } else {
          console.warn(`[handleDeleteSelectedItems] Invalid item ID found in batch: ${itemId}`);
@@ -815,12 +797,12 @@ export async function handleBulkSaveItems(
     }
 
     try {
-        const batch = writeBatch(db);
+        const batch = db.batch();
         const now = Timestamp.now();
         console.log(`DEBUG: handleBulkSaveItems - Preparing batch write for ${itemsToSave.length} items.`);
 
         itemsToSave.forEach((item, index) => {
-            const newItemRef = doc(collection(db, 'global_items'));
+            const newItemRef = db.collection('global_items').doc();
             const newItemData: Omit<GlobalItem, 'id'> = {
                 ...item,
                 createdAt: now,
