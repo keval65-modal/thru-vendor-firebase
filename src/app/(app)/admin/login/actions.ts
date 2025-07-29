@@ -23,12 +23,14 @@ export async function handleAdminLogin(): Promise<AdminLoginFormState> {
         error: sessionResult.error || 'Admin login failed. Please contact support.',
       };
     }
+    
+    // The redirect will be handled by the client upon successful session creation.
+    // Returning a success state allows the client to route appropriately.
+    return { success: true };
+
   } catch (err) {
       console.error('[Admin Login] Exception during login process:', err);
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
       return { success: false, error: message };
   }
-  
-  // A redirect can only be thrown, not returned, and must be outside a try/catch block.
-  redirect('/admin');
 }
