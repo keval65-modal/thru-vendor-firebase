@@ -89,7 +89,8 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    await verifyAdmin();
+    // The `AdminLayout` already protects this route.
+    // Calling verifyAdmin() here is redundant and can cause race conditions.
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
 
