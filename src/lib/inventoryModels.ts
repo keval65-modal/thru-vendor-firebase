@@ -1,5 +1,5 @@
 
-import type { Timestamp, DocumentReference } from 'firebase/firestore';
+import type { Timestamp, DocumentReference } from 'firebase-admin/firestore';
 
 /**
  * Represents an item in the global catalog, shared across certain vendor types.

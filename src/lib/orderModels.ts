@@ -1,5 +1,5 @@
 
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 // This is the data structure for a document in the 'orders' collection.
 export interface PlacedOrder {
