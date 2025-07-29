@@ -47,8 +47,7 @@ export async function validateUserForSession(uid: string): Promise<{success: boo
 
 
 export async function logout() {
-  const cookieStore = cookies();
-  cookieStore.delete(AUTH_COOKIE_NAME);
+  cookies().delete(AUTH_COOKIE_NAME);
   redirect('/login');
 }
 
@@ -61,8 +60,7 @@ export type SessionData = (Vendor & {
 
 
 export async function getSession(): Promise<SessionData> {
-  const cookieStore = cookies();
-  const userUidFromCookie = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+  const userUidFromCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
 
   if (userUidFromCookie) {
     try {
