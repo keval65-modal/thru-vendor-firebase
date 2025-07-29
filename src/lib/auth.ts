@@ -75,7 +75,7 @@ export async function getSession(): Promise<SessionData> {
         
         if (!isVendor(userData)) {
             console.warn(`[getSession] Firestore document for ${userUidFromCookie} is not a valid vendor object.`);
-            cookies().delete(AUTH_COOKIE_NAME);
+            cookieStore.delete(AUTH_COOKIE_NAME);
             return { isAuthenticated: false };
         }
 
@@ -129,7 +129,7 @@ export async function getSession(): Promise<SessionData> {
            } as SessionData;
          }
          console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
-         cookies().delete(AUTH_COOKIE_NAME);
+         cookieStore.delete(AUTH_COOKIE_NAME);
       }
     } catch (error) {
       console.error('[getSession] Error fetching user for session from Firestore:', error);
