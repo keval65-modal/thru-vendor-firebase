@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { db, storage } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, type DocumentReference } from 'firebase-admin/firestore';
 import Papa from 'papaparse';
 
 // Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
@@ -219,7 +219,7 @@ export async function linkGlobalItemToVendorInventory(
   console.log(`[linkGlobalItemToVendorInventory] Linking global item ${globalItemId} for vendor ${vendorId} with stock ${stockQuantity}, price ${price}`);
 
   try {
-    const globalItemRef = db.doc(`global_items/${globalItemId}`);
+    const globalItemRef = db.collection('global_items').doc(globalItemId) as DocumentReference<GlobalItem>;
     const globalItemSnap = await globalItemRef.get();
 
     if (!globalItemSnap.exists) {
@@ -229,7 +229,7 @@ export async function linkGlobalItemToVendorInventory(
 
     const newItemData: Omit<VendorInventoryItem, 'id'> = {
       vendorId, // Keep for denormalization and easier client-side access
-      globalItemRef,
+      globalItemRef: globalItemRef,
       isCustomItem: false,
       itemName: globalItemData.itemName,
       vendorItemCategory: globalItemData.defaultCategory,
@@ -823,3 +823,5 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
+
+    
