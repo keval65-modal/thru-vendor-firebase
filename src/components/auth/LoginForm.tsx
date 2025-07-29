@@ -37,6 +37,16 @@ export function LoginForm() {
 
   const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
     setIsLoading(true);
+
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication Error',
+            description: 'Firebase service is not available. Please try again later.',
+        });
+        setIsLoading(false);
+        return;
+    }
     
     try {
       // Step 1: Authenticate with Firebase Auth on the client
