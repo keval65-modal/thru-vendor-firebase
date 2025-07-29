@@ -3,7 +3,7 @@
 
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
-import { processCsvData, type ProcessCsvInput, type ProcessCsvOutput } from '@/ai/flows/process-csv-flow';
+import { processCsvData, type ProcessCsvOutput } from '@/ai/flows/process-csv-flow';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
