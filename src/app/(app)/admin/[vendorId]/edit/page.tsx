@@ -22,9 +22,6 @@ import {
   AlertTitle
 } from '@/components/ui/alert';
 
-// This page component now correctly defines its props inline,
-// which is the standard and robust way for Next.js App Router pages.
-// This prevents type conflicts with auto-generated types.
 export default async function EditVendorPage({
   params,
 }: {
