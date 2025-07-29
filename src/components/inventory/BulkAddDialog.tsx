@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -7,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Sparkles, Save, FileUp } from 'lucide-react';
-import { handleCsvUpload, type ProcessCsvOutput, handleBulkSaveItems } from '@/app/(app)/inventory/actions';
+import { handleCsvUpload, handleBulkSaveItems, type CsvParseFormState } from '@/app/(app)/inventory/actions';
 import { useToast } from '@/hooks/use-toast';
 
 interface BulkAddDialogProps {
@@ -23,7 +24,7 @@ export function BulkAddDialog({ onItemsAdded, children }: BulkAddDialogProps) {
 
     const [isParsing, setIsParsing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [parsedData, setParsedData] = useState<ProcessCsvOutput | null>(null);
+    const [parsedData, setParsedData] = useState<CsvParseFormState | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
