@@ -56,14 +56,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <ul className="space-y-1">
-                <NavLinks items={mainNavItems} currentPath={pathname} role={session?.role} />
+                <NavLinks items={mainNavItems} currentPath={pathname} role={session?.isAuthenticated ? session.role : undefined} />
               </ul>
             </nav>
           </div>
           <div className="mt-auto p-4">
              <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <ul className="space-y-1">
-                <NavLinks items={bottomNavItems} currentPath={pathname} role={session?.role} />
+                <NavLinks items={bottomNavItems} currentPath={pathname} role={session?.isAuthenticated ? session.role : undefined} />
               </ul>
             </nav>
           </div>
