@@ -501,8 +501,8 @@ export async function handleRemoveDuplicateItems(
 ): Promise<RemoveDuplicatesFormState> {
     const session = await getSession();
     if (!session.isAuthenticated) {
-        console.error("[handleRemoveDuplicateItems] Vendor ID is missing.");
-        return { error: "Vendor ID is missing." };
+        console.error("[handleRemoveDuplicateItems] Vendor not authenticated.");
+        return { error: "Authentication required." };
     }
     const vendorId = session.uid;
     console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
@@ -768,7 +768,7 @@ export async function handleBulkSaveItems(
 ): Promise<BulkSaveFormState> {
     console.log('DEBUG: handleBulkSaveItems server action started.');
     const session = await getSession();
-    if (session?.role !== 'admin') {
+    if (!session.isAuthenticated || session.role !== 'admin') {
         console.error('DEBUG: handleBulkSaveItems - Authorization failed. User is not an admin.');
         return { error: "You are not authorized to perform this action." };
     }
@@ -823,5 +823,3 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
-
-    
