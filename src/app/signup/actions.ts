@@ -57,7 +57,7 @@ export async function handleSignup(
   prevState: SignupFormState,
   formData: FormData
 ): Promise<SignupFormState> {
-  const rawData: Record<string, any> = Object.fromEntries(formData.entries());
+  const rawData: Record<string, any> = Object.fromEntries(formData);
   const shopImageFile = formData.get('shopImage') as File | null;
   
   const dataToValidate = { ...rawData };
