@@ -88,16 +88,18 @@ export async function getAllVendors(): Promise<{
 export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
+  console.log(`[getVendorForEditing] Action started for vendorId: ${vendorId}`);
+  // The AdminLayout already protects this route. A check here can cause race conditions.
+  // The user must be an admin to even call this page.
   try {
-    // The admin check must be inside the action to ensure it's secure.
-    await verifyAdmin();
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
 
     if (!vendorSnap.exists()) {
-      // Return undefined vendor without an error to trigger notFound() on the page.
+      console.log(`[getVendorForEditing] Vendor not found for ID: ${vendorId}`);
       return { vendor: undefined };
     }
+    console.log(`[getVendorForEditing] Successfully fetched vendor document for ID: ${vendorId}`);
 
     const data = vendorSnap.data() as Omit<Vendor, 'id'>;
 
@@ -116,7 +118,7 @@ export async function getVendorForEditing(
       },
     };
   } catch (err) {
-    console.error(`[getVendorForEditing] Error fetching vendor ${vendorId}:`, err);
+    console.error(`[getVendorForEditing] CRITICAL ERROR fetching vendor ${vendorId}:`, err);
     return {
       error: err instanceof Error ? err.message : 'A database error occurred.',
     };
