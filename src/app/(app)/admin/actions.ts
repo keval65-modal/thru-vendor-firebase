@@ -123,7 +123,7 @@ export async function updateVendorByAdmin(
     await verifyAdmin();
 
     const parsed = UpdateVendorByAdminSchema.safeParse(
-      Object.fromEntries(formData.entries())
+      Object.fromEntries(formData)
     );
     if (!parsed.success) {
       return {
