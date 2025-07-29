@@ -13,7 +13,10 @@ const UpdateVendorByAdminSchema = z.object({
   shopName: z.string().min(1, 'Shop name is required.'),
   ownerName: z.string().min(1, 'Owner name is required.'),
   storeCategory: z.string().min(1, 'Store category is required.'),
-  isActiveOnThru: z.preprocess((val) => val === 'on', z.boolean()).optional().transform(val => val ?? false),
+  isActiveOnThru: z
+    .string()
+    .optional()
+    .transform((val) => val === 'on'), // Correctly handle checkbox state
 });
 
 
@@ -110,6 +113,17 @@ export async function getVendorForEditing(
   }
 }
 
+// Helper function to convert FormData to a plain object
+function formDataToObject(formData: FormData): Record<string, any> {
+  const obj: Record<string, any> = {};
+  // FormData.entries() is valid at runtime in Server Actions, but TypeScript may not know it.
+  // Casting to `any` here is a safe workaround to get the iterator.
+  for (const [key, value] of formData.entries() as any) {
+    obj[key] = value;
+  }
+  return obj;
+}
+
 
 // Update vendor
 export async function updateVendorByAdmin(
@@ -120,9 +134,9 @@ export async function updateVendorByAdmin(
   try {
     await verifyAdmin();
 
-    const parsed = UpdateVendorByAdminSchema.safeParse(
-      Object.fromEntries(formData.entries())
-    );
+    const formDataObject = formDataToObject(formData);
+    const parsed = UpdateVendorByAdminSchema.safeParse(formDataObject);
+    
     if (!parsed.success) {
       return {
         error: 'Invalid data submitted.',
@@ -133,10 +147,14 @@ export async function updateVendorByAdmin(
     const updates = parsed.data;
     const vendorRef = db.collection('vendors').doc(vendorId);
 
-    const typedStoreCategory = updates.storeCategory as Vendor['storeCategory'];
+    const dataToUpdate = {
+        ...updates,
+    };
+    
+    const typedStoreCategory = dataToUpdate.storeCategory as Vendor['storeCategory'];
     
     await vendorRef.update({
-      ...updates,
+      ...dataToUpdate,
       storeCategory: typedStoreCategory,
       type: typedStoreCategory, // syncing category & type
       updatedAt: Timestamp.now(),
