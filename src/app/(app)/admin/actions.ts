@@ -2,16 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  writeBatch,
-  Timestamp,
-} from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -59,7 +50,7 @@ export async function getAllVendors(): Promise<{
 }> {
   try {
     await verifyAdmin();
-    const vendorsSnapshot = await getDocs(collection(db, 'vendors'));
+    const vendorsSnapshot = await db.collection('vendors').get();
     const vendors = vendorsSnapshot.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
@@ -79,9 +70,8 @@ export async function getAllVendors(): Promise<{
     return { vendors };
   } catch (err) {
     console.error('[getAllVendors]', err);
-    return {
-      error: err instanceof Error ? err.message : 'Unknown error occurred.',
-    };
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred.';
+    return { error: errorMessage };
   }
 }
 
@@ -90,11 +80,11 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    // Authorization is handled by the AdminLayout, so we can directly fetch the data.
-    const vendorRef = doc(db, 'vendors', vendorId);
-    const vendorSnap = await getDoc(vendorRef);
+    await verifyAdmin();
+    const vendorRef = db.doc(`vendors/${vendorId}`);
+    const vendorSnap = await vendorRef.get();
 
-    if (!vendorSnap.exists()) {
+    if (!vendorSnap.exists) {
       return { vendor: undefined };
     }
 
@@ -116,11 +106,13 @@ export async function getVendorForEditing(
     };
   } catch (err) {
     console.error(`[getVendorForEditing] CRITICAL ERROR fetching vendor ${vendorId}:`, err);
-    return {
-      error: err instanceof Error ? err.message : 'A database error occurred.',
-    };
+    const errorMessage = err instanceof Error ? err.message : 'A database error occurred.';
+     // This function is called during server-side rendering, so we return the error
+     // instead of throwing it to prevent the entire page from crashing.
+    return { error: errorMessage };
   }
 }
+
 
 // Update vendor
 export async function updateVendorByAdmin(
@@ -142,8 +134,8 @@ export async function updateVendorByAdmin(
     }
 
     const updates = parsed.data;
-    const vendorRef = doc(db, 'vendors', vendorId);
-    await updateDoc(vendorRef, {
+    const vendorRef = db.doc(`vendors/${vendorId}`);
+    await vendorRef.update({
       ...updates,
       type: updates.storeCategory, // syncing category & type
       updatedAt: Timestamp.now(),
@@ -172,13 +164,13 @@ export async function deleteVendorAndInventory(
 
     console.log(`[deleteVendorAndInventory] Deleting vendor ${vendorId}`);
 
-    const batch = writeBatch(db);
+    const batch = db.batch();
 
-    const inventoryRef = collection(db, 'vendors', vendorId, 'inventory');
-    const inventorySnapshot = await getDocs(inventoryRef);
+    const inventoryRef = db.collection('vendors').doc(vendorId).collection('inventory');
+    const inventorySnapshot = await inventoryRef.get();
     inventorySnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
 
-    batch.delete(doc(db, 'vendors', vendorId));
+    batch.delete(db.doc(`vendors/${vendorId}`));
 
     await batch.commit();
 
