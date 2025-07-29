@@ -90,6 +90,18 @@ export type UpdateProfileFormState = {
   fields?: Record<string, string[]>; // For field-specific errors
 };
 
+// Helper function to convert FormData to a plain object
+function formDataToObject(formData: FormData): Record<string, any> {
+  const obj: Record<string, any> = {};
+  const entries = (formData as unknown as Iterable<[string, FormDataEntryValue]>);
+
+  for (const [key, value] of entries) {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+
 export async function updateVendorProfile(
   prevState: UpdateProfileFormState,
   formData: FormData
@@ -100,7 +112,7 @@ export async function updateVendorProfile(
   }
   const vendorId = session.uid;
 
-  const rawData: Record<string, any> = Object.fromEntries(formData.entries());
+  const rawData = formDataToObject(formData);
   const shopImageFile = formData.get('shopImage') as File | null;
   
   const dataToValidate = { ...rawData };
