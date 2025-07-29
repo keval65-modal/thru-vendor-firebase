@@ -122,7 +122,7 @@ export async function addCustomVendorItem(
   formData: FormData
 ): Promise<AddCustomItemFormState> {
   const session = await getSession();
-  if (!session?.uid) {
+  if (!session.isAuthenticated) {
     return { error: 'Authentication required.' };
   }
   const vendorId = session.uid;
@@ -203,10 +203,10 @@ export async function linkGlobalItemToVendorInventory(
   formData: FormData
 ): Promise<LinkGlobalItemFormState> {
   const session = await getSession();
-  const vendorId = session?.uid;
-  if (!vendorId) {
+  if (!session.isAuthenticated) {
     return { error: 'Authentication required.' };
   }
+  const vendorId = session.uid;
 
   const validatedFields = LinkGlobalItemSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -313,7 +313,7 @@ export async function updateVendorItemDetails(
   formData: FormData
 ): Promise<UpdateItemFormState> {
   const session = await getSession();
-  if (!session?.uid) {
+  if (!session.isAuthenticated) {
     return { error: 'Authentication required.' };
   }
   const vendorId = session.uid;
@@ -369,7 +369,7 @@ export type DeleteItemFormState = {
  */
 export async function deleteVendorItem(prevState: DeleteItemFormState, formData: FormData): Promise<DeleteItemFormState> {
     const session = await getSession();
-    if (!session?.uid) {
+    if (!session.isAuthenticated) {
         return { success: false, error: "Authentication required." };
     }
     const vendorId = session.uid;
@@ -411,11 +411,11 @@ export async function handleMenuPdfUpload(
 ): Promise<MenuUploadFormState> {
   console.log("[handleMenuPdfUpload] Server action started.");
   const session = await getSession();
-  const vendorId = session?.uid;
 
-  if (!vendorId) {
+  if (!session.isAuthenticated) {
     return { error: 'You must be logged in to upload a menu.' };
   }
+  const vendorId = session.uid;
 
   const menuFile = formData.get('menuPdf') as File;
   console.log("[handleMenuPdfUpload] Received menuFile:", menuFile?.name, "vendorId:", vendorId);
@@ -500,13 +500,12 @@ export async function handleRemoveDuplicateItems(
     formData: FormData
 ): Promise<RemoveDuplicatesFormState> {
     const session = await getSession();
-    const vendorId = session?.uid;
-    console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
-
-    if (!vendorId) {
+    if (!session.isAuthenticated) {
         console.error("[handleRemoveDuplicateItems] Vendor ID is missing.");
         return { error: "Vendor ID is missing." };
     }
+    const vendorId = session.uid;
+    console.log(`[handleRemoveDuplicateItems] Starting for vendor: ${vendorId}`);
 
     try {
         const inventoryItems = await getVendorInventory(vendorId);
@@ -589,7 +588,7 @@ export async function handleDeleteSelectedItems(
 ): Promise<DeleteSelectedItemsFormState> {
   console.log('[handleDeleteSelectedItems] Server action started.');
   const session = await getSession();
-  if (!session?.uid) {
+  if (!session.isAuthenticated) {
     return { error: 'Authentication required.' };
   }
   const vendorId = session.uid;
@@ -824,5 +823,3 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
-
-    
