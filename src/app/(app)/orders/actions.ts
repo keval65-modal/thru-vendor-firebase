@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp, WriteBatch, writeBatch, runTransaction } from 'firebase/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { PlacedOrder, VendorOrderPortion, VendorDisplayOrder, OrderItemDetail } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -17,19 +17,17 @@ export async function fetchVendorOrders(vendorId: string): Promise<VendorDisplay
     return [];
   }
 
-  const ordersRef = collection(db, 'orders');
+  const ordersRef = db.collection('orders');
   // These are the statuses we consider "active" and want to display on the main dashboard.
   const activeStatuses: PlacedOrder['overallStatus'][] = ["Pending Confirmation", "Confirmed", "In Progress", "Ready for Pickup"];
   
   // New, more efficient compound query.
-  const q = query(
-    ordersRef,
-    where("vendorIds", "array-contains", vendorId),
-    where("overallStatus", "in", activeStatuses)
-  );
+  const q = ordersRef
+    .where("vendorIds", "array-contains", vendorId)
+    .where("overallStatus", "in", activeStatuses);
   
   try {
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     const relevantOrders: VendorDisplayOrder[] = [];
 
     querySnapshot.forEach(docSnap => {
@@ -77,21 +75,21 @@ export async function updateVendorOrderStatus(
   updatedItems?: OrderItemDetail[]
 ): Promise<{ success: boolean; error?: string }> {
   const session = await getSession();
-  const vendorId = session?.uid; // USE UID, NOT EMAIL
-
-  if (!vendorId) {
+  if (!session.isAuthenticated) {
     return { success: false, error: "Authentication required." };
   }
+  const vendorId = session.uid;
+
   if (!orderId) {
     return { success: false, error: "Order ID is required." };
   }
 
-  const orderRef = doc(db, 'orders', orderId);
+  const orderRef = db.collection('orders').doc(orderId);
 
   try {
-    await runTransaction(db, async (transaction) => {
+    await db.runTransaction(async (transaction) => {
         const orderSnap = await transaction.get(orderRef);
-        if (!orderSnap.exists()) {
+        if (!orderSnap.exists) {
             throw new Error("Order not found.");
         }
 
@@ -100,7 +98,7 @@ export async function updateVendorOrderStatus(
         let newVendorSubtotal = 0;
 
         const updatedPortions = orderData.vendorPortions.map(portion => {
-            if (portion.vendorId === vendorId) { // MATCH BY UID
+            if (portion.vendorId === vendorId) {
                 vendorFound = true;
                 if (updatedItems) {
                     // This is a grocery confirmation, recalculate subtotal
@@ -123,7 +121,7 @@ export async function updateVendorOrderStatus(
             
         const thisPortionReady = newStatus === 'Ready for Pickup';
 
-        const updatePayload: any = { vendorPortions: updatedPortions };
+        const updatePayload: { [key: string]: any } = { vendorPortions: updatedPortions };
 
         // If this action makes all portions ready for pickup, update the overall status.
         if (thisPortionReady && allOtherPortionsReady) {
@@ -135,7 +133,7 @@ export async function updateVendorOrderStatus(
             const oldPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
             const oldSubtotal = oldPortion?.vendorSubtotal || 0;
             const difference = newVendorSubtotal - oldSubtotal;
-            updatePayload.grandTotal = orderData.grandTotal + difference;
+            updatePayload.grandTotal = (orderData.grandTotal || 0) + difference;
         }
 
         transaction.update(orderRef, updatePayload);
@@ -158,23 +156,22 @@ export async function updateVendorOrderStatus(
  */
 export async function fetchOrderDetails(orderId: string): Promise<VendorDisplayOrder | null> {
     const session = await getSession();
-    const vendorId = session?.uid; // USE UID, NOT EMAIL
-
-    if (!vendorId) {
+    if (!session.isAuthenticated) {
         console.error("[fetchOrderDetails] Not authenticated.");
         return null;
     }
+    const vendorId = session.uid;
 
-    const orderRef = doc(db, 'orders', orderId);
+    const orderRef = db.collection('orders').doc(orderId);
     try {
-        const docSnap = await getDoc(orderRef);
-        if (!docSnap.exists()) {
+        const docSnap = await orderRef.get();
+        if (!docSnap.exists) {
             console.warn(`[fetchOrderDetails] Order ${orderId} not found.`);
             return null;
         }
 
         const orderData = { id: docSnap.id, ...docSnap.data() } as PlacedOrder;
-        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId); // MATCH BY UID
+        const vendorPortion = orderData.vendorPortions.find(p => p.vendorId === vendorId);
 
         if (!vendorPortion) {
             console.warn(`[fetchOrderDetails] Vendor ${vendorId} not part of order ${orderId}.`);
