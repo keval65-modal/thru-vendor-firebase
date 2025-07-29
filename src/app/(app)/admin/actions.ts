@@ -89,8 +89,8 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    // The `AdminLayout` already protects this route, so calling verifyAdmin() here
-    // is redundant and was causing a race condition with the layout's redirect logic.
+    // The admin check must be inside the action to ensure it's secure.
+    await verifyAdmin();
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
 
