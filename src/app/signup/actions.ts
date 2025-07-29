@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
 import { db, auth, storage } from '@/lib/firebase-admin';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { createSession } from '@/lib/auth';
 
@@ -91,15 +91,19 @@ export async function handleSignup(
     const uid = userRecord.uid;
     console.log(`Successfully created new user: ${email} (${uid})`);
 
+    // Explicitly cast storeCategory to the specific Vendor type
+    const typedStoreCategory = vendorData.storeCategory as Vendor['storeCategory'];
+
     const dataToSave: Omit<Vendor, 'id'> = {
         ...vendorData,
+        storeCategory: typedStoreCategory, // Use the correctly typed category
         email: email,
         fullPhoneNumber: `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`,
         isActiveOnThru: true,
         role: 'vendor',
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        type: vendorData.storeCategory,
+        type: typedStoreCategory, // Also assign the typed category here
     };
 
     // 2. Upload image to Storage if it exists
@@ -118,7 +122,7 @@ export async function handleSignup(
     }
 
     // 3. Create vendor document in Firestore with the same UID
-    await setDoc(doc(db, 'vendors', uid), dataToSave as any);
+    await db.collection('vendors').doc(uid).set(dataToSave as any);
     console.log(`Successfully created vendor document for ${uid}`);
 
     // 4. Create session cookie
