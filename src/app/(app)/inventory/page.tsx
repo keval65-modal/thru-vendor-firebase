@@ -698,7 +698,10 @@ export default function InventoryPage() {
   }
 
   const handleSearchGlobalItems = async () => {
-    if (!session?.storeCategory) return;
+    if (!session?.isAuthenticated) {
+        toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to search." });
+        return;
+    }
     const itemType = mapStoreCategoryToItemType(session.storeCategory);
     
     if (!itemType) {
@@ -1167,7 +1170,7 @@ const renderGroceryContent = () => {
 
 
   const renderInventoryContent = () => {
-    if (!session || !session.storeCategory) {
+    if (!session || !session.isAuthenticated) {
       return <p className="text-muted-foreground">Loading inventory information...</p>;
     }
 
@@ -1579,28 +1582,28 @@ const renderGroceryContent = () => {
           <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Inventory Management</h1>
           <p className="text-muted-foreground">
-              {session?.shopName ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
+              {session?.isAuthenticated ? `${session.shopName} (${session.storeCategory})` : 'Manage your products and stock.'}
           </p>
           </div>
       </div>
       {renderInventoryContent()}
       <EditItemDialog
           item={editingItem}
-          vendorId={session?.uid || null}
+          vendorId={session?.isAuthenticated ? session.uid : null}
           isOpen={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
-          onItemUpdate={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+          onItemUpdate={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
       />
       <AddGlobalItemDialog 
           item={itemToAdd}
           isOpen={isAddGlobalItemDialogOpen}
           onOpenChange={setIsAddGlobalItemDialogOpen}
-          onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+          onItemAdded={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
       />
       <AddCustomItemDialog
           isOpen={isAddCustomItemDialogOpen}
           onOpenChange={setIsAddCustomItemDialogOpen}
-          onItemAdded={() => session?.uid && fetchAndSetInventory(session.uid, true)}
+          onItemAdded={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
       />
       <p className="mt-8 text-center text-sm text-muted-foreground">
           Use the Admin panel for managing the global item catalog.
