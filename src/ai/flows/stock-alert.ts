@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -59,16 +60,7 @@ const checkStockLevelsFlow = ai.defineFlow(
     outputSchema: CheckStockLevelsOutputSchema,
   },
   async input => {
-    const llmResponse = await ai.generate({
-      model: 'gemini-1.5-flash',
-      prompt: prompt.prompt!,
-      input: input,
-      output: {
-        schema: CheckStockLevelsOutputSchema,
-      },
-    });
-
-    const output = llmResponse.output();
+    const { output } = await prompt(input);
     if (!output) {
       throw new Error("AI model returned no output for stock level analysis.");
     }

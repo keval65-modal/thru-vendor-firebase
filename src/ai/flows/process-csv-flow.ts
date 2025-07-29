@@ -12,7 +12,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/googleai';
 
 // Describes the expected output: a mapping from our schema fields to the CSV column headers.
 const CsvMappingSchema = z.object({
