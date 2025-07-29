@@ -24,7 +24,7 @@ export async function handleLogin(
   formData: FormData
 ): Promise<LoginFormState> {
   const validatedFields = loginFormSchema.safeParse(
-    Object.fromEntries(formData.entries())
+    Object.fromEntries(formData)
   );
 
   if (!validatedFields.success) {
