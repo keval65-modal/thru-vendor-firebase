@@ -115,9 +115,6 @@ export async function handleSignup(
         
         await file.save(buffer, { metadata: { contentType: shopImage.type } });
         
-        // The public URL of a file is not available directly after upload.
-        // It's better to construct it or use a signed URL if needed, but for simplicity
-        // and public access, we'll construct the common URL format.
         dataToSave.shopImageUrl = `https://storage.googleapis.com/${bucket.name}/${imagePath}`;
         console.log(`Image uploaded and public URL set for ${uid}: ${dataToSave.shopImageUrl}`);
     } else {
@@ -132,18 +129,25 @@ export async function handleSignup(
     const sessionResult = await createSession(uid);
     if (!sessionResult.success) {
         console.error(`CRITICAL: User ${uid} created but session failed: ${sessionResult.error}`);
+        // Even if session fails, we return here to avoid redirecting. The user can log in manually.
         return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
     }
+    
+    // 5. Redirect to dashboard on success. MUST be inside the try block.
+    redirect('/dashboard');
   
   } catch (error: any) {
     console.error('Error during signup process:', error);
+    
+    // Check if the error is a redirect error, and if so, re-throw it
+    if (error.constructor.name === 'RedirectError') {
+      throw error;
+    }
+
     let errorMessage = "An unexpected error occurred during signup.";
     if (error.code === 'auth/email-already-exists') {
       errorMessage = "An account with this email address already exists. Please login instead.";
     }
     return { success: false, error: errorMessage };
   }
-
-  // 5. Redirect to dashboard on success
-  redirect('/dashboard');
 }

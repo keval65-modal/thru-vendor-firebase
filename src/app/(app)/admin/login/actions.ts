@@ -1,29 +1,34 @@
 
 'use server';
 
-import { createSession } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ADMIN_UID } from '@/config/constants';
+import { db } from '@/lib/firebase-admin';
 
 export type AdminLoginFormState = {
   success?: boolean;
   error?: string;
 };
 
+const AUTH_COOKIE_NAME = 'thru_vendor_auth_token';
+
 // This server action handles the "Direct Admin Login" button.
-// It bypasses the password check and creates a session for the pre-defined admin user.
+// It bypasses the password check, creates a session for the pre-defined admin user, and redirects.
 export async function handleAdminLogin(): Promise<AdminLoginFormState> {
   try {
-    const sessionResult = await createSession(ADMIN_UID);
-
-    if (!sessionResult.success) {
-      console.error('[Admin Login] Failed to create admin session:', sessionResult.error);
-      return {
-        success: false,
-        error: sessionResult.error || 'Admin login failed. Please contact support.',
-      };
+    // Verify admin user exists or is the hardcoded one.
+    // This is a simplified check.
+    if (ADMIN_UID) {
+      cookies().set(AUTH_COOKIE_NAME, ADMIN_UID, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/',
+      });
+    } else {
+        return { success: false, error: "Admin UID is not configured." };
     }
-    
   } catch (err) {
       console.error('[Admin Login] Exception during login process:', err);
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
