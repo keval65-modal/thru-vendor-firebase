@@ -4,6 +4,7 @@
 import { useEffect, useState, useActionState, useMemo, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
