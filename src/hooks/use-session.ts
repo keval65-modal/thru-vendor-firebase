@@ -49,6 +49,7 @@ export function useSession() {
         // User is not authenticated
         setSession({isAuthenticated: false});
         setIsLoading(false);
+        return undefined; // Ensure all paths return a value
       }
     });
 
