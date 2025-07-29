@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const MenuItemSchema = z.object({
   category: z.string().describe('The category of the menu item (e.g., Appetizers, Main Courses, Desserts).'),
@@ -67,16 +67,8 @@ const extractMenuFlow = ai.defineFlow(
     outputSchema: ExtractMenuOutputSchema,
   },
   async (input) => {
-    const llmResponse = await ai.generate({
-      model: 'gemini-1.5-flash',
-      prompt: prompt.prompt!,
-      input: input,
-      output: {
-        schema: ExtractMenuOutputSchema,
-      },
-    });
+    const { output } = await prompt(input);
 
-    const output = llmResponse.output();
     if (!output) {
       console.error("[extractMenuFlow] The AI model did not return any output.");
       throw new Error("AI model returned no output for menu extraction.");
