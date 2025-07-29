@@ -11,8 +11,18 @@ import { db } from '@/lib/firebase-admin';
 import { Timestamp, type DocumentReference } from 'firebase-admin/firestore';
 import Papa from 'papaparse';
 
-// Ensure vendorId is typically the Firebase Auth UID used as doc ID in 'vendors' collection
-// Ensure globalItemId is the Firestore document ID from 'global_items'
+// Helper function to convert FormData to a plain object
+function formDataToObject(formData: FormData): Record<string, any> {
+  const obj: Record<string, any> = {};
+  const entries = (formData as unknown as Iterable<[string, FormDataEntryValue]>);
+
+  for (const [key, value] of entries) {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+
 
 /**
  * Fetches global items based on their shared type (e.g., "grocery", "medical").
@@ -127,7 +137,7 @@ export async function addCustomVendorItem(
   }
   const vendorId = session.uid;
 
-  const validatedFields = AddCustomItemSchema.safeParse(Object.fromEntries(formData.entries()));
+  const validatedFields = AddCustomItemSchema.safeParse(formDataToObject(formData));
 
   if (!validatedFields.success) {
     return {
@@ -208,7 +218,7 @@ export async function linkGlobalItemToVendorInventory(
   }
   const vendorId = session.uid;
 
-  const validatedFields = LinkGlobalItemSchema.safeParse(Object.fromEntries(formData.entries()));
+  const validatedFields = LinkGlobalItemSchema.safeParse(formDataToObject(formData));
 
   if (!validatedFields.success) {
     console.error("[linkGlobalItemToVendorInventory] Validation failed:", validatedFields.error.flatten().fieldErrors);
@@ -318,7 +328,7 @@ export async function updateVendorItemDetails(
   }
   const vendorId = session.uid;
 
-  const rawData = Object.fromEntries(formData.entries());
+  const rawData = formDataToObject(formData);
   console.log('[updateVendorItemDetails] Received raw form data:', rawData);
 
   const validatedFields = UpdateVendorItemSchema.safeParse(rawData);
@@ -823,5 +833,3 @@ export async function handleBulkSaveItems(
         return { error: `Failed to save items. ${errorMessage}` };
     }
 }
-
-    
