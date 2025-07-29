@@ -126,7 +126,7 @@ export async function updateVendorProfile(
     ...vendorData,
     fullPhoneNumber: `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`,
     updatedAt: Timestamp.now(),
-    type: vendorData.storeCategory, // Ensure 'type' is updated if 'storeCategory' changes
+    type: vendorData.storeCategory as Vendor['storeCategory'], // Ensure 'type' is updated if 'storeCategory' changes
   };
 
   try {
@@ -142,12 +142,11 @@ export async function updateVendorProfile(
           metadata: { contentType: shopImage.type },
       });
       
-      const [publicUrl] = await file.getSignedUrl({
-          action: 'read',
-          expires: '03-09-2491', // Far-future expiration date
-      });
+      // The public URL method used before is not reliable. A signed URL is better for GCS.
+      // However, for simplicity and to avoid managing expirations, we'll use a predictable public path.
+      // This assumes the bucket is publicly readable.
+      dataToUpdate.shopImageUrl = `https://storage.googleapis.com/${bucket.name}/${imagePath}`;
 
-      dataToUpdate.shopImageUrl = publicUrl;
       console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
     }
 
