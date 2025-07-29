@@ -2,24 +2,29 @@
 'use server';
 
 import { db } from '@/lib/firebase-admin';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { PlacedOrder, VendorDisplayOrder } from '@/lib/orderModels';
 import { getSession } from '@/lib/auth';
 
 export async function getReadyForPickupOrders(): Promise<VendorDisplayOrder[]> {
   const session = await getSession();
-  const vendorId = session?.uid; // USE UID, NOT EMAIL
+  
+  if (!session.isAuthenticated) {
+    console.error("[getReadyForPickupOrders] Not authenticated.");
+    return [];
+  }
+  const vendorId = session.uid;
 
   if (!vendorId) {
     console.error("[getReadyForPickupOrders] Vendor ID is required.");
     return [];
   }
 
-  const ordersRef = collection(db, 'orders');
-  const q = query(ordersRef, where("vendorIds", "array-contains", vendorId));
+  const ordersRef = db.collection('orders');
+  const q = ordersRef.where("vendorIds", "array-contains", vendorId);
   
   try {
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     const readyOrders: VendorDisplayOrder[] = [];
     
     querySnapshot.forEach(docSnap => {
