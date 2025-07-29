@@ -11,7 +11,8 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
+import { googleAI } from '@genkit-ai/googleai';
 
 // Describes the expected output: a mapping from our schema fields to the CSV column headers.
 const CsvMappingSchema = z.object({
@@ -78,16 +79,7 @@ const processCsvFlow = ai.defineFlow(
     outputSchema: ProcessCsvOutputSchema,
   },
   async (input) => {
-    const llmResponse = await ai.generate({
-      model: 'gemini-1.5-flash',
-      prompt: prompt.prompt!,
-      input: input,
-      output: {
-        schema: ProcessCsvOutputSchema,
-      },
-    });
-
-    const output = llmResponse.output();
+    const { output } = await prompt(input);
     if (!output || !output.mappings) {
       throw new Error("AI could not determine column mappings from the provided CSV sample.");
     }

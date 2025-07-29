@@ -16,6 +16,7 @@ import { db } from '@/lib/firebase-admin';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import type { Vendor } from '@/lib/inventoryModels';
+import { ADMIN_UID } from '@/config/constants';
 
 // Schema for validation
 const UpdateVendorByAdminSchema = z.object({
@@ -89,7 +90,10 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    await verifyAdmin();
+    const session = await getSession();
+    if (session.role !== 'admin') {
+      return { error: 'You are not authorized to perform this action.' };
+    }
 
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
