@@ -30,7 +30,7 @@ export function useSession() {
                 ...vendorData,
                 isAuthenticated: true,
                 uid: user.uid,
-                id: user.uid,
+                id: docSnap.id, // Restore the missing id property
               } as SessionData);
             } else {
               // User is authenticated but has no vendor profile.

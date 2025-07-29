@@ -14,8 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from "@/components/ui/dialog";
-import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, Globe, X, FileUp, Info } from "lucide-react";
-import { getSession } from '@/lib/auth';
+import { PlusCircle, Search, BookOpen, Package, ShoppingBasket, ListPlus, Edit3, Trash2, UploadCloud, Loader2, AlertTriangle, Save, RefreshCw, Sparkles, Filter, Upload, X, FileUp, Info } from "lucide-react";
 import type { Vendor, VendorInventoryItem, GlobalItem } from '@/lib/inventoryModels';
 import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,6 +53,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Progress } from '@/components/ui/progress';
 import { BulkAddDialog } from '@/components/inventory/BulkAddDialog';
+import { useSession } from '@/hooks/use-session';
 
 
 interface VendorSession extends Pick<Vendor, 'email' | 'shopName' | 'storeCategory'> {
@@ -657,8 +657,7 @@ function AddCustomItemDialog({ isOpen, onOpenChange, onItemAdded }: { isOpen: bo
 
 export default function InventoryPage() {
   const { db } = useFirebaseAuth();
-  const [session, setSession] = useState<VendorSession | null>(null);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const { session, isLoading: isLoadingSession } = useSession();
   const [menuPdfFile, setMenuPdfFile] = useState<File | null>(null);
   const { toast } = useToast();
 
@@ -767,36 +766,13 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    async function fetchSessionData() {
-      setIsLoadingSession(true);
-      console.log("[InventoryPage] Fetching session data...");
-      const currentSession = await getSession();
-      if (currentSession && currentSession.isAuthenticated && currentSession.storeCategory && currentSession.email && currentSession.shopName && currentSession.uid) {
-        console.log("[InventoryPage] Session data fetched:", currentSession.uid);
-        const sessionData = {
-          isAuthenticated: true,
-          email: currentSession.email,
-          shopName: currentSession.shopName,
-          storeCategory: currentSession.storeCategory as VendorSession['storeCategory'],
-          uid: currentSession.uid,
-        };
-        setSession(sessionData);
-
-        // Only fetch inventory if not a grocery store
-        if (sessionData.storeCategory !== 'Grocery Store') {
-            fetchAndSetInventory(currentSession.uid);
-        } else {
-            setIsLoadingInventory(false);
-        }
-      } else {
-        console.warn("[InventoryPage] Session not authenticated or missing data.");
-        setSession(null);
-        setIsLoadingInventory(false);
-      }
-      setIsLoadingSession(false);
+    if (isLoadingSession || !session?.isAuthenticated) {
+        return;
     }
-    fetchSessionData();
-  }, []);
+    if (session.uid) {
+        fetchAndSetInventory(session.uid);
+    }
+  }, [session, isLoadingSession]);
 
   useEffect(() => {
     if (menuUploadState?.extractedMenu) {
@@ -1206,7 +1182,7 @@ const renderGroceryContent = () => {
             <Card className="shadow-lg">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle className="flex items-center"><Globe className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
+                    <CardTitle className="flex items-center"><Package className="mr-2 h-5 w-5 text-primary" />Add from Global Catalog</CardTitle>
                     <CardDescription>Search for standard products and add them to your inventory for {session.storeCategory}.</CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -1361,18 +1337,6 @@ const renderGroceryContent = () => {
                         </TableCell>
                         <TableCell className="font-medium flex items-center gap-2">
                             {item.itemName}
-                            {!item.isCustomItem && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Globe className="h-3 w-3 text-muted-foreground" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Global Item</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
                         </TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell>{item.mrp ? `₹${item.mrp.toFixed(2)}` : 'N/A'}</TableCell>

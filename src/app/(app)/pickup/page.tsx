@@ -1,19 +1,43 @@
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { QrCode, CheckCircle, Search, Package, User } from "lucide-react";
+import { QrCode, CheckCircle, Search, Package, User, Camera } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getReadyForPickupOrders } from './actions';
 import type { VendorDisplayOrder } from '@/lib/orderModels';
 import { QRCodeCanvas as QRCode } from 'qrcode.react';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export default function PickupPage() {
+  const { toast } = useToast();
   const [readyOrders, setReadyOrders] = useState<VendorDisplayOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
+  const startScanner = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use the scanner.',
+        });
+      }
+    };
 
   useEffect(() => {
     async function fetchOrders() {
@@ -104,17 +128,25 @@ export default function PickupPage() {
           
            <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="flex items-center"><QrCode className="mr-2 h-6 w-6 text-primary" /> Scan Customer's Code</CardTitle>
-              <CardDescription>Use a scanner or device camera to scan the customer's QR code.</CardDescription>
+              <CardTitle className="flex items-center"><Camera className="mr-2 h-6 w-6 text-primary" /> Scan Customer's Code</CardTitle>
+              <CardDescription>Use your device camera to scan the customer's QR code.</CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <div className="w-full h-48 bg-muted rounded-md flex items-center justify-center mb-4">
-                <QrCode className="h-24 w-24 text-muted-foreground opacity-50" />
+              <div className="w-full h-48 bg-muted rounded-md flex items-center justify-center mb-4 relative overflow-hidden">
+                <video ref={videoRef} className="w-full aspect-video rounded-md" autoPlay muted playsInline />
+                {hasCameraPermission === null && !videoRef.current?.srcObject && <Camera className="h-24 w-24 text-muted-foreground opacity-50 absolute" />}
               </div>
-              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={startScanner}>
                 <QrCode className="mr-2 h-4 w-4" /> Start Scanner
               </Button>
-              <p className="text-xs text-muted-foreground mt-2">This would activate the device camera.</p>
+               {hasCameraPermission === false && (
+                    <Alert variant="destructive" className="mt-4 text-left">
+                        <AlertTitle>Camera Access Required</AlertTitle>
+                        <AlertDescription>
+                            Please allow camera access to use this feature. You may need to change permissions in your browser settings.
+                        </AlertDescription>
+                    </Alert>
+                )}
             </CardContent>
           </Card>
         </div>

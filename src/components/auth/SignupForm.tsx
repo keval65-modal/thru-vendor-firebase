@@ -121,9 +121,7 @@ const initialState: SignupFormState = { success: false };
 
 export function SignupForm() {
   const { toast } = useToast();
-  const [state, formAction] = useActionState(handleSignup, initialState);
-  const isPending = state.success === false && !state.error && !state.fields;
-
+  const [state, formAction, isPending] = useActionState(handleSignup, initialState);
 
   const [showPassword, setShowPassword] = useState(false);
   const [imgSrc, setImgSrc] = useState('');
