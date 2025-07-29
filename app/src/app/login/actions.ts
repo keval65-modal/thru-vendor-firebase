@@ -18,13 +18,24 @@ export type LoginFormState = {
     error?: string;
 };
 
+// Helper function to convert FormData to a plain object
+function formDataToObject(formData: FormData): Record<string, any> {
+    const obj: Record<string, any> = {};
+    // Use `(formData as any).entries()` to bypass TypeScript's strict DOM lib checking in a server context.
+    for (const [key, value] of (formData as any).entries()) {
+        obj[key] = value;
+    }
+    return obj;
+}
+
+
 // This is a new Server Action to handle the entire login flow.
 export async function handleLogin(
   prevState: LoginFormState,
   formData: FormData
 ): Promise<LoginFormState> {
   const validatedFields = loginFormSchema.safeParse(
-    Object.fromEntries(formData)
+    formDataToObject(formData)
   );
 
   if (!validatedFields.success) {
