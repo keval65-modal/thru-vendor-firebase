@@ -3,7 +3,7 @@
 
 import type { GlobalItem, VendorInventoryItem } from '@/lib/inventoryModels';
 import { extractMenuData, type ExtractMenuInput, type ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
-import { processCsvData, type ProcessCsvOutput } from '@/ai/flows/process-csv-flow';
+import { processCsvData } from '@/ai/flows/process-csv-flow';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -301,7 +301,7 @@ const UpdateVendorItemSchema = z.object({
     z.number().int().min(0, "Stock must be a non-negative integer.")
   ),
   description: z.string().optional(),
-  imageUrl: z.string().url({ message: "Please enter a valid URL for the image." }).or(z.literal('')).optional(),
+  imageUrl: z.string().url({ message: "Please enter a valid URL." }).or(z.literal('')).optional(),
 }).refine(data => !data.mrp || data.price <= data.mrp, {
     message: "Price cannot be higher than MRP.",
     path: ["price"],
