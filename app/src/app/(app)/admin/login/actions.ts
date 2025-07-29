@@ -20,15 +20,15 @@ export async function handleAdminLogin(): Promise<AdminLoginFormState> {
         return { success: false, error: "Admin UID is not configured." };
     }
 
-    // Create a server-side session (cookie)
+    // Validate the admin user (bypasses Firestore check)
     const sessionResult = await validateUserForSession(ADMIN_UID);
       
     if (!sessionResult.success) {
         throw new Error(sessionResult.error || "Admin session creation failed.");
     }
     
-    const cookieStore = cookies();
-    cookieStore.set('thru_vendor_auth_token', ADMIN_UID, {
+    // Set the cookie directly in the server action
+    cookies().set('thru_vendor_auth_token', ADMIN_UID, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week

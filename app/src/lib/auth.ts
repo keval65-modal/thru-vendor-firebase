@@ -17,13 +17,13 @@ function isVendor(data: any): data is Vendor {
 
 /**
  * Verifies a user UID and checks for a corresponding vendor profile.
- * Does NOT create a session cookie.
+ * Does NOT create a session cookie. This is to be called from Server Actions.
  * @param uid The user's Firebase UID.
  * @returns An object indicating success or failure.
  */
 export async function validateUserForSession(uid: string): Promise<{success: boolean, error?: string}> {
   if (!uid) {
-    return { success: false, error: 'User ID is required to create a session.' };
+    return { success: false, error: 'User ID is required to validate a session.' };
   }
 
   // For the hardcoded admin user, bypass the Firestore document check.
@@ -33,11 +33,11 @@ export async function validateUserForSession(uid: string): Promise<{success: boo
         const vendorSnap = await vendorDocRef.get();
         
         if (!vendorSnap.exists) {
-            console.error(`[validateUserForSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
+            console.error(`[validateUserForSession] Validation failed: Vendor profile not found for UID: ${uid}`);
             return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
         }
     } catch (e) {
-        console.error('[validateUserForSession] Firestore check failed during session creation:', e);
+        console.error('[validateUserForSession] Firestore check failed during session validation:', e);
         return { success: false, error: 'Could not verify user profile due to a database error.' };
     }
   }
@@ -74,8 +74,7 @@ export async function getSession(): Promise<SessionData> {
         
         if (!isVendor(userData)) {
             console.warn(`[getSession] Firestore document for ${userUidFromCookie} is not a valid vendor object.`);
-            const cookieStore = cookies();
-            cookieStore.delete(AUTH_COOKIE_NAME);
+            cookies().delete(AUTH_COOKIE_NAME);
             return { isAuthenticated: false };
         }
 
@@ -129,8 +128,7 @@ export async function getSession(): Promise<SessionData> {
            } as SessionData;
          }
          console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
-         const cookieStore = cookies();
-         cookieStore.delete(AUTH_COOKIE_NAME);
+         cookies().delete(AUTH_COOKIE_NAME);
       }
     } catch (error) {
       console.error('[getSession] Error fetching user for session from Firestore:', error);

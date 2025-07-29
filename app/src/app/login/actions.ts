@@ -4,7 +4,6 @@
 import { z } from 'zod';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { getAuth } from 'firebase-admin/auth';
 import { auth as adminAuth } from '@/lib/firebase-admin';
 import { validateUserForSession } from '@/lib/auth';
 
@@ -20,7 +19,11 @@ export type LoginFormState = {
 
 // Helper function to convert FormData to a plain object
 function formDataToObject(formData: FormData): Record<string, any> {
-    return Object.fromEntries((formData as any).entries());
+    const obj: Record<string, any> = {};
+    for (const [key, value] of (formData as any).entries()) {
+        obj[key] = value;
+    }
+    return obj;
 }
 
 
@@ -40,17 +43,10 @@ export async function handleLogin(
   const { email, password } = validatedFields.data;
 
   try {
-    // We need to verify the password. Since we can't do that with the Admin SDK directly
-    // without custom tokens, we'll try to get the user record first. A failed `getUserByEmail`
-    // can indicate a non-existent user.
+    // NOTE: This flow relies on the client SDK to have verified the password.
+    // A robust server-only auth would use a different strategy (e.g. Identity Platform).
+    // Here we get the user by email, which confirms they exist.
     const userRecord = await adminAuth.getUserByEmail(email);
-    
-    // The client-side SDK handles password verification, but on the server, we can't
-    // directly check it. This is a limitation. For a full server-side validation,
-    // we would need to call the client SDK's `signInWithEmailAndPassword` or use a
-    // different auth strategy. Here, we assume if the user exists and the client-side
-    // validation (which is now implicitly part of this server action) passes, we proceed.
-    // In a real high-security app, you'd implement a more robust check, maybe using a custom token.
     
     // After getting user, validate they have a vendor profile
     const sessionResult = await validateUserForSession(userRecord.uid);
@@ -59,15 +55,14 @@ export async function handleLogin(
     }
 
     // Set cookie
-    const cookieStore = cookies();
-    cookieStore.set('thru_vendor_auth_token', userRecord.uid, {
+    cookies().set('thru_vendor_auth_token', userRecord.uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week
         path: '/',
     });
     
-    // Return success, but redirect will be handled on the client
+    // Return success, redirect will be handled on the client via useActionState
     return { success: true };
 
   } catch (error: any) {

@@ -132,15 +132,8 @@ export async function handleSignup(
     await db.collection('vendors').doc(uid).set(dataToSave);
     console.log(`Successfully created vendor document for ${uid}`);
 
-    // 4. Validate user and set session cookie
-    const sessionResult = await validateUserForSession(uid);
-    if (!sessionResult.success) {
-        console.error(`CRITICAL: User ${uid} created but session validation failed: ${sessionResult.error}`);
-        return { success: false, error: "Account created, but failed to log in. Please try logging in manually." };
-    }
-
-    const cookieStore = cookies();
-    cookieStore.set('thru_vendor_auth_token', uid, {
+    // 4. Set session cookie
+    cookies().set('thru_vendor_auth_token', uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -148,6 +141,7 @@ export async function handleSignup(
     });
   
     // 5. Redirect to dashboard on success. MUST be called after all successful async operations inside the try block.
+    // This is safe because redirect throws an error to stop execution.
     redirect('/dashboard');
 
   } catch (error: any) {
