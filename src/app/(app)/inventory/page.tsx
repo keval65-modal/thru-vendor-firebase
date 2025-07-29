@@ -21,6 +21,7 @@ import type { ExtractMenuOutput } from '@/ai/flows/extract-menu-flow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirebaseAuth } from '@/components/auth/FirebaseAuthProvider';
 import { collection, writeBatch, doc, Timestamp } from 'firebase/firestore';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import {
     handleMenuPdfUpload, type MenuUploadFormState,
@@ -1360,7 +1361,18 @@ const renderGroceryContent = () => {
                         </TableCell>
                         <TableCell className="font-medium flex items-center gap-2">
                             {item.itemName}
-                            {!item.isCustomItem && <Globe className="h-3 w-3 text-muted-foreground" title="Global Item"/>}
+                            {!item.isCustomItem && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Globe className="h-3 w-3 text-muted-foreground" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Global Item</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                         </TableCell>
                         <TableCell>{item.vendorItemCategory}</TableCell>
                         <TableCell>{item.mrp ? `₹${item.mrp.toFixed(2)}` : 'N/A'}</TableCell>
