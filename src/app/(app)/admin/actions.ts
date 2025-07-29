@@ -13,11 +13,9 @@ const UpdateVendorByAdminSchema = z.object({
   shopName: z.string().min(1, 'Shop name is required.'),
   ownerName: z.string().min(1, 'Owner name is required.'),
   storeCategory: z.string().min(1, 'Store category is required.'),
-  isActiveOnThru: z.preprocess(
-    (val) => val === 'on' || val === true,
-    z.boolean()
-  ),
+  isActiveOnThru: z.preprocess((val) => val === 'on', z.boolean()).optional().transform(val => val ?? false),
 });
+
 
 // Helper types
 export type UpdateVendorByAdminFormState = {
@@ -123,7 +121,7 @@ export async function updateVendorByAdmin(
     await verifyAdmin();
 
     const parsed = UpdateVendorByAdminSchema.safeParse(
-      Object.fromEntries(formData)
+      Object.fromEntries(formData.entries())
     );
     if (!parsed.success) {
       return {
