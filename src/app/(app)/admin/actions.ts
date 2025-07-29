@@ -11,7 +11,7 @@ import {
   deleteDoc,
   writeBatch,
   Timestamp,
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
