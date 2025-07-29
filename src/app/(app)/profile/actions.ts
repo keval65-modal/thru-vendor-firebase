@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase-admin'; // Correct admin import
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { Vendor } from '@/lib/inventoryModels';
 import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
@@ -60,21 +60,23 @@ export async function getVendorDetails(): Promise<{ vendor?: Vendor; error?: str
   }
 
   try {
-    const vendorRef = doc(db, 'vendors', session.uid);
-    const vendorSnap = await getDoc(vendorRef);
+    const vendorRef = db.collection('vendors').doc(session.uid);
+    const vendorSnap = await vendorRef.get();
 
-    if (!vendorSnap.exists()) {
+    if (!vendorSnap.exists) {
       return { error: "Vendor details not found." };
     }
-    const vendorData = vendorSnap.data() as Vendor;
+    const vendorData = vendorSnap.data() as Omit<Vendor, 'id'>;
     // Convert Timestamps to ISO strings if they exist for form compatibility
-    if (vendorData.createdAt && vendorData.createdAt instanceof Timestamp) {
-        vendorData.createdAt = vendorData.createdAt.toDate().toISOString();
+    const serializedData: any = {};
+     for (const [key, value] of Object.entries(vendorData)) {
+        if (value instanceof Timestamp) {
+            serializedData[key] = value.toDate().toISOString();
+        } else {
+            serializedData[key] = value;
+        }
     }
-    if (vendorData.updatedAt && vendorData.updatedAt instanceof Timestamp) {
-        vendorData.updatedAt = vendorData.updatedAt.toDate().toISOString();
-    }
-    return { vendor: { ...vendorData, id: vendorSnap.id } };
+    return { vendor: { ...serializedData, id: vendorSnap.id } };
   } catch (error) {
     console.error("Error fetching vendor details:", error);
     return { error: "Failed to fetch vendor details." };
@@ -128,7 +130,7 @@ export async function updateVendorProfile(
   };
 
   try {
-    const vendorRef = doc(db, 'vendors', vendorId);
+    const vendorRef = db.collection('vendors').doc(vendorId);
 
     if (shopImage && shopImage.size > 0) {
       const bucket = storage.bucket();
@@ -150,7 +152,7 @@ export async function updateVendorProfile(
     }
 
 
-    await updateDoc(vendorRef, dataToUpdate as any);
+    await vendorRef.update(dataToUpdate as any);
     console.log(`Vendor profile updated successfully for ${vendorId}`);
     revalidatePath('/profile');
     return { success: true, message: "Profile updated successfully!" };
