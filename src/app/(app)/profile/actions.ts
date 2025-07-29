@@ -122,11 +122,14 @@ export async function updateVendorProfile(
 
   const { shopImage, ...vendorData } = validatedFields.data;
   
+  const typedStoreCategory = vendorData.storeCategory as Vendor['storeCategory'];
+
   const dataToUpdate: Partial<Vendor> = {
     ...vendorData,
+    storeCategory: typedStoreCategory,
     fullPhoneNumber: `${vendorData.phoneCountryCode}${vendorData.phoneNumber}`,
     updatedAt: Timestamp.now(),
-    type: vendorData.storeCategory as Vendor['storeCategory'], // Ensure 'type' is updated if 'storeCategory' changes
+    type: typedStoreCategory, // Ensure 'type' is updated if 'storeCategory' changes
   };
 
   try {
@@ -142,9 +145,6 @@ export async function updateVendorProfile(
           metadata: { contentType: shopImage.type },
       });
       
-      // The public URL method used before is not reliable. A signed URL is better for GCS.
-      // However, for simplicity and to avoid managing expirations, we'll use a predictable public path.
-      // This assumes the bucket is publicly readable.
       dataToUpdate.shopImageUrl = `https://storage.googleapis.com/${bucket.name}/${imagePath}`;
 
       console.log(`New shop image URL: ${dataToUpdate.shopImageUrl}`);
