@@ -46,7 +46,7 @@ export type DeleteVendorResult = {
 // Authentication check
 async function verifyAdmin() {
   const session = await getSession();
-  if (session.role !== 'admin') {
+  if (!session.isAuthenticated || session.role !== 'admin') {
     throw new Error('You are not authorized to perform this action.');
   }
   return session;
@@ -90,11 +90,7 @@ export async function getVendorForEditing(
   vendorId: string
 ): Promise<{ vendor?: Vendor; error?: string }> {
   try {
-    const session = await getSession();
-    if (session.role !== 'admin') {
-      return { error: 'You are not authorized to perform this action.' };
-    }
-
+    // Authorization is handled by the AdminLayout, so we can directly fetch the data.
     const vendorRef = doc(db, 'vendors', vendorId);
     const vendorSnap = await getDoc(vendorRef);
 
