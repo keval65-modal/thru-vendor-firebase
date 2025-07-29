@@ -15,7 +15,13 @@ function isVendor(data: any): data is Vendor {
     return data && typeof data.shopName === 'string' && typeof data.email === 'string';
 }
 
-export async function createSession(uid: string): Promise<{success: boolean, error?: string}> {
+/**
+ * Verifies a user UID and checks for a corresponding vendor profile.
+ * Does NOT create a session cookie.
+ * @param uid The user's Firebase UID.
+ * @returns An object indicating success or failure.
+ */
+export async function validateUserForSession(uid: string): Promise<{success: boolean, error?: string}> {
   if (!uid) {
     return { success: false, error: 'User ID is required to create a session.' };
   }
@@ -27,25 +33,18 @@ export async function createSession(uid: string): Promise<{success: boolean, err
         const vendorSnap = await vendorDocRef.get();
         
         if (!vendorSnap.exists) {
-            console.error(`[createSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
+            console.error(`[validateUserForSession] Session creation failed: Vendor profile not found for UID: ${uid}`);
             return { success: false, error: 'Your vendor profile is not yet available. Please try again shortly.' };
         }
     } catch (e) {
-        console.error('[createSession] Firestore check failed during session creation:', e);
+        console.error('[validateUserForSession] Firestore check failed during session creation:', e);
         return { success: false, error: 'Could not verify user profile due to a database error.' };
     }
   }
   
-  const cookieStore = cookies();
-  cookieStore.set(AUTH_COOKIE_NAME, uid, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 7, // 1 week
-    path: '/',
-  });
-
   return { success: true };
 }
+
 
 export async function logout() {
   const cookieStore = cookies();
@@ -75,7 +74,7 @@ export async function getSession(): Promise<SessionData> {
         
         if (!isVendor(userData)) {
             console.warn(`[getSession] Firestore document for ${userUidFromCookie} is not a valid vendor object.`);
-            cookieStore.delete(AUTH_COOKIE_NAME);
+            cookies().delete(AUTH_COOKIE_NAME);
             return { isAuthenticated: false };
         }
 
@@ -129,7 +128,7 @@ export async function getSession(): Promise<SessionData> {
            } as SessionData;
          }
          console.warn(`[getSession] User with UID from cookie not found in Firestore: ${userUidFromCookie}. Logging out.`);
-         cookieStore.delete(AUTH_COOKIE_NAME);
+         cookies().delete(AUTH_COOKIE_NAME);
       }
     } catch (error) {
       console.error('[getSession] Error fetching user for session from Firestore:', error);

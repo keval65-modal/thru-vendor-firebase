@@ -3,7 +3,8 @@
 
 import { redirect } from 'next/navigation';
 import { ADMIN_UID } from '@/config/constants';
-import { createSession } from '@/lib/auth';
+import { validateUserForSession } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 
 export type AdminLoginFormState = {
@@ -20,11 +21,18 @@ export async function handleAdminLogin(): Promise<AdminLoginFormState> {
     }
 
     // Create a server-side session (cookie)
-    const sessionResult = await createSession(ADMIN_UID);
+    const sessionResult = await validateUserForSession(ADMIN_UID);
       
     if (!sessionResult.success) {
         throw new Error(sessionResult.error || "Admin session creation failed.");
     }
+    
+    cookies().set('thru_vendor_auth_token', ADMIN_UID, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/',
+    });
 
   } catch (err) {
       console.error('[Admin Login] Exception during login process:', err);

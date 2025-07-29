@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogIn, Eye, EyeOff } from 'lucide-react';
-import { createSession } from '@/lib/auth';
+import { validateUserForSession } from '@/lib/auth';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,17 +14,28 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useRouter } from 'next/navigation';
 import { useFirebaseAuth } from './FirebaseAuthProvider';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useActionState } from 'react';
+import { handleLogin } from '@/app/login/actions';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
 
 const loginFormSchema = z.object({
   email: z.string().trim().email({ message: "Please enter a valid email address." }).toLowerCase(),
   password: z.string().trim().min(1, { message: "Password is required." }),
 });
 
+const initialState = {
+    success: false,
+    error: undefined,
+};
+
 export function LoginForm() {
   const { auth } = useFirebaseAuth();
-  const { toast } = useToast();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const [state, formAction, isPending] = useActionState(handleLogin, initialState);
+  
   const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof loginFormSchema>>({
@@ -35,66 +46,20 @@ export function LoginForm() {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof loginFormSchema>) => {
-    setIsLoading(true);
-
-    if (!auth) {
-        toast({
-            variant: 'destructive',
-            title: 'Authentication Error',
-            description: 'Firebase service is not available. Please try again later.',
-        });
-        setIsLoading(false);
-        return;
-    }
-    
-    try {
-      // Step 1: Authenticate with Firebase Auth on the client
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Step 2: Create a server-side session (cookie)
-      const sessionResult = await createSession(user.uid);
-      
-      if (sessionResult.success) {
-        toast({ title: 'Login Successful', description: 'Redirecting...' });
-        router.push('/dashboard');
-      } else {
-         throw new Error(sessionResult.error || "Session creation failed.");
-      }
-
-    } catch (error: any) {
-      console.error('[LoginForm] Login submission error:', error);
-      let errorMessage = 'An unexpected error occurred.';
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-          case 'auth/invalid-api-key':
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email or password.';
-            break;
-          default:
-            errorMessage = "Login failed. Please check your credentials.";
-            break;
-        }
-      } else if (error.message) {
-          errorMessage = error.message;
-      }
-      toast({
-        variant: 'destructive',
-        title: 'Login Error',
-        description: errorMessage,
-      });
-    } finally {
-        setIsLoading(false);
-    }
-  };
+  if (state.success) {
+      router.push('/dashboard');
+  }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form action={formAction} className="space-y-6">
+        {state.error && (
+            <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Login Error</AlertTitle>
+                <AlertDescription>{state.error}</AlertDescription>
+            </Alert>
+        )}
         <FormField
           control={form.control}
           name="email"
@@ -106,7 +71,7 @@ export function LoginForm() {
                   type="email"
                   placeholder="you@example.com"
                   {...field}
-                  disabled={isLoading}
+                  disabled={isPending}
                 />
               </FormControl>
               <FormMessage />
@@ -125,7 +90,7 @@ export function LoginForm() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     {...field}
-                    disabled={isLoading}
+                    disabled={isPending}
                   />
                   <Button
                     type="button"
@@ -143,8 +108,8 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
+        <Button type="submit" className="w-full" disabled={isPending}>
+          {isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <LogIn className="mr-2 h-4 w-4" />
