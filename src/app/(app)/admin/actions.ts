@@ -116,11 +116,12 @@ export async function getVendorForEditing(
 // Helper function to convert FormData to a plain object
 function formDataToObject(formData: FormData): Record<string, any> {
   const obj: Record<string, any> = {};
-  // FormData.entries() is valid at runtime in Server Actions, but TypeScript may not know it.
-  // Casting to `any` here is a safe workaround to get the iterator.
-  for (const [key, value] of formData.entries() as any) {
+  const entries = (formData as unknown as Iterable<[string, FormDataEntryValue]>);
+
+  for (const [key, value] of entries) {
     obj[key] = value;
   }
+
   return obj;
 }
 
@@ -144,21 +145,19 @@ export async function updateVendorByAdmin(
       };
     }
 
-    const updates = parsed.data;
+    const { shopName, ownerName, storeCategory, isActiveOnThru } = parsed.data;
     const vendorRef = db.collection('vendors').doc(vendorId);
-
+    
     const dataToUpdate = {
-        ...updates,
+      shopName,
+      ownerName,
+      storeCategory: storeCategory as Vendor['storeCategory'],
+      type: storeCategory as Vendor['storeCategory'], // Sync type with category
+      isActiveOnThru, // This is now a clean boolean
+      updatedAt: Timestamp.now(),
     };
     
-    const typedStoreCategory = dataToUpdate.storeCategory as Vendor['storeCategory'];
-    
-    await vendorRef.update({
-      ...dataToUpdate,
-      storeCategory: typedStoreCategory,
-      type: typedStoreCategory, // syncing category & type
-      updatedAt: Timestamp.now(),
-    });
+    await vendorRef.update(dataToUpdate);
 
     revalidatePath('/admin');
     revalidatePath(`/admin/${vendorId}/edit`);
