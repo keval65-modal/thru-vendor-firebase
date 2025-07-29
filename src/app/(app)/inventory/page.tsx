@@ -772,9 +772,7 @@ export default function InventoryPage() {
     if (isLoadingSession || !session?.isAuthenticated) {
         return;
     }
-    if (session.uid) {
-        fetchAndSetInventory(session.uid);
-    }
+    fetchAndSetInventory(session.uid);
   }, [session, isLoadingSession]);
 
   useEffect(() => {
@@ -795,11 +793,11 @@ export default function InventoryPage() {
     }
     if (deleteItemState?.success && deleteItemState.message) {
         toast({ title: "Item Deleted", description: deleteItemState.message });
-        if (session?.uid) {
+        if (session?.isAuthenticated) {
             fetchAndSetInventory(session.uid, true);
         }
     }
-  }, [deleteItemState, toast, session?.uid, isDeletingItem]);
+  }, [deleteItemState, toast, session, isDeletingItem]);
 
   useEffect(() => {
     if (removeDuplicatesState?.error) {
@@ -807,11 +805,11 @@ export default function InventoryPage() {
     }
     if (removeDuplicatesState?.success) {
         toast({ title: "Duplicates Processed", description: removeDuplicatesState.message });
-        if (session?.uid) {
+        if (session?.isAuthenticated) {
             fetchAndSetInventory(session.uid, true);
         }
     }
-  }, [removeDuplicatesState, toast, session?.uid]);
+  }, [removeDuplicatesState, toast, session]);
 
   useEffect(() => {
     if (deleteSelectedItemsState?.error) {
@@ -819,11 +817,11 @@ export default function InventoryPage() {
     }
     if (deleteSelectedItemsState?.success && deleteSelectedItemsState.message) {
         toast({ title: "Items Deleted", description: deleteSelectedItemsState.message });
-        if (session?.uid) {
+        if (session?.isAuthenticated) {
             fetchAndSetInventory(session.uid, true); 
         }
     }
-  }, [deleteSelectedItemsState, toast, session?.uid]);
+  }, [deleteSelectedItemsState, toast, session]);
 
 
   const handlePdfFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -860,7 +858,7 @@ export default function InventoryPage() {
   };
   
   const handleConfirmSaveMenu = async () => {
-    if (!session?.uid || !menuUploadState?.extractedMenu?.extractedItems || !db) {
+    if (!session?.isAuthenticated || !menuUploadState?.extractedMenu?.extractedItems || !db) {
       toast({ variant: 'destructive', title: 'Error', description: 'Cannot save menu. User session, extracted items, or DB service are missing.' });
       return;
     }
@@ -1015,13 +1013,13 @@ export default function InventoryPage() {
                             </AlertDialogContent>
                         </AlertDialog>
                     )}
-                    {session?.uid && vendorInventory.length > 0 && (
+                    {session?.isAuthenticated && vendorInventory.length > 0 && (
                         <form action={removeDuplicatesFormAction}>
                             <input type="hidden" name="vendorId" value={session.uid} />
                             <RemoveDuplicatesButton />
                         </form>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => session?.uid && fetchAndSetInventory(session.uid, true)} disabled={isRefreshingInventory || isLoadingInventory || isRemovingDuplicates}>
+                    <Button variant="outline" size="sm" onClick={() => session?.isAuthenticated && fetchAndSetInventory(session.uid, true)} disabled={isRefreshingInventory || isLoadingInventory || isRemovingDuplicates}>
                         {isRefreshingInventory || isLoadingInventory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
                         Refresh
                     </Button>
@@ -1170,7 +1168,7 @@ const renderGroceryContent = () => {
 
 
   const renderInventoryContent = () => {
-    if (!session || !session.isAuthenticated) {
+    if (!session?.isAuthenticated) {
       return <p className="text-muted-foreground">Loading inventory information...</p>;
     }
 
@@ -1592,18 +1590,18 @@ const renderGroceryContent = () => {
           vendorId={session?.isAuthenticated ? session.uid : null}
           isOpen={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
-          onItemUpdate={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
+          onItemUpdate={() => session?.isAuthenticated && fetchAndSetInventory(session.uid, true)}
       />
       <AddGlobalItemDialog 
           item={itemToAdd}
           isOpen={isAddGlobalItemDialogOpen}
           onOpenChange={setIsAddGlobalItemDialogOpen}
-          onItemAdded={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
+          onItemAdded={() => session?.isAuthenticated && fetchAndSetInventory(session.uid, true)}
       />
       <AddCustomItemDialog
           isOpen={isAddCustomItemDialogOpen}
           onOpenChange={setIsAddCustomItemDialogOpen}
-          onItemAdded={() => session?.isAuthenticated && session.uid && fetchAndSetInventory(session.uid, true)}
+          onItemAdded={() => session?.isAuthenticated && fetchAndSetInventory(session.uid, true)}
       />
       <p className="mt-8 text-center text-sm text-muted-foreground">
           Use the Admin panel for managing the global item catalog.
